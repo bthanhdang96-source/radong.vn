@@ -44,8 +44,13 @@ if ($status) {
     Write-Host "No uncommitted changes found. Skipping commit."
 }
 
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & git rev-parse --abbrev-ref --symbolic-full-name "@{u}" *> $null
-if ($LASTEXITCODE -eq 0) {
+$hasUpstream = $LASTEXITCODE -eq 0
+$ErrorActionPreference = $previousErrorActionPreference
+
+if ($hasUpstream) {
     Invoke-Git @("push")
 } else {
     Invoke-Git @("push", "-u", "origin", $branch)
