@@ -76,12 +76,12 @@ export default function WorldPricesPage() {
                 {dataSource === 'api' ? (
                   <>
                     <span className="world-page__badge-dot world-page__badge-dot--live" />
-                    API Live
+                    Dữ liệu Trực tiếp
                   </>
                 ) : (
                   <>
                     <span className="world-page__badge-dot world-page__badge-dot--static" />
-                    Static Data
+                    Dữ liệu Dự phòng
                   </>
                 )}
               </span>
@@ -95,7 +95,7 @@ export default function WorldPricesPage() {
               className="world-page__refresh"
               onClick={fetchData}
               disabled={loading}
-              aria-label="Refresh data"
+              aria-label="Làm mới dữ liệu"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={loading ? 'world-page__refresh-spin' : ''}>
                 <path d="M1 4v6h6" />

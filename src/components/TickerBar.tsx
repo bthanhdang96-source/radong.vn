@@ -29,10 +29,10 @@ export default function TickerBar({ items = FALLBACK_VN_PRICES.data }: { items?:
   const loopItems = useMemo(() => [...items, ...items], [items]);
 
   return (
-    <div className="ticker-bar" role="marquee" aria-label="Gia nong san moi nhat">
+    <div className="ticker-bar" role="marquee" aria-label="Giá nông sản mới nhất">
       <div className="ticker-bar__label">
         <span className="ticker-bar__dot" />
-        LIVE
+        TRỰC TUYẾN
       </div>
       <div className="ticker-bar__track-wrap">
         <div className="ticker-bar__track">

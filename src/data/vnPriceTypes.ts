@@ -40,7 +40,7 @@ export interface CommoditySummary {
   high52w: number;
   regions: RegionPrice[];
   sources: SourceId[];
-  recommendation: 'Mua' | 'Ban' | 'Giu';
+  recommendation: 'Mua' | 'Bán' | 'Giữ';
   lastUpdated: string;
 }
 
@@ -54,9 +54,9 @@ export interface VnPricesResponse {
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  'Luong thuc': 'Luong thuc',
-  'Cay cong nghiep': 'Cay cong nghiep',
-  'Chan nuoi': 'Chan nuoi',
+  'Luong thuc': 'Lương thực',
+  'Cay cong nghiep': 'Cây công nghiệp',
+  'Chan nuoi': 'Chăn nuôi',
 };
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
@@ -77,7 +77,7 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
   status: 'fallback',
   fetchedAt: new Date().toISOString(),
   lastUpdated: new Date().toISOString(),
-  errors: ['Dang hien fallback data vi API chua san sang.'],
+  errors: ['Đang hiển thị dữ liệu dự phòng vì API chưa sẵn sàng.'],
   sources: [
     {
       id: 'fallback',
@@ -93,8 +93,8 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
   data: [
     {
       commodity: 'ho-tieu',
-      commodityName: 'Ho tieu',
-      category: 'Cay cong nghiep',
+      commodityName: 'Hồ tiêu',
+      category: 'Cây công nghiệp',
       unit: 'VND/kg',
       priceHigh: 142000,
       priceLow: 138000,
@@ -103,21 +103,21 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       changePct: 0,
       low52w: 138000,
       high52w: 142000,
-      recommendation: 'Giu',
+      recommendation: 'Giữ',
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
-        { region: 'Dak Lak', price: 142000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Dak Nong', price: 141000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Đắk Lắk', price: 142000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Đắk Nông', price: 141000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
         { region: 'Gia Lai', price: 138000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Ba Ria - Vung Tau', price: 140000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Binh Phuoc', price: 140000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Bà Rịa - Vũng Tàu', price: 140000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Bình Phước', price: 140000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
       ],
     },
     {
       commodity: 'ca-phe-robusta',
-      commodityName: 'Ca phe Robusta',
-      category: 'Cay cong nghiep',
+      commodityName: 'Cà phê Robusta',
+      category: 'Cây công nghiệp',
       unit: 'VND/kg',
       priceHigh: 87000,
       priceLow: 86500,
@@ -126,20 +126,20 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       changePct: -1.14,
       low52w: 86500,
       high52w: 87000,
-      recommendation: 'Ban',
+      recommendation: 'Bán',
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
-        { region: 'Dak Lak', price: 87000, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Dak Nong', price: 87000, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Đắk Lắk', price: 87000, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Đắk Nông', price: 87000, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
         { region: 'Gia Lai', price: 87000, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Lam Dong', price: 86500, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Lâm Đồng', price: 86500, change: -1000, changePct: -1.14, source: 'fallback', hasConflict: false, conflictPct: null },
       ],
     },
     {
       commodity: 'heo-hoi',
-      commodityName: 'Heo hoi',
-      category: 'Chan nuoi',
+      commodityName: 'Heo hơi',
+      category: 'Chăn nuôi',
       unit: 'VND/kg',
       priceHigh: 68500,
       priceLow: 65000,
@@ -148,19 +148,19 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       changePct: 0,
       low52w: 65000,
       high52w: 68500,
-      recommendation: 'Giu',
+      recommendation: 'Giữ',
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
-        { region: 'Mien Bac', price: 65000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Mien Trung - Tay Nguyen', price: 67000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Mien Nam', price: 68500, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Miền Bắc', price: 65000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Miền Trung - Tây Nguyên', price: 67000, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Miền Nam', price: 68500, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
       ],
     },
     {
       commodity: 'gao-noi-dia',
-      commodityName: 'Lua gao DBSCL',
-      category: 'Luong thuc',
+      commodityName: 'Lúa gạo ĐBSCL',
+      category: 'Lương thực',
       unit: 'VND/kg',
       priceHigh: 9300,
       priceLow: 7550,
@@ -169,7 +169,7 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       changePct: 0.17,
       low52w: 7550,
       high52w: 9300,
-      recommendation: 'Giu',
+      recommendation: 'Giữ',
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
@@ -177,7 +177,7 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
         { region: 'OM 18', price: 8775, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
         { region: 'CL 555', price: 8700, change: 100, changePct: 1.16, source: 'fallback', hasConflict: false, conflictPct: null },
         { region: 'OM 5451', price: 8700, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
-        { region: 'Dai Thom 8', price: 9300, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
+        { region: 'Đài Thơm 8', price: 9300, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
         { region: 'OM 380', price: 7550, change: 0, changePct: 0, source: 'fallback', hasConflict: false, conflictPct: null },
       ],
     },

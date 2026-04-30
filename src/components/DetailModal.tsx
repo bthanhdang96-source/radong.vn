@@ -21,7 +21,6 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
           <div className="modal-header__icon">{item.icon}</div>
           <div className="modal-header__title">
             <h2>{item.ten}</h2>
-            <span>{item.tenEn}</span>
           </div>
           <span className="modal-badge">{item.category}</span>
         </header>

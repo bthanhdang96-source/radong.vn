@@ -102,7 +102,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
   // Loading skeleton
   if (loading) {
     return (
-      <section className="wpt" aria-label="Loading world prices">
+      <section className="wpt" aria-label="Đang tải giá thế giới">
         <div className="wpt__skeleton-tabs">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="wpt__skeleton-tab" />
@@ -118,7 +118,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
   }
 
   return (
-    <section className="wpt" aria-label="World commodity prices table">
+    <section className="wpt" aria-label="Bảng giá nông sản thế giới">
       {/* Category tabs */}
       <div className="wpt__controls">
         <div className="wpt__tabs" role="tablist">
@@ -154,10 +154,10 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
             placeholder="Tìm kiếm mặt hàng..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search commodities"
+            aria-label="Tìm kiếm mặt hàng"
           />
           {searchQuery && (
-            <button className="wpt__search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">
+            <button className="wpt__search-clear" onClick={() => setSearchQuery('')} aria-label="Xóa tìm kiếm">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           )}
@@ -182,7 +182,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
               <th className="wpt__th wpt__th--change" onClick={() => handleSort('changePct')}>
                 Thay đổi {renderSortIcon('changePct')}
               </th>
-              <th className="wpt__th wpt__th--range">52 Tuần</th>
+              <th className="wpt__th wpt__th--range">Dải 52 tuần</th>
             </tr>
           </thead>
           <tbody>
@@ -217,7 +217,6 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
                       <div className="wpt__commodity">
                         <div className="wpt__commodity-info">
                           <span className="wpt__commodity-name">{item.name}</span>
-                          <span className="wpt__commodity-en">{item.nameEn}</span>
                         </div>
                         <span className="wpt__symbol">{item.symbol}</span>
                       </div>

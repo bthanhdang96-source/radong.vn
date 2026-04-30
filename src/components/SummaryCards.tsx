@@ -88,46 +88,46 @@ export default function SummaryCards({
   ).sort((a, b) => b.priority - a.priority);
 
   const activeSources = groupedSources.filter((source) => source.healthy > 0);
-  const sourceSummary = activeSources.length > 0 ? activeSources.map((source) => SOURCE_LABELS[source.id]).join(' + ') : 'Dang su dung fallback';
+  const sourceSummary = activeSources.length > 0 ? activeSources.map((source) => SOURCE_LABELS[source.id]).join(' + ') : 'Đang sử dụng dữ liệu dự phòng';
 
   return (
-    <section className="summary-grid" aria-label="Tong quan thi truong">
+    <section className="summary-grid" aria-label="Tổng quan thị trường">
       <Card
-        label="Tong mat hang"
-        value={loading ? 'Dang tai...' : `${data.length}`}
-        sub="dashboard VN gia thuc"
+        label="Tổng mặt hàng"
+        value={loading ? 'Đang tải...' : `${data.length}`}
+        sub="Dữ liệu VN giá thực"
         variant="neutral"
       />
       <Card
-        label="Nguon data"
+        label="Nguồn dữ liệu"
         value={sourceSummary}
-        sub={status === 'live' ? 'crawler dang song' : status === 'cached' ? 'su dung cache gan nhat' : 'fallback noi bo'}
+        sub={status === 'live' ? 'Đang lấy dữ liệu trực tiếp' : status === 'cached' ? 'Sử dụng bộ nhớ đệm' : 'Dữ liệu nội bộ'}
         variant={activeSources.length > 0 ? 'accent' : 'down'}
       >
         <div className="stat-card__tags">
           {groupedSources.map((source) => (
             <span key={`${source.id}-${source.fetchedAt}`} className={`stat-card__tag ${source.healthy > 0 ? 'stat-card__tag--ok' : 'stat-card__tag--fail'}`}>
-              {source.healthy > 0 ? 'OK' : 'ERR'} {SOURCE_LABELS[source.id]} {source.healthy}/{source.total}
-              {(source.droppedCount ?? 0) > 0 ? ` drop:${source.droppedCount}` : ''}
-              {(source.dedupCount ?? 0) > 0 ? ` dedup:${source.dedupCount}` : ''}
+              {source.healthy > 0 ? 'TỐT' : 'LỖI'} {SOURCE_LABELS[source.id]} {source.healthy}/{source.total}
+              {(source.droppedCount ?? 0) > 0 ? ` bỏ:${source.droppedCount}` : ''}
+              {(source.dedupCount ?? 0) > 0 ? ` trùng:${source.dedupCount}` : ''}
             </span>
           ))}
         </div>
       </Card>
       <Card
-        label="Tang manh nhat"
+        label="Tăng mạnh nhất"
         value={topGainer.commodityName}
-        sub={`${topGainer.changePct >= 0 ? '+' : ''}${topGainer.changePct.toFixed(2)}% hom nay`}
+        sub={`${topGainer.changePct >= 0 ? '+' : ''}${topGainer.changePct.toFixed(2)}% hôm nay`}
         variant={topGainer.changePct >= 0 ? 'up' : 'down'}
       />
       <Card
-        label="Cap nhat luc"
+        label="Cập nhật lúc"
         value={formatTimestamp(lastUpdated)}
-        sub={refreshing ? 'dang lam moi du lieu...' : 'refresh API /api/vn-prices/refresh'}
+        sub={refreshing ? 'Đang làm mới dữ liệu...' : 'Làm mới thủ công'}
         variant="neutral"
       >
         <button className="stat-card__button" onClick={onRefresh} disabled={!onRefresh || refreshing}>
-          {refreshing ? 'Dang refresh' : 'Refresh'}
+          {refreshing ? 'Đang tải' : 'Làm mới'}
         </button>
       </Card>
     </section>

@@ -23,14 +23,14 @@ function finiteOrZero(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function getRecommendation(changePct: number): 'Mua' | 'Ban' | 'Giu' {
+function getRecommendation(changePct: number): 'Mua' | 'Bán' | 'Giữ' {
   if (changePct >= 1) {
     return 'Mua';
   }
   if (changePct <= -1) {
-    return 'Ban';
+    return 'Bán';
   }
-  return 'Giu';
+  return 'Giữ';
 }
 
 function buildSummaries(items: CrawledPriceItem[], historicalRanges?: Map<string, { low: number; high: number }>): CommoditySummary[] {

@@ -28,8 +28,8 @@ function RangeBar({ low, high, current }: { low: number; high: number; current: 
 }
 
 function RecommendationBadge({ value }: { value: CommoditySummary['recommendation'] }) {
-  const label = value === 'Mua' ? 'Mua' : value === 'Ban' ? 'Ban' : 'Giu';
-  return <span className={`badge badge--${label.toLowerCase()}`}>{label}</span>;
+  const label = value === 'Mua' ? 'Mua' : value === 'Bán' ? 'Bán' : 'Giữ';
+  return <span className={`badge badge--${label === 'Mua' ? 'mua' : label === 'Bán' ? 'ban' : 'giu'}`}>{label}</span>;
 }
 
 export default function PriceTable({
@@ -42,17 +42,17 @@ export default function PriceTable({
   error?: string | null;
 }) {
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('Tat ca');
+  const [category, setCategory] = useState('Tất cả');
   const [sortKey, setSortKey] = useState<SortKey>('priceAvg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const categories = useMemo(() => ['Tat ca', ...new Set(data.map((item) => item.category))], [data]);
+  const categories = useMemo(() => ['Tất cả', ...new Set(data.map((item) => item.category))], [data]);
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return [...data]
-      .filter((item) => (category === 'Tat ca' ? true : item.category === category))
+      .filter((item) => (category === 'Tất cả' ? true : item.category === category))
       .filter((item) => {
         if (!query) {
           return true;
@@ -105,45 +105,45 @@ export default function PriceTable({
         <input
           className="pt-search"
           type="search"
-          placeholder="Tim commodity hoac khu vuc..."
+          placeholder="Tìm mặt hàng hoặc khu vực..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          aria-label="Tim commodity"
+          aria-label="Tìm mặt hàng"
         />
       </div>
 
       <div className="pt-meta">
         <span>
-          Hien thi <strong>{rows.length}</strong> / {data.length} commodity
+          Hiển thị <strong>{rows.length}</strong> / {data.length} mặt hàng
         </span>
-        <span>{loading ? 'Dang tai du lieu...' : error ? `Canh bao: ${error}` : 'Du lieu API dang hoat dong'}</span>
+        <span>{loading ? 'Đang tải dữ liệu...' : error ? `Cảnh báo: ${error}` : 'Dữ liệu API đang hoạt động'}</span>
       </div>
 
       <div className="pt-scroll-wrap">
         <table className="pt-table" aria-label="Bang gia nong san Viet Nam">
           <thead>
             <tr>
-              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mat hang</th>
-              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Gia TB</th>
-              <th className="pt-th" onClick={() => toggleSort('change')}>Thay doi</th>
-              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay doi</th>
-              <th className="pt-th">Bien do vung</th>
-              <th className="pt-th">Range</th>
-              <th className="pt-th">Khuyen nghi</th>
+              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mặt hàng</th>
+              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Giá TB</th>
+              <th className="pt-th" onClick={() => toggleSort('change')}>Thay đổi</th>
+              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay đổi</th>
+              <th className="pt-th">Biên độ vùng</th>
+              <th className="pt-th">Dải 52 tuần</th>
+              <th className="pt-th">Khuyến nghị</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="pt-empty">
-                  Khong co du lieu khop bo loc hien tai.
+                  Không có dữ liệu khớp bộ lọc hiện tại.
                 </td>
               </tr>
             ) : (
               rows.map((item) => {
                 const isExpanded = Boolean(expanded[item.commodity]);
                 const isUp = item.change >= 0;
-                const detailLabel = item.regions.length > 1 ? 'Khu vuc / loai' : 'Chi tiet';
+                const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết';
 
                 return (
                   <Fragment key={item.commodity}>
@@ -154,13 +154,14 @@ export default function PriceTable({
                           <span className="pt-code">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
                           <span className="pt-name__text">
                             <strong>{item.commodityName}</strong>
-                            <small>{COMMODITY_META[item.commodity]?.nameEn ?? 'Vietnam commodity'}</small>
                           </span>
                         </button>
                       </td>
                       <td className="pt-td pt-td--price">
-                        <strong>{item.priceAvg.toLocaleString('vi-VN')}</strong>
-                        <span>{item.unit.replace('VND/', '')}</span>
+                        <div className="pt-price-container">
+                          <strong>{item.priceAvg.toLocaleString('vi-VN')}</strong>
+                          <span>{item.unit.replace('VND/', '')}</span>
+                        </div>
                       </td>
                       <td className={`pt-td ${isUp ? 'pt-change--up' : 'pt-change--down'}`}>
                         {item.change >= 0 ? '+' : ''}
@@ -191,16 +192,16 @@ export default function PriceTable({
                           <div className="pt-detail">
                             <div className="pt-detail__summary">
                               <span>{detailLabel}: {item.regions.length}</span>
-                              <span>Nguon: {item.sources.map((source) => SOURCE_LABELS[source]).join(', ')}</span>
+                              <span>Nguồn: {item.sources.map((source) => SOURCE_LABELS[source]).join(', ')}</span>
                             </div>
                             <table className="pt-subtable">
                               <thead>
                                 <tr>
                                   <th>{detailLabel}</th>
-                                  <th>Gia</th>
-                                  <th>Thay doi</th>
-                                  <th>Nguon</th>
-                                  <th>Canh bao</th>
+                                  <th>Giá</th>
+                                  <th>Thay đổi</th>
+                                  <th>Nguồn</th>
+                                  <th>Cảnh báo</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -214,7 +215,7 @@ export default function PriceTable({
                                     <td>
                                       <span className="pt-source-badge">{SOURCE_LABELS[region.source]}</span>
                                     </td>
-                                    <td>{region.hasConflict ? `Lech ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
+                                    <td>{region.hasConflict ? `Lệch ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
                                   </tr>
                                 ))}
                               </tbody>

@@ -96,12 +96,12 @@ export default function Navbar() {
           </div>
           <div className="navbar__status">
             <span className="navbar__status-dot navbar__status-dot--live" />
-            <span className="navbar__status-label">LIVE</span>
+            <span className="navbar__status-label">TRỰC TUYẾN</span>
           </div>
           <button 
             className="navbar__theme-toggle" 
             onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
-            aria-label="Toggle dark mode"
+            aria-label="Chuyển chế độ sáng/tối"
           >
             {theme === 'dark' ? (
                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
@@ -113,7 +113,7 @@ export default function Navbar() {
           <button
             className="navbar__hamburger"
             onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
+            aria-label="Mở menu"
           >
             <span /><span /><span />
           </button>

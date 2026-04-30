@@ -46,7 +46,6 @@ function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
         <span className="mover-card__icon">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
         <div className="mover-card__title">
           <span className="mover-card__name">{item.commodityName}</span>
-          <span className="mover-card__en">{COMMODITY_META[item.commodity]?.nameEn ?? 'Vietnam commodity'}</span>
         </div>
       </div>
       <div className="mover-card__body">
@@ -80,12 +79,12 @@ export default function TopMovers({ items = FALLBACK_VN_PRICES.data }: { items?:
   }, [items]);
 
   return (
-    <section className="top-movers" aria-label="Bien dong noi bat hom nay">
+    <section className="top-movers" aria-label="Biến động nổi bật hôm nay">
       <div className="top-movers__inner">
         <div className="movers-group">
           <header className="movers-group__header movers-group__header--up">
             <span className="movers-group__dot" />
-            <h2 className="movers-group__title">Tang manh nhat</h2>
+            <h2 className="movers-group__title">Tăng mạnh nhất</h2>
             <span className="movers-group__badge movers-group__badge--up">Top {gainers.length}</span>
           </header>
           <div className="movers-group__cards">
@@ -97,14 +96,14 @@ export default function TopMovers({ items = FALLBACK_VN_PRICES.data }: { items?:
 
         <div className="movers-divider" aria-hidden="true">
           <div className="movers-divider__line" />
-          <span className="movers-divider__label">VS</span>
+          <span className="movers-divider__label">SO VỚI</span>
           <div className="movers-divider__line" />
         </div>
 
         <div className="movers-group">
           <header className="movers-group__header movers-group__header--down">
             <span className="movers-group__dot movers-group__dot--down" />
-            <h2 className="movers-group__title">Giam manh nhat</h2>
+            <h2 className="movers-group__title">Giảm mạnh nhất</h2>
             <span className="movers-group__badge movers-group__badge--down">Top {losers.length}</span>
           </header>
           <div className="movers-group__cards">

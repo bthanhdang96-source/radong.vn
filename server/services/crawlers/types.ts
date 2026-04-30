@@ -60,7 +60,7 @@ export interface CommoditySummary {
   high52w: number;
   regions: RegionPrice[];
   sources: SourceId[];
-  recommendation: 'Mua' | 'Ban' | 'Giu';
+  recommendation: 'Mua' | 'Bán' | 'Giữ';
   lastUpdated: string;
 }
 
