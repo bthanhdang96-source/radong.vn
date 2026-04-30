@@ -61,6 +61,8 @@ export function buildFallbackDayData(now = new Date()): CrawledDayData {
       fetchedAt: timestamp,
       success: true,
       itemCount: items.length,
+      priority: 0,
+      coverage: ['ca-phe-robusta', 'ho-tieu', 'heo-hoi', 'gao-noi-dia'],
     },
   ];
 

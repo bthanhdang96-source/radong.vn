@@ -1,4 +1,4 @@
-export type SourceId = 'giacaphe' | 'nongnghiep' | 'fallback';
+export type SourceId = 'nongnghiep' | 'vietnambiz' | 'congthuong' | 'fallback';
 
 export interface PriceSourceStatus {
   id: SourceId;
@@ -7,8 +7,13 @@ export interface PriceSourceStatus {
   fetchedAt: string;
   success: boolean;
   itemCount: number;
+  priority: number;
+  coverage: string[];
   latestArticleUrl?: string;
   error?: string;
+  droppedCount?: number;
+  dedupCount?: number;
+  validationErrors?: string[];
 }
 
 export interface RegionPrice {
@@ -55,8 +60,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
-  giacaphe: 'giacaphe.com',
   nongnghiep: 'nongnghiepmoitruong.vn',
+  vietnambiz: 'vietnambiz.vn',
+  congthuong: 'congthuong.vn',
   fallback: 'Fallback',
 };
 
@@ -79,7 +85,9 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       url: 'local://fallback',
       fetchedAt: new Date().toISOString(),
       success: true,
-      itemCount: 4,
+      itemCount: 18,
+      priority: 0,
+      coverage: ['ca-phe-robusta', 'ho-tieu', 'heo-hoi', 'gao-noi-dia'],
     },
   ],
   data: [

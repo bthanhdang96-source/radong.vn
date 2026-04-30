@@ -1,6 +1,7 @@
 import { appendHistory, getCached, getCacheEntry, getHistory, listHistoryDates, setCache } from './cacheService.js';
-import { crawlGiacaphe } from './crawlers/giacapheCrawler.js';
+import { crawlCongthuong } from './crawlers/congthuongCrawler.js';
 import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
+import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
 import type {
   CommoditySummary,
   CrawledDayData,
@@ -141,9 +142,9 @@ async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | null; err
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];
 
-  const [giacaphe, nongnghiep] = await Promise.all([crawlGiacaphe(), crawlNongnghiep()]);
-  const items = [...giacaphe.items, ...nongnghiep.items];
-  const sources: SourceSnapshot[] = [...giacaphe.sources, ...nongnghiep.sources];
+  const [nongnghiep, vietnambiz, congthuong] = await Promise.all([crawlNongnghiep(), crawlVietnambiz(), crawlCongthuong()]);
+  const items = [...nongnghiep.items, ...vietnambiz.items, ...congthuong.items];
+  const sources: SourceSnapshot[] = [...nongnghiep.sources, ...vietnambiz.sources, ...congthuong.sources];
 
   for (const source of sources) {
     if (!source.success && source.error) {

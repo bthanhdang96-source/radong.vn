@@ -61,7 +61,33 @@ export default function SummaryCards({
   onRefresh,
 }: Props) {
   const topGainer = [...data].sort((a, b) => b.changePct - a.changePct)[0] ?? FALLBACK_VN_PRICES.data[0];
-  const activeSources = sources.filter((source) => source.success);
+  const groupedSources = Object.values(
+    sources.reduce<Record<string, (typeof sources)[number] & { total: number; healthy: number }>>((acc, source) => {
+      const key = source.id;
+      const existing = acc[key];
+      if (!existing) {
+        acc[key] = {
+          ...source,
+          total: 1,
+          healthy: source.success ? 1 : 0,
+        };
+        return acc;
+      }
+
+      acc[key] = {
+        ...existing,
+        fetchedAt: source.fetchedAt > existing.fetchedAt ? source.fetchedAt : existing.fetchedAt,
+        total: existing.total + 1,
+        healthy: existing.healthy + (source.success ? 1 : 0),
+        itemCount: existing.itemCount + source.itemCount,
+        droppedCount: (existing.droppedCount ?? 0) + (source.droppedCount ?? 0),
+        dedupCount: (existing.dedupCount ?? 0) + (source.dedupCount ?? 0),
+      };
+      return acc;
+    }, {}),
+  ).sort((a, b) => b.priority - a.priority);
+
+  const activeSources = groupedSources.filter((source) => source.healthy > 0);
   const sourceSummary = activeSources.length > 0 ? activeSources.map((source) => SOURCE_LABELS[source.id]).join(' + ') : 'Dang su dung fallback';
 
   return (
@@ -79,9 +105,11 @@ export default function SummaryCards({
         variant={activeSources.length > 0 ? 'accent' : 'down'}
       >
         <div className="stat-card__tags">
-          {sources.map((source) => (
-            <span key={`${source.label}-${source.fetchedAt}`} className={`stat-card__tag ${source.success ? 'stat-card__tag--ok' : 'stat-card__tag--fail'}`}>
-              {source.success ? 'OK' : 'ERR'} {SOURCE_LABELS[source.id]}
+          {groupedSources.map((source) => (
+            <span key={`${source.id}-${source.fetchedAt}`} className={`stat-card__tag ${source.healthy > 0 ? 'stat-card__tag--ok' : 'stat-card__tag--fail'}`}>
+              {source.healthy > 0 ? 'OK' : 'ERR'} {SOURCE_LABELS[source.id]} {source.healthy}/{source.total}
+              {(source.droppedCount ?? 0) > 0 ? ` drop:${source.droppedCount}` : ''}
+              {(source.dedupCount ?? 0) > 0 ? ` dedup:${source.dedupCount}` : ''}
             </span>
           ))}
         </div>

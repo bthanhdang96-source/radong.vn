@@ -1,4 +1,4 @@
-export type SourceId = 'giacaphe' | 'nongnghiep' | 'fallback';
+export type SourceId = 'nongnghiep' | 'vietnambiz' | 'congthuong' | 'fallback';
 
 export interface SourceSnapshot {
   id: SourceId;
@@ -7,8 +7,13 @@ export interface SourceSnapshot {
   fetchedAt: string;
   success: boolean;
   itemCount: number;
+  priority: number;
+  coverage: string[];
   latestArticleUrl?: string;
   error?: string;
+  droppedCount?: number;
+  dedupCount?: number;
+  validationErrors?: string[];
 }
 
 export interface CrawledPriceItem {
@@ -66,4 +71,9 @@ export interface VnPricesResponse {
   data: CommoditySummary[];
   sources: SourceSnapshot[];
   errors: string[];
+}
+
+export interface CrawlerResult {
+  items: CrawledPriceItem[];
+  sources: SourceSnapshot[];
 }
