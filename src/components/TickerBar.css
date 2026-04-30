@@ -1,0 +1,121 @@
+.ticker-bar {
+  position: sticky;
+  top: var(--navbar-h);
+  z-index: 90;
+  height: var(--ticker-h);
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: 0 1px 0 0 var(--color-border);
+}
+
+/* LEFT label */
+.ticker-bar__label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-down);
+  border-right: 1px solid var(--color-border);
+  height: 100%;
+  text-transform: uppercase;
+}
+
+.ticker-bar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-down);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.75); }
+}
+
+/* SCROLLING TRACK */
+.ticker-bar__track-wrap {
+  flex: 1;
+  overflow: hidden;
+  /* fade edges */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+}
+
+.ticker-bar__track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: max-content;
+  animation: ticker-scroll 60s linear infinite;
+}
+
+.ticker-bar__track:hover {
+  animation-play-state: paused;
+}
+
+/* INDIVIDUAL CHIP */
+.ticker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px;
+  height: var(--ticker-h);
+  font-size: 0.78rem;
+  border-right: 1px solid var(--color-border);
+  white-space: nowrap;
+  cursor: default;
+  transition: background var(--transition-fast);
+}
+
+.ticker-chip:hover {
+  background: var(--color-neutral-bg);
+}
+
+.ticker-chip__name {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 0.75rem;
+}
+
+.ticker-chip__price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.ticker-chip__unit {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+.ticker-chip__change {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ticker-chip--up .ticker-chip__change {
+  color: var(--color-up);
+  background: var(--color-up-bg);
+}
+
+.ticker-chip--down .ticker-chip__change {
+  color: var(--color-down);
+  background: var(--color-down-bg);
+}
+
+.ticker-chip--flat .ticker-chip__change {
+  color: var(--color-neutral);
+  background: var(--color-neutral-bg);
+}

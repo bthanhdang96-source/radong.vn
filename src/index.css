@@ -1,0 +1,163 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Premium Colors for Nông Sản VN */
+  --color-primary: hsl(142, 70%, 29%); /* Deep Emerald Green */
+  --color-primary-light: hsl(142, 60%, 45%);
+  --color-primary-dark: hsl(145, 80%, 15%);
+  
+  --color-accent: hsl(35, 95%, 55%); /* Golden Sun/Harvest */
+  --color-accent-light: hsl(35, 100%, 65%);
+  
+  /* Neutral/Background Defaults (Light Mode) */
+  --color-bg: hsl(0, 0%, 98%);
+  --color-surface: hsl(0, 0%, 100%);
+  --color-text: hsl(220, 20%, 15%);
+  --color-text-muted: hsl(220, 10%, 40%);
+  --color-border: hsl(220, 15%, 90%);
+  
+  /* Utility */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  
+  /* Shadows */
+  --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Price movement colors */
+  --color-up: hsl(142, 65%, 32%);
+  --color-up-bg: hsl(142, 60%, 95%);
+  --color-up-border: hsl(142, 55%, 82%);
+  --color-down: hsl(0, 72%, 42%);
+  --color-down-bg: hsl(0, 72%, 96%);
+  --color-down-border: hsl(0, 65%, 84%);
+  --color-neutral: hsl(220, 10%, 50%);
+  --color-neutral-bg: hsl(220, 15%, 95%);
+
+  /* Badge colors */
+  --color-buy: hsl(142, 65%, 32%);
+  --color-buy-bg: hsl(142, 60%, 95%);
+  --color-sell: hsl(0, 72%, 42%);
+  --color-sell-bg: hsl(0, 72%, 96%);
+  --color-hold: hsl(35, 80%, 42%);
+  --color-hold-bg: hsl(35, 90%, 94%);
+
+  /* Navbar height token */
+  --navbar-h: 64px;
+  --ticker-h: 40px;
+}
+
+:root[data-theme="dark"] {
+  /* Dark Mode Overrides for a Sleek Look */
+  --color-bg: hsl(222, 28%, 7%);
+  --color-surface: hsl(222, 24%, 11%);
+  --color-text: hsl(0, 0%, 94%);
+  --color-text-muted: hsl(220, 10%, 62%);
+  --color-border: hsl(222, 20%, 18%);
+
+  --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.45);
+  --shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.55);
+
+  /* Dark price colors */
+  --color-up: hsl(142, 55%, 48%);
+  --color-up-bg: hsl(142, 40%, 10%);
+  --color-up-border: hsl(142, 40%, 20%);
+  --color-down: hsl(0, 68%, 58%);
+  --color-down-bg: hsl(0, 50%, 10%);
+  --color-down-border: hsl(0, 55%, 22%);
+  --color-neutral: hsl(220, 12%, 60%);
+  --color-neutral-bg: hsl(220, 20%, 14%);
+
+  --color-buy: hsl(142, 55%, 48%);
+  --color-buy-bg: hsl(142, 40%, 10%);
+  --color-sell: hsl(0, 68%, 58%);
+  --color-sell-bg: hsl(0, 50%, 10%);
+  --color-hold: hsl(35, 75%, 52%);
+  --color-hold-bg: hsl(35, 50%, 11%);
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* Base Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-light);
+}
+
+/* Vibe Coding Component Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme="dark"] .glass-panel {
+  background: rgba(30, 33, 36, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Micro-animations */
+.hover-scale {
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.hover-scale:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Reset buttons */
+button {
+  font-family: inherit;
+}

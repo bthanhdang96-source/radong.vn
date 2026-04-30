@@ -1,0 +1,91 @@
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+@media (max-width: 900px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Individual card */
+.stat-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px;
+  background: var(--color-surface);
+  opacity: 0;
+  animation: fade-up 0.45s var(--transition-spring) forwards;
+  transition: background var(--transition-fast);
+}
+
+.stat-card:hover {
+  background: var(--color-bg);
+}
+
+/* Icon */
+.stat-card__icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stat-card--up .stat-card__icon   { background: var(--color-up-bg);      color: var(--color-up);      border: 1px solid var(--color-up-border); }
+.stat-card--down .stat-card__icon { background: var(--color-down-bg);    color: var(--color-down);    border: 1px solid var(--color-down-border); }
+.stat-card--neutral .stat-card__icon { background: var(--color-neutral-bg); color: var(--color-neutral); border: 1px solid var(--color-border); }
+.stat-card--accent .stat-card__icon  { background: var(--color-buy-bg);    color: var(--color-buy);     border: 1px solid var(--color-up-border); }
+
+/* Text */
+.stat-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stat-card__label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.stat-card__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card--up .stat-card__value   { color: var(--color-up); }
+.stat-card--down .stat-card__value { color: var(--color-down); }
+
+.stat-card__sub {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}

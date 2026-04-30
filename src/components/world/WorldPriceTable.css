@@ -1,0 +1,571 @@
+/* ─── World Price Table ──────────────────────────────── */
+
+.wpt {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px 32px;
+}
+
+/* ─── Controls: tabs + search ────────────────────────── */
+
+.wpt__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.wpt__tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wpt__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.wpt__tab:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-up-bg);
+}
+
+.wpt__tab--active {
+  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.wpt__tab--active:hover {
+  color: white;
+  background: var(--color-primary-light);
+}
+
+.wpt__tab-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.wpt__tab--active .wpt__tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Search ─────────────────────────────────────────── */
+
+.wpt__search {
+  position: relative;
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.wpt__search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.wpt__search-input {
+  width: 100%;
+  padding: 10px 36px 10px 36px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.wpt__search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(34, 139, 34, 0.1);
+}
+
+.wpt__search-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.wpt__search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.wpt__search-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wpt__search-clear:hover {
+  color: var(--color-down);
+  background: var(--color-down-bg);
+}
+
+/* ─── Table ──────────────────────────────────────────── */
+
+.wpt__table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.wpt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.wpt__th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 14px 16px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.wpt__th:hover {
+  color: var(--color-text);
+}
+
+.wpt__th--name {
+  min-width: 200px;
+}
+
+.wpt__th--exchange {
+  min-width: 90px;
+  cursor: default;
+}
+
+.wpt__th--price,
+.wpt__th--price-vnd {
+  min-width: 120px;
+  text-align: right;
+}
+
+.wpt__th--change {
+  min-width: 100px;
+  text-align: right;
+}
+
+.wpt__th--range {
+  min-width: 180px;
+  cursor: default;
+}
+
+.wpt-sort-icon {
+  margin-left: 4px;
+  font-size: 0.65rem;
+  color: var(--color-primary);
+}
+
+.wpt-sort-icon--inactive {
+  color: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+/* ─── Table Row ──────────────────────────────────────── */
+
+.wpt__row {
+  animation: fade-up 400ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--row-index, 0) * 30ms);
+  transition: background var(--transition-fast);
+}
+
+.wpt__row:hover {
+  background: var(--color-neutral-bg);
+}
+
+.wpt__td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+/* Name cell */
+.wpt__commodity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wpt__commodity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.wpt__commodity-name {
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.wpt__commodity-en {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wpt__symbol {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: 'Outfit', monospace;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--color-neutral-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* Exchange badge */
+.wpt__td--exchange {
+  white-space: nowrap;
+}
+
+.wpt__exchange-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: white;
+  opacity: 0.85;
+}
+
+/* Price cells */
+.wpt__td--price,
+.wpt__td--price-vnd {
+  text-align: right;
+}
+
+.wpt__price-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.wpt__price-main {
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-family: 'Outfit', monospace;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.wpt__price-unit {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.wpt__price-vnd {
+  font-weight: 600;
+  font-size: 0.85rem;
+  font-family: 'Outfit', monospace;
+  color: var(--color-accent);
+  text-align: right;
+  display: block;
+}
+
+/* Change cell */
+.wpt__td--change {
+  text-align: right;
+}
+
+.wpt__change-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.wpt__change-pct {
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-family: 'Outfit', monospace;
+}
+
+.wpt__change-abs {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.wpt__td--up .wpt__change-pct,
+.wpt__td--up .wpt__change-abs {
+  color: var(--color-up);
+}
+
+.wpt__td--down .wpt__change-pct,
+.wpt__td--down .wpt__change-abs {
+  color: var(--color-down);
+}
+
+/* ─── 52W Range Bar ──────────────────────────────────── */
+
+.wpt-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.wpt-range__low,
+.wpt-range__high {
+  font-size: 0.65rem;
+  font-family: 'Outfit', monospace;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  min-width: 36px;
+}
+
+.wpt-range__low {
+  text-align: right;
+}
+
+.wpt-range__bar {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  min-width: 60px;
+}
+
+.wpt-range__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--color-down) 0%,
+    var(--color-accent) 50%,
+    var(--color-up) 100%
+  );
+  opacity: 0.7;
+  transition: width var(--transition-normal);
+}
+
+.wpt-range__marker {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: left var(--transition-normal);
+}
+
+/* ─── Empty State ────────────────────────────────────── */
+
+.wpt__empty {
+  padding: 48px 16px;
+}
+
+.wpt__empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+}
+
+.wpt__empty-content svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.3;
+}
+
+.wpt__empty-content p {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.wpt__empty-content span {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* ─── Footer ─────────────────────────────────────────── */
+
+.wpt__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.wpt__footer-source {
+  opacity: 0.7;
+}
+
+/* ─── Skeleton Loader ────────────────────────────────── */
+
+.wpt__skeleton-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.wpt__skeleton-tab {
+  width: 100px;
+  height: 36px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-neutral-bg) 50%, var(--color-border) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.wpt__skeleton-table {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wpt__skeleton-row {
+  height: 56px;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-neutral-bg) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.wpt__skeleton-row:last-child {
+  border-bottom: none;
+}
+
+/* ─── Responsive ─────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .wpt__th--range,
+  .wpt__td--range {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .wpt {
+    padding: 0 16px 24px;
+  }
+
+  .wpt__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wpt__search {
+    min-width: auto;
+    max-width: none;
+  }
+
+  .wpt__tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+
+  .wpt__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wpt__th--price-vnd,
+  .wpt__td--price-vnd {
+    display: none;
+  }
+
+  .wpt__th--exchange,
+  .wpt__td--exchange {
+    display: none;
+  }
+
+  .wpt__footer {
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .wpt__table {
+    font-size: 0.78rem;
+  }
+
+  .wpt__td {
+    padding: 10px 10px;
+  }
+
+  .wpt__th {
+    padding: 10px 10px;
+  }
+}

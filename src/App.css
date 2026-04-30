@@ -1,0 +1,6 @@
+/* Root layout wrapper — pushes content below fixed Navbar */
+.app-body {
+  padding-top: var(--navbar-h);
+  min-height: 100dvh;
+  background: var(--color-bg);
+}

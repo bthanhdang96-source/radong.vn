@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════
+   Footer
+   ═══════════════════════════════════════ */
+
+.footer {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-top: 2rem;
+  padding: 4rem 1.5rem 3rem;
+  color: var(--color-text-muted);
+}
+
+.footer__container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.footer__top {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 2rem;
+}
+
+/* Brand */
+.footer__brand {
+  max-width: 380px;
+}
+
+.footer__logo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1rem;
+  line-height: 1;
+  margin-bottom: 1rem;
+}
+
+.footer__logo-main {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.03em;
+}
+
+.footer__logo-sub {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+}
+
+.footer__desc {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Link Groups */
+.footer__links-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.footer__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.footer__links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.footer__links a {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.footer__links a:hover {
+  color: var(--color-primary);
+}
+
+/* Bottom */
+.footer__bottom {
+  border-top: 1px solid var(--color-border);
+  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  font-size: 0.8rem;
+}
+
+.footer__copyright {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.footer__warning {
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.footer__warning strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .footer {
+    padding: 3rem 1.25rem 2rem;
+  }
+  
+  .footer__top {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  
+  .footer__brand {
+    max-width: 100%;
+  }
+}

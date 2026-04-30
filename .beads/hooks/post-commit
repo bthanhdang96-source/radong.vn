@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+
+# Auto-push the current branch after every successful commit.
+# Set AUTO_PUSH_ON_COMMIT=0 to disable temporarily.
+if [ "${AUTO_PUSH_ON_COMMIT:-1}" = "0" ]; then
+  exit 0
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  exit 0
+fi
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo >&2 "git auto-push: origin is not configured; skipping push"
+  exit 0
+fi
+
+branch=$(git branch --show-current 2>/dev/null)
+if [ -z "$branch" ]; then
+  exit 0
+fi
+
+if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+  if ! git push; then
+    echo >&2 "git auto-push: push failed for branch '$branch'"
+  fi
+else
+  if ! git push -u origin "$branch"; then
+    echo >&2 "git auto-push: first push failed for branch '$branch'"
+  fi
+fi

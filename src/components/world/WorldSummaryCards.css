@@ -1,0 +1,158 @@
+/* ─── World Summary Cards ─────────────────────────────── */
+
+.world-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 0 24px;
+  max-width: 1400px;
+  margin: 0 auto 24px;
+}
+
+.world-summary__card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-spring), box-shadow var(--transition-spring);
+  animation: fade-up 500ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--card-index, 0) * 80ms);
+  overflow: hidden;
+}
+
+.world-summary__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary);
+  opacity: 0.6;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.world-summary__card--up::before {
+  background: var(--color-up);
+}
+
+.world-summary__card--down::before {
+  background: var(--color-down);
+}
+
+.world-summary__card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+
+.world-summary__card:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+/* Icon */
+.world-summary__icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--color-primary);
+  color: white;
+}
+
+.world-summary__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.world-summary__icon--up {
+  background: var(--color-up);
+}
+
+.world-summary__icon--down {
+  background: var(--color-down);
+}
+
+.world-summary__icon--rate {
+  background: var(--color-accent);
+}
+
+/* Content */
+.world-summary__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.world-summary__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.world-summary__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.world-summary__value--up {
+  color: var(--color-up);
+}
+
+.world-summary__value--down {
+  color: var(--color-down);
+}
+
+.world-summary__detail {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.world-summary__up {
+  color: var(--color-up);
+  font-weight: 500;
+}
+
+.world-summary__down {
+  color: var(--color-down);
+  font-weight: 500;
+}
+
+/* ─── Responsive ─────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .world-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .world-summary {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+
+  .world-summary__card {
+    padding: 16px;
+  }
+
+  .world-summary__value {
+    font-size: 1.25rem;
+  }
+}

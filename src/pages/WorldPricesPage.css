@@ -1,0 +1,220 @@
+/* ─── World Prices Page ──────────────────────────────── */
+
+.world-page {
+  min-height: 100vh;
+  padding-bottom: 32px;
+}
+
+/* ─── Hero ────────────────────────────────────────────── */
+
+.world-page__hero {
+  padding: 32px 24px 0;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.world-page__hero-content {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.world-page__hero-left {
+  flex: 1;
+  min-width: 280px;
+}
+
+.world-page__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.world-page__globe {
+  width: 32px;
+  height: 32px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.world-page__subtitle {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  max-width: 560px;
+  line-height: 1.5;
+}
+
+.world-page__hero-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.world-page__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.world-page__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.world-page__badge--api {
+  background: var(--color-up-bg);
+  color: var(--color-up);
+  border-color: var(--color-up-border);
+}
+
+.world-page__badge--fallback {
+  background: var(--color-hold-bg);
+  color: var(--color-hold);
+  border-color: hsl(35, 60%, 75%);
+}
+
+.world-page__badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.world-page__badge-dot--live {
+  background: var(--color-up);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.world-page__badge-dot--static {
+  background: var(--color-hold);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.world-page__update {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.world-page__refresh {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.world-page__refresh:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-up-bg);
+}
+
+.world-page__refresh:active {
+  transform: scale(0.94);
+}
+
+.world-page__refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.world-page__refresh svg {
+  width: 18px;
+  height: 18px;
+}
+
+.world-page__refresh-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.world-page__hero-line {
+  height: 1px;
+  background: var(--color-border);
+  margin-top: 20px;
+  margin-bottom: 24px;
+}
+
+/* ─── Error Banner ───────────────────────────────────── */
+
+.world-page__error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 1400px;
+  margin: 0 auto 16px;
+  padding: 12px 24px;
+  font-size: 0.85rem;
+  color: var(--color-down);
+  background: var(--color-down-bg);
+  border: 1px solid var(--color-down-border);
+  border-radius: var(--radius-sm);
+}
+
+.world-page__error svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .world-page__hero {
+    padding: 24px 16px 0;
+  }
+
+  .world-page__title {
+    font-size: 1.35rem;
+  }
+
+  .world-page__globe {
+    width: 26px;
+    height: 26px;
+  }
+
+  .world-page__hero-content {
+    flex-direction: column;
+  }
+
+  .world-page__hero-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .world-page__meta {
+    align-items: flex-start;
+  }
+}
