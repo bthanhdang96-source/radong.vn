@@ -8,6 +8,7 @@ import {
   foldText,
   parseNumber,
   parseRangeAverage,
+  parseSignedChange,
 } from './common.js';
 import type { CrawledPriceItem, CrawlerResult } from './types.js';
 
@@ -46,7 +47,7 @@ function parseCoffee(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      return createItem('vietnambiz', 'ca-phe-robusta', 'Ca phe Robusta', 'Cay cong nghiep', region, price, parseNumber(changeText ?? '0'), timestamp);
+      return createItem('vietnambiz', 'ca-phe-robusta', 'Ca phe Robusta', 'Cay cong nghiep', region, price, parseSignedChange(changeText ?? '0'), timestamp);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -66,7 +67,7 @@ function parsePepper(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      return createItem('vietnambiz', 'ho-tieu', 'Ho tieu', 'Cay cong nghiep', region, price, parseNumber(changeText ?? '0'), timestamp);
+      return createItem('vietnambiz', 'ho-tieu', 'Ho tieu', 'Cay cong nghiep', region, price, parseSignedChange(changeText ?? '0'), timestamp);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -81,8 +82,9 @@ function parsePork(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      const change = changeText && changeText !== '-' ? parseNumber(changeText) : 0;
-      return createItem('vietnambiz', 'heo-hoi', 'Heo hoi', 'Chan nuoi', region, price, change, timestamp, price - change);
+      const change = parseSignedChange(changeText ?? '0');
+      const previousPrice = change === null ? price : price - change;
+      return createItem('vietnambiz', 'heo-hoi', 'Heo hoi', 'Chan nuoi', region, price, change, timestamp, previousPrice);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -108,8 +110,9 @@ function parseRice(html: string, timestamp: string): CrawledPriceItem[] {
       continue;
     }
 
-    const change = changeText && changeText !== '-' ? parseNumber(changeText) : 0;
-    items.push(createItem('vietnambiz', 'gao-noi-dia', 'Lua gao DBSCL', 'Luong thuc', region, price, change, timestamp, price - change));
+    const change = parseSignedChange(changeText ?? '0');
+    const previousPrice = change === null ? price : price - change;
+    items.push(createItem('vietnambiz', 'gao-noi-dia', 'Lua gao DBSCL', 'Luong thuc', region, price, change, timestamp, previousPrice));
   }
 
   return items;

@@ -8,6 +8,7 @@ import {
   foldText,
   parseNumber,
   parseRangeAverage,
+  parseSignedChange,
 } from './common.js';
 import type { CrawledPriceItem, CrawlerResult } from './types.js';
 
@@ -45,7 +46,7 @@ function parseCoffee(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      return createItem('nongnghiep', 'ca-phe-robusta', 'Ca phe Robusta', 'Cay cong nghiep', region, price, parseNumber(changeText ?? '0'), timestamp);
+      return createItem('nongnghiep', 'ca-phe-robusta', 'Ca phe Robusta', 'Cay cong nghiep', region, price, parseSignedChange(changeText ?? '0'), timestamp);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -65,8 +66,9 @@ function parsePepper(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      const change = changeText ? parseNumber(changeText) : 0;
-      return createItem('nongnghiep', 'ho-tieu', 'Ho tieu', 'Cay cong nghiep', region, price, change, timestamp, price - change);
+      const change = parseSignedChange(changeText ?? '0');
+      const previousPrice = change === null ? price : price - change;
+      return createItem('nongnghiep', 'ho-tieu', 'Ho tieu', 'Cay cong nghiep', region, price, change, timestamp, previousPrice);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -81,8 +83,9 @@ function parsePork(html: string, timestamp: string): CrawledPriceItem[] {
         return null;
       }
 
-      const change = changeText ? parseNumber(changeText) : 0;
-      return createItem('nongnghiep', 'heo-hoi', 'Heo hoi', 'Chan nuoi', region, price, change, timestamp, price - change);
+      const change = parseSignedChange(changeText ?? '0');
+      const previousPrice = change === null ? price : price - change;
+      return createItem('nongnghiep', 'heo-hoi', 'Heo hoi', 'Chan nuoi', region, price, change, timestamp, previousPrice);
     })
     .filter((item): item is CrawledPriceItem => item !== null);
 }
@@ -94,7 +97,7 @@ function parseRiceRow(region: string, previousText: string, currentText: string,
     return null;
   }
 
-  const parsedChange = parseNumber(changeText ?? '0');
+  const parsedChange = parseSignedChange(changeText ?? '0') ?? 0;
   const change = parsedChange !== 0 ? parsedChange : price - previousPrice;
   return createItem('nongnghiep', 'gao-noi-dia', 'Lua gao DBSCL', 'Luong thuc', region, price, change, timestamp, previousPrice || price - change);
 }

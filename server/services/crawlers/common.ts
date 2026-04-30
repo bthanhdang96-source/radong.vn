@@ -129,7 +129,8 @@ export function createItem(
   timestamp: string,
   previousPrice?: number | null,
 ): CrawledPriceItem {
-  const safePreviousPrice = previousPrice ?? (change !== null ? price - change : null);
+  const safeChange = change !== null && Number.isFinite(change) ? change : null;
+  const safePreviousPrice = previousPrice ?? (safeChange !== null ? price - safeChange : null);
 
   return {
     commodity,
@@ -138,10 +139,10 @@ export function createItem(
     region,
     price,
     unit: 'VND/kg',
-    change,
+    change: safeChange,
     changePct:
-      change !== null && safePreviousPrice && safePreviousPrice > 0
-        ? roundNumber((change / safePreviousPrice) * 100)
+      safeChange !== null && safePreviousPrice && safePreviousPrice > 0
+        ? roundNumber((safeChange / safePreviousPrice) * 100)
         : null,
     timestamp,
     source,

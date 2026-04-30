@@ -19,6 +19,10 @@ function roundNumber(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function finiteOrZero(value: number | null | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 function getRecommendation(changePct: number): 'Mua' | 'Ban' | 'Giu' {
   if (changePct >= 1) {
     return 'Mua';
@@ -41,7 +45,7 @@ function buildSummaries(items: CrawledPriceItem[], historicalRanges?: Map<string
   return [...groups.entries()]
     .map(([commodity, commodityItems]) => {
       const prices = commodityItems.map((item) => item.price);
-      const changeValues = commodityItems.map((item) => item.change ?? 0);
+      const changeValues = commodityItems.map((item) => finiteOrZero(item.change));
       const avg = roundNumber(prices.reduce((sum, price) => sum + price, 0) / prices.length);
       const avgChange = roundNumber(changeValues.reduce((sum, value) => sum + value, 0) / changeValues.length);
       const previousAverage = avg - avgChange;

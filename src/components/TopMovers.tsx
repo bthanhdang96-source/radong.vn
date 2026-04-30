@@ -34,7 +34,9 @@ function SparkBars({ item }: { item: CommoditySummary }) {
 }
 
 function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
-  const isUp = item.changePct >= 0;
+  const safeChange = typeof item.change === 'number' && Number.isFinite(item.change) ? item.change : 0;
+  const safeChangePct = typeof item.changePct === 'number' && Number.isFinite(item.changePct) ? item.changePct : 0;
+  const isUp = safeChangePct >= 0;
   const sign = isUp ? '+' : '';
 
   return (
@@ -57,11 +59,11 @@ function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
       <div className="mover-card__footer">
         <span className={`mover-pct ${isUp ? 'mover-pct--up' : 'mover-pct--down'}`}>
           {isUp ? '▲' : '▼'} {sign}
-          {item.changePct.toFixed(2)}%
+          {safeChangePct.toFixed(2)}%
         </span>
         <span className="mover-card__abs">
           {sign}
-          {item.change.toLocaleString('vi-VN')} VND
+          {safeChange.toLocaleString('vi-VN')} VND
         </span>
       </div>
     </article>
