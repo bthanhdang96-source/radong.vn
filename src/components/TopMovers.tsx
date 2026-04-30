@@ -43,7 +43,6 @@ function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
     <article className={`mover-card ${isUp ? 'mover-card--up' : 'mover-card--down'}`}>
       <div className="mover-card__rank">#{rank}</div>
       <div className="mover-card__header">
-        <span className="mover-card__icon">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
         <div className="mover-card__title">
           <span className="mover-card__name">{item.commodityName}</span>
         </div>

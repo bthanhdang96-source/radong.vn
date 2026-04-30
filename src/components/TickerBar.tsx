@@ -10,7 +10,6 @@ function TickerChip({ item }: { item: CommoditySummary }) {
   return (
     <span className={`ticker-chip ${cls}`}>
       <span className="ticker-chip__name">
-        <span className="ticker-chip__code">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
         {item.commodityName}
       </span>
       <span className="ticker-chip__price">

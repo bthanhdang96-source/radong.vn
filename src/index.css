@@ -10,11 +10,11 @@
   --color-accent-light: hsl(35, 100%, 65%);
   
   /* Neutral/Background Defaults (Light Mode) */
-  --color-bg: hsl(0, 0%, 98%);
+  --color-bg: hsl(210, 20%, 96%); /* Slightly more tinted for contrast */
   --color-surface: hsl(0, 0%, 100%);
-  --color-text: hsl(220, 20%, 15%);
-  --color-text-muted: hsl(220, 10%, 40%);
-  --color-border: hsl(220, 15%, 90%);
+  --color-text: hsl(220, 25%, 12%);
+  --color-text-muted: hsl(220, 12%, 45%);
+  --color-border: hsl(220, 15%, 85%);
   
   /* Utility */
   --radius-sm: 8px;
@@ -22,9 +22,9 @@
   --radius-lg: 24px;
   
   /* Shadows */
-  --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-  --shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -32,22 +32,22 @@
   --transition-spring: 400ms cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Price movement colors */
-  --color-up: hsl(142, 65%, 32%);
-  --color-up-bg: hsl(142, 60%, 95%);
-  --color-up-border: hsl(142, 55%, 82%);
-  --color-down: hsl(0, 72%, 42%);
-  --color-down-bg: hsl(0, 72%, 96%);
-  --color-down-border: hsl(0, 65%, 84%);
-  --color-neutral: hsl(220, 10%, 50%);
-  --color-neutral-bg: hsl(220, 15%, 95%);
+  --color-up: hsl(142, 70%, 25%);
+  --color-up-bg: hsl(142, 60%, 92%);
+  --color-up-border: hsl(142, 55%, 80%);
+  --color-down: hsl(0, 75%, 35%);
+  --color-down-bg: hsl(0, 75%, 94%);
+  --color-down-border: hsl(0, 65%, 82%);
+  --color-neutral: hsl(220, 15%, 45%);
+  --color-neutral-bg: hsl(220, 15%, 92%);
 
   /* Badge colors */
-  --color-buy: hsl(142, 65%, 32%);
-  --color-buy-bg: hsl(142, 60%, 95%);
-  --color-sell: hsl(0, 72%, 42%);
-  --color-sell-bg: hsl(0, 72%, 96%);
-  --color-hold: hsl(35, 80%, 42%);
-  --color-hold-bg: hsl(35, 90%, 94%);
+  --color-buy: hsl(142, 70%, 25%);
+  --color-buy-bg: hsl(142, 60%, 92%);
+  --color-sell: hsl(0, 75%, 35%);
+  --color-sell-bg: hsl(0, 75%, 94%);
+  --color-hold: hsl(35, 85%, 35%);
+  --color-hold-bg: hsl(35, 90%, 92%);
 
   /* Navbar height token */
   --navbar-h: 64px;
@@ -56,32 +56,32 @@
 
 :root[data-theme="dark"] {
   /* Dark Mode Overrides for a Sleek Look */
-  --color-bg: hsl(222, 28%, 7%);
-  --color-surface: hsl(222, 24%, 11%);
-  --color-text: hsl(0, 0%, 94%);
-  --color-text-muted: hsl(220, 10%, 62%);
-  --color-border: hsl(222, 20%, 18%);
+  --color-bg: hsl(222, 30%, 4%);
+  --color-surface: hsl(222, 25%, 12%);
+  --color-text: hsl(220, 15%, 96%);
+  --color-text-muted: hsl(220, 12%, 65%);
+  --color-border: hsl(222, 18%, 22%);
 
-  --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.35);
-  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.45);
-  --shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.55);
+  --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.6);
+  --shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.7);
 
   /* Dark price colors */
-  --color-up: hsl(142, 55%, 48%);
-  --color-up-bg: hsl(142, 40%, 10%);
-  --color-up-border: hsl(142, 40%, 20%);
-  --color-down: hsl(0, 68%, 58%);
-  --color-down-bg: hsl(0, 50%, 10%);
-  --color-down-border: hsl(0, 55%, 22%);
-  --color-neutral: hsl(220, 12%, 60%);
-  --color-neutral-bg: hsl(220, 20%, 14%);
+  --color-up: hsl(142, 65%, 55%);
+  --color-up-bg: hsl(142, 50%, 8%);
+  --color-up-border: hsl(142, 50%, 18%);
+  --color-down: hsl(0, 75%, 65%);
+  --color-down-bg: hsl(0, 60%, 8%);
+  --color-down-border: hsl(0, 60%, 20%);
+  --color-neutral: hsl(220, 15%, 65%);
+  --color-neutral-bg: hsl(220, 20%, 12%);
 
-  --color-buy: hsl(142, 55%, 48%);
-  --color-buy-bg: hsl(142, 40%, 10%);
-  --color-sell: hsl(0, 68%, 58%);
-  --color-sell-bg: hsl(0, 50%, 10%);
-  --color-hold: hsl(35, 75%, 52%);
-  --color-hold-bg: hsl(35, 50%, 11%);
+  --color-buy: hsl(142, 65%, 55%);
+  --color-buy-bg: hsl(142, 50%, 8%);
+  --color-sell: hsl(0, 75%, 65%);
+  --color-sell-bg: hsl(0, 60%, 8%);
+  --color-hold: hsl(35, 80%, 60%);
+  --color-hold-bg: hsl(35, 60%, 9%);
 }
 
 @keyframes ticker-scroll {
