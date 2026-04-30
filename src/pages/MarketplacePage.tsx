@@ -1,4 +1,3 @@
-import React from 'react';
 import ListingForm from '../components/marketplace/ListingForm';
 import RecentListings from '../components/marketplace/RecentListings';
 import './MarketplacePage.css';

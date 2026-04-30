@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type CSSProperties } from 'react';
 import type { WorldCommodityItem, WorldCategory } from '../../data/worldCommodityData';
 import { WORLD_CATEGORIES } from '../../data/worldCommodityData';
 import './WorldPriceTable.css';
@@ -204,13 +204,13 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
               filteredData.map((item, index) => {
                 const isUp = item.changePct > 0;
                 const isDown = item.changePct < 0;
-                const priceVND = convertToVND(item.priceCurrent, item.unit, exchangeRate);
+                const priceVND = convertToVND(item.priceCurrent, exchangeRate);
 
                 return (
                   <tr
                     key={item.id}
                     className="wpt__row"
-                    style={{ '--row-index': index } as React.CSSProperties}
+                    style={{ '--row-index': index } as CSSProperties}
                   >
                     {/* Name */}
                     <td className="wpt__td wpt__td--name">
@@ -307,7 +307,7 @@ function formatVND(value: number): string {
  * Prices in "USD/tấn" are per metric ton,
  * "USD/kg" are per kilogram, etc.
  */
-function convertToVND(priceUSD: number, unit: string, rate: number): number | null {
+function convertToVND(priceUSD: number, rate: number): number | null {
   // Simple conversion: just multiply by exchange rate
   // The unit stays the same (VND/kg, VND/tấn, etc.)
   return priceUSD * rate;

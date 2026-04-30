@@ -1,87 +1,107 @@
-import { useMemo } from 'react';
-import { NONG_SAN_DATA } from '../data/nongSanData';
+import type { ReactNode } from 'react';
+import { FALLBACK_VN_PRICES, SOURCE_LABELS, type CommoditySummary, type PriceSourceStatus, type VnPricesResponse } from '../data/vnPriceTypes';
 import './SummaryCards.css';
 
-interface StatCard {
+type Props = {
+  data?: CommoditySummary[];
+  sources?: PriceSourceStatus[];
+  lastUpdated?: string;
+  status?: VnPricesResponse['status'];
+  loading?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+};
+
+function formatTimestamp(value?: string): string {
+  if (!value) {
+    return '--';
+  }
+
+  return new Date(value).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function Card({
+  label,
+  value,
+  sub,
+  variant,
+  children,
+}: {
   label: string;
   value: string;
   sub: string;
   variant: 'up' | 'down' | 'neutral' | 'accent';
-  icon: string; /* SVG path data */
-}
-
-// SVG path strings — no emoji, no lucide dependency
-const ICON_GRID = 'M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z';
-const ICON_TREND_UP = 'M22 7l-8.5 8.5L9 11 2 18M16 7h6v6';
-const ICON_TREND_DOWN = 'M22 17l-8.5-8.5L9 13 2 6M16 17h6v-6';
-const ICON_TAG = 'M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01';
-
-function StatCardItem({ label, value, sub, variant, icon }: StatCard) {
+  children?: ReactNode;
+}) {
   return (
     <article className={`stat-card stat-card--${variant}`}>
-      <div className="stat-card__icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d={icon} />
-        </svg>
-      </div>
       <div className="stat-card__body">
         <p className="stat-card__label">{label}</p>
         <p className="stat-card__value">{value}</p>
         <p className="stat-card__sub">{sub}</p>
+        {children}
       </div>
     </article>
   );
 }
 
-export default function SummaryCards() {
-  const stats = useMemo<StatCard[]>(() => {
-    const total = NONG_SAN_DATA.length;
-
-    const topGainer = NONG_SAN_DATA.reduce((best, item) =>
-      item.thayDoiPct > best.thayDoiPct ? item : best
-    );
-    const topLoser = NONG_SAN_DATA.reduce((worst, item) =>
-      item.thayDoiPct < worst.thayDoiPct ? item : worst
-    );
-    const buyCount = NONG_SAN_DATA.filter(i => i.khuyenNghi === 'Mua').length;
-
-    return [
-      {
-        label: 'Tổng mặt hàng',
-        value: `${total}`,
-        sub: 'trên 5 nhóm ngành',
-        variant: 'neutral',
-        icon: ICON_GRID,
-      },
-      {
-        label: 'Tăng mạnh nhất',
-        value: topGainer.ten,
-        sub: `+${topGainer.thayDoiPct.toFixed(2)}% hôm nay`,
-        variant: 'up',
-        icon: ICON_TREND_UP,
-      },
-      {
-        label: 'Giảm mạnh nhất',
-        value: topLoser.ten,
-        sub: `${topLoser.thayDoiPct.toFixed(2)}% hôm nay`,
-        variant: 'down',
-        icon: ICON_TREND_DOWN,
-      },
-      {
-        label: 'Khuyến nghị MUA',
-        value: `${buyCount} / ${total}`,
-        sub: `${((buyCount / total) * 100).toFixed(0)}% danh mục`,
-        variant: 'accent',
-        icon: ICON_TAG,
-      },
-    ];
-  }, []);
+export default function SummaryCards({
+  data = FALLBACK_VN_PRICES.data,
+  sources = FALLBACK_VN_PRICES.sources,
+  lastUpdated,
+  status = 'fallback',
+  loading = false,
+  refreshing = false,
+  onRefresh,
+}: Props) {
+  const topGainer = [...data].sort((a, b) => b.changePct - a.changePct)[0] ?? FALLBACK_VN_PRICES.data[0];
+  const activeSources = sources.filter((source) => source.success);
+  const sourceSummary = activeSources.length > 0 ? activeSources.map((source) => SOURCE_LABELS[source.id]).join(' + ') : 'Dang su dung fallback';
 
   return (
-    <section className="summary-grid" aria-label="Tổng quan thị trường">
-      {stats.map((s, i) => (
-        <StatCardItem key={s.label} {...s} style={{ animationDelay: `${i * 80}ms` } as React.CSSProperties} />
-      ))}
+    <section className="summary-grid" aria-label="Tong quan thi truong">
+      <Card
+        label="Tong mat hang"
+        value={loading ? 'Dang tai...' : `${data.length}`}
+        sub="dashboard VN gia thuc"
+        variant="neutral"
+      />
+      <Card
+        label="Nguon data"
+        value={sourceSummary}
+        sub={status === 'live' ? 'crawler dang song' : status === 'cached' ? 'su dung cache gan nhat' : 'fallback noi bo'}
+        variant={activeSources.length > 0 ? 'accent' : 'down'}
+      >
+        <div className="stat-card__tags">
+          {sources.map((source) => (
+            <span key={`${source.label}-${source.fetchedAt}`} className={`stat-card__tag ${source.success ? 'stat-card__tag--ok' : 'stat-card__tag--fail'}`}>
+              {source.success ? 'OK' : 'ERR'} {SOURCE_LABELS[source.id]}
+            </span>
+          ))}
+        </div>
+      </Card>
+      <Card
+        label="Tang manh nhat"
+        value={topGainer.commodityName}
+        sub={`${topGainer.changePct >= 0 ? '+' : ''}${topGainer.changePct.toFixed(2)}% hom nay`}
+        variant={topGainer.changePct >= 0 ? 'up' : 'down'}
+      />
+      <Card
+        label="Cap nhat luc"
+        value={formatTimestamp(lastUpdated)}
+        sub={refreshing ? 'dang lam moi du lieu...' : 'refresh API /api/vn-prices/refresh'}
+        variant="neutral"
+      >
+        <button className="stat-card__button" onClick={onRefresh} disabled={!onRefresh || refreshing}>
+          {refreshing ? 'Dang refresh' : 'Refresh'}
+        </button>
+      </Card>
     </section>
   );
 }

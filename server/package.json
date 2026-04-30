@@ -8,14 +8,16 @@
     "start": "tsx index.ts"
   },
   "dependencies": {
-    "express": "^4.21.2",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-cron": "^4.2.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "tsx": "^4.19.4",
-    "@types/express": "^5.0.2",
     "@types/cors": "^2.8.17",
-    "@types/node": "^24.12.2"
+    "@types/express": "^5.0.2",
+    "@types/node": "^24.12.2",
+    "tsx": "^4.19.4"
   }
 }

@@ -203,9 +203,6 @@ async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
     const prevRow = rawData[rawData.length - 2];
     const prev2Row = rawData[rawData.length - 3];
 
-    // Try to find 12-month-old row for 52W comparison
-    const row12MonthsAgo = rawData.length >= 13 ? rawData[rawData.length - 13] : rawData[0];
-
     const now = new Date().toISOString();
     const results: WorldCommodityItem[] = [];
 
@@ -219,8 +216,6 @@ async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
       const currentVal = findColumnValue(latestRow, mapping.pinkSheetKey);
       const prevVal = findColumnValue(prevRow, mapping.pinkSheetKey);
       const prev2Val = findColumnValue(prev2Row, mapping.pinkSheetKey);
-      const yearAgoVal = findColumnValue(row12MonthsAgo, mapping.pinkSheetKey);
-
       if (currentVal === null || prevVal === null) continue;
 
       // Calculate 52W range from available historical data

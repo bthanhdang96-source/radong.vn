@@ -1,43 +1,46 @@
-import express from 'express';
 import cors from 'cors';
-import worldPricesRouter from './routes/worldPrices.js';
+import cron from 'node-cron';
+import express from 'express';
+import apiRouter from './routes/index.js';
+import { getVnPrices } from './services/priceAggregator.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const VN_PRICE_CRON = process.env.VN_PRICE_CRON ?? '0 8,14 * * *';
 
-// ─── Middleware ──────────────────────────────────────────
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
-// ─── Request logging ────────────────────────────────────
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// ─── Routes ─────────────────────────────────────────────
-app.use('/api', worldPricesRouter);
+app.use('/api', apiRouter);
 
-// ─── Health check ───────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// ─── 404 handler ────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// ─── Start server ───────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`
-  ╔════════════════════════════════════════╗
-  ║     NongSanVN API Server              ║
-  ║     Port: ${PORT}                          ║
-  ║     http://localhost:${PORT}              ║
-  ╚════════════════════════════════════════╝
-  `);
+  console.log(`NongSanVN API Server listening on http://localhost:${PORT}`);
+});
+
+cron.schedule(VN_PRICE_CRON, async () => {
+  try {
+    console.log(`[VN Prices] Scheduled refresh started (${VN_PRICE_CRON})`);
+    await getVnPrices(true);
+    console.log('[VN Prices] Scheduled refresh completed');
+  } catch (error) {
+    console.error('[VN Prices] Scheduled refresh failed:', error);
+  }
 });

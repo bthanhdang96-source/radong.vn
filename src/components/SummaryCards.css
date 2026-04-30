@@ -59,8 +59,9 @@
 .stat-card__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.35rem;
   min-width: 0;
+  width: 100%;
 }
 
 .stat-card__label {
@@ -88,4 +89,49 @@
 .stat-card__sub {
   font-size: 0.72rem;
   color: var(--color-text-muted);
+}
+
+.stat-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.stat-card__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.stat-card__tag--ok {
+  color: var(--color-up);
+  background: var(--color-up-bg);
+}
+
+.stat-card__tag--fail {
+  color: var(--color-down);
+  background: var(--color-down-bg);
+}
+
+.stat-card__button {
+  margin-top: 0.35rem;
+  align-self: flex-start;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stat-card__button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
