@@ -15,6 +15,32 @@
 
 @media (max-width: 520px) {
   .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat-card {
+    padding: 16px 14px;
+  }
+
+  .stat-card__value {
+    font-size: 0.98rem;
+    white-space: normal;
+    overflow: visible;
+  }
+
+  .stat-card__sub {
+    font-size: 0.68rem;
+  }
+
+  .stat-card__button {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 }

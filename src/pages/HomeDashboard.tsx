@@ -4,12 +4,22 @@ import SummaryCards from '../components/SummaryCards';
 import TopMovers from '../components/TopMovers';
 import PriceTable from '../components/PriceTable';
 import { FALLBACK_VN_PRICES, type VnPricesResponse } from '../data/vnPriceTypes';
+import './HomeDashboard.css';
 
 export default function HomeDashboard() {
   const [payload, setPayload] = useState<VnPricesResponse>(FALLBACK_VN_PRICES);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function scrollToSelector(selector: string) {
+    const target = document.querySelector(selector);
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   useEffect(() => {
     let active = true;
@@ -79,7 +89,7 @@ export default function HomeDashboard() {
   }
 
   return (
-    <>
+    <div className="home-dashboard">
       <TickerBar items={payload.data} />
       <SummaryCards
         data={payload.data}
@@ -92,6 +102,22 @@ export default function HomeDashboard() {
       />
       <TopMovers items={payload.data} />
       <PriceTable data={payload.data} loading={loading} error={error ?? payload.errors[0] ?? null} />
-    </>
+      <div className="home-dashboard__dock" aria-label="Tac vu nhanh tren dien thoai">
+        <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('.summary-grid')}>
+          Tong quan
+        </button>
+        <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('#bang-gia')}>
+          Bang gia
+        </button>
+        <button
+          className="home-dashboard__dock-button home-dashboard__dock-button--primary"
+          type="button"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+        >
+          {refreshing ? 'Dang tai' : 'Lam moi'}
+        </button>
+      </div>
+    </div>
   );
 }

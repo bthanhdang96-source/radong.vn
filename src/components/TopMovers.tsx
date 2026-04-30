@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { COMMODITY_META, FALLBACK_VN_PRICES, type CommoditySummary } from '../data/vnPriceTypes';
+import { FALLBACK_VN_PRICES, type CommoditySummary } from '../data/vnPriceTypes';
 import './TopMovers.css';
 
 function SparkBars({ item }: { item: CommoditySummary }) {

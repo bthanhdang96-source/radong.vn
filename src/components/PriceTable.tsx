@@ -28,8 +28,26 @@ function RangeBar({ low, high, current }: { low: number; high: number; current: 
 }
 
 function RecommendationBadge({ value }: { value: CommoditySummary['recommendation'] }) {
-  const label = value === 'Mua' ? 'Mua' : value === 'Bán' ? 'Bán' : 'Giữ';
-  return <span className={`badge badge--${label === 'Mua' ? 'mua' : label === 'Bán' ? 'ban' : 'giu'}`}>{label}</span>;
+  return <span className={`badge badge--${value.toLowerCase()}`}>{value}</span>;
+}
+
+function ChangeBadge({ change, changePct }: { change: number; changePct: number }) {
+  const isUp = change >= 0;
+
+  return (
+    <span className={`pt-pct-badge ${isUp ? 'pct--up' : 'pct--down'}`}>
+      {isUp ? '▲' : '▼'} {changePct >= 0 ? '+' : ''}
+      {changePct.toFixed(2)}%
+    </span>
+  );
+}
+
+function RegionChange({ change }: { change: number | null }) {
+  if (change === null) {
+    return <>--</>;
+  }
+
+  return <>{change >= 0 ? '+' : ''}{change.toLocaleString('vi-VN')}</>;
 }
 
 export default function PriceTable({
@@ -42,26 +60,24 @@ export default function PriceTable({
   error?: string | null;
 }) {
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('Tất cả');
+  const [category, setCategory] = useState('Tat ca');
   const [sortKey, setSortKey] = useState<SortKey>('priceAvg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const categories = useMemo(() => ['Tất cả', ...new Set(data.map((item) => item.category))], [data]);
+  const categories = useMemo(() => ['Tat ca', ...new Set(data.map((item) => item.category))], [data]);
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
+
     return [...data]
-      .filter((item) => (category === 'Tất cả' ? true : item.category === category))
+      .filter((item) => (category === 'Tat ca' ? true : item.category === category))
       .filter((item) => {
         if (!query) {
           return true;
         }
 
-        return (
-          item.commodityName.toLowerCase().includes(query) ||
-          item.regions.some((region) => region.region.toLowerCase().includes(query))
-        );
+        return item.commodityName.toLowerCase().includes(query) || item.regions.some((region) => region.region.toLowerCase().includes(query));
       })
       .sort((a, b) => {
         const av = a[sortKey];
@@ -105,45 +121,45 @@ export default function PriceTable({
         <input
           className="pt-search"
           type="search"
-          placeholder="Tìm mặt hàng hoặc khu vực..."
+          placeholder="Tim mat hang hoac khu vuc..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          aria-label="Tìm mặt hàng"
+          aria-label="Tim mat hang"
         />
       </div>
 
       <div className="pt-meta">
         <span>
-          Hiển thị <strong>{rows.length}</strong> / {data.length} mặt hàng
+          Hien thi <strong>{rows.length}</strong> / {data.length} mat hang
         </span>
-        <span>{loading ? 'Đang tải dữ liệu...' : error ? `Cảnh báo: ${error}` : 'Dữ liệu API đang hoạt động'}</span>
+        <span>{loading ? 'Dang tai du lieu...' : error ? `Canh bao: ${error}` : 'Du lieu API dang hoat dong'}</span>
       </div>
 
       <div className="pt-scroll-wrap">
         <table className="pt-table" aria-label="Bang gia nong san Viet Nam">
           <thead>
             <tr>
-              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mặt hàng</th>
-              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Giá TB</th>
-              <th className="pt-th" onClick={() => toggleSort('change')}>Thay đổi</th>
-              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay đổi</th>
-              <th className="pt-th">Biên độ vùng</th>
-              <th className="pt-th">Dải 52 tuần</th>
-              <th className="pt-th">Khuyến nghị</th>
+              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mat hang</th>
+              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Gia TB</th>
+              <th className="pt-th" onClick={() => toggleSort('change')}>Thay doi</th>
+              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay doi</th>
+              <th className="pt-th">Bien do vung</th>
+              <th className="pt-th">Dai 52 tuan</th>
+              <th className="pt-th">Khuyen nghi</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="pt-empty">
-                  Không có dữ liệu khớp bộ lọc hiện tại.
+                  Khong co du lieu khop bo loc hien tai.
                 </td>
               </tr>
             ) : (
               rows.map((item) => {
                 const isExpanded = Boolean(expanded[item.commodity]);
                 const isUp = item.change >= 0;
-                const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết';
+                const detailLabel = item.regions.length > 1 ? 'Khu vuc / loai' : 'Chi tiet';
 
                 return (
                   <Fragment key={item.commodity}>
@@ -151,8 +167,10 @@ export default function PriceTable({
                       <td className="pt-td pt-td--name">
                         <button className="pt-expand" onClick={() => toggleExpanded(item.commodity)} aria-expanded={isExpanded}>
                           <span className="pt-expand__icon">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="pt-code">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
                           <span className="pt-name__text">
                             <strong>{item.commodityName}</strong>
+                            <small>{COMMODITY_META[item.commodity]?.nameEn ?? 'Vietnam commodity'}</small>
                           </span>
                         </button>
                       </td>
@@ -167,10 +185,7 @@ export default function PriceTable({
                         {item.change.toLocaleString('vi-VN')}
                       </td>
                       <td className="pt-td">
-                        <span className={`pt-pct-badge ${isUp ? 'pct--up' : 'pct--down'}`}>
-                          {isUp ? '▲' : '▼'} {item.changePct >= 0 ? '+' : ''}
-                          {item.changePct.toFixed(2)}%
-                        </span>
+                        <ChangeBadge change={item.change} changePct={item.changePct} />
                       </td>
                       <td className="pt-td">
                         <div className="pt-spread">
@@ -191,16 +206,16 @@ export default function PriceTable({
                           <div className="pt-detail">
                             <div className="pt-detail__summary">
                               <span>{detailLabel}: {item.regions.length}</span>
-                              <span>Nguồn: {item.sources.map((source) => SOURCE_LABELS[source]).join(', ')}</span>
+                              <span>Nguon: {item.sources.map((source) => SOURCE_LABELS[source]).join(', ')}</span>
                             </div>
                             <table className="pt-subtable">
                               <thead>
                                 <tr>
                                   <th>{detailLabel}</th>
-                                  <th>Giá</th>
-                                  <th>Thay đổi</th>
-                                  <th>Nguồn</th>
-                                  <th>Cảnh báo</th>
+                                  <th>Gia</th>
+                                  <th>Thay doi</th>
+                                  <th>Nguon</th>
+                                  <th>Canh bao</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -208,13 +223,11 @@ export default function PriceTable({
                                   <tr key={`${item.commodity}-${region.region}-${region.source}-${index}`} className={region.hasConflict ? 'pt-subrow--conflict' : ''}>
                                     <td>{region.region}</td>
                                     <td>{region.price.toLocaleString('vi-VN')}</td>
-                                    <td>
-                                      {region.change === null ? '--' : `${region.change >= 0 ? '+' : ''}${region.change.toLocaleString('vi-VN')}`}
-                                    </td>
+                                    <td><RegionChange change={region.change} /></td>
                                     <td>
                                       <span className="pt-source-badge">{SOURCE_LABELS[region.source]}</span>
                                     </td>
-                                    <td>{region.hasConflict ? `Lệch ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
+                                    <td>{region.hasConflict ? `Lech ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -229,6 +242,84 @@ export default function PriceTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="pt-mobile-list" aria-label="Danh sach gia nong san tren dien thoai">
+        {rows.length === 0 ? (
+          <div className="pt-mobile-empty">Khong co du lieu khop bo loc hien tai.</div>
+        ) : (
+          rows.map((item) => {
+            const isExpanded = Boolean(expanded[item.commodity]);
+
+            return (
+              <article key={`${item.commodity}-mobile`} className={`pt-mobile-card${isExpanded ? ' pt-mobile-card--expanded' : ''}`}>
+                <button className="pt-mobile-card__header" type="button" onClick={() => toggleExpanded(item.commodity)} aria-expanded={isExpanded}>
+                  <div className="pt-mobile-card__title">
+                    <span className="pt-code">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
+                    <div className="pt-mobile-card__name">
+                      <strong>{item.commodityName}</strong>
+                      <small>{COMMODITY_META[item.commodity]?.nameEn ?? 'Vietnam commodity'}</small>
+                    </div>
+                  </div>
+                  <div className="pt-mobile-card__actions">
+                    <RecommendationBadge value={item.recommendation} />
+                    <span className="pt-mobile-card__toggle">{isExpanded ? 'An' : 'Xem'}</span>
+                  </div>
+                </button>
+
+                <div className="pt-mobile-card__metrics">
+                  <div className="pt-mobile-card__metric">
+                    <span className="pt-mobile-card__label">Gia trung binh</span>
+                    <strong>{item.priceAvg.toLocaleString('vi-VN')}</strong>
+                    <small>{item.unit}</small>
+                  </div>
+                  <div className="pt-mobile-card__metric">
+                    <span className="pt-mobile-card__label">Bien dong</span>
+                    <strong>{item.change >= 0 ? '+' : ''}{item.change.toLocaleString('vi-VN')}</strong>
+                    <ChangeBadge change={item.change} changePct={item.changePct} />
+                  </div>
+                  <div className="pt-mobile-card__metric">
+                    <span className="pt-mobile-card__label">Muc gia</span>
+                    <strong>{item.priceLow.toLocaleString('vi-VN')} - {item.priceHigh.toLocaleString('vi-VN')}</strong>
+                    <small>{item.regions.length} khu vuc / loai</small>
+                  </div>
+                  <div className="pt-mobile-card__metric pt-mobile-card__metric--range">
+                    <span className="pt-mobile-card__label">Vi tri 52 tuan</span>
+                    <RangeBar low={item.low52w} high={item.high52w} current={item.priceAvg} />
+                  </div>
+                </div>
+
+                <div className="pt-mobile-card__sources">
+                  {item.sources.map((source) => (
+                    <span key={`${item.commodity}-${source}`} className="pt-source-badge">
+                      {SOURCE_LABELS[source]}
+                    </span>
+                  ))}
+                </div>
+
+                {isExpanded ? (
+                  <div className="pt-mobile-card__detail">
+                    {item.regions.map((region, index) => (
+                      <div
+                        key={`${item.commodity}-mobile-${region.region}-${region.source}-${index}`}
+                        className={`pt-mobile-region${region.hasConflict ? ' pt-mobile-region--conflict' : ''}`}
+                      >
+                        <div className="pt-mobile-region__meta">
+                          <strong>{region.region}</strong>
+                          <span>{SOURCE_LABELS[region.source]}</span>
+                        </div>
+                        <div className="pt-mobile-region__price">
+                          <strong>{region.price.toLocaleString('vi-VN')}</strong>
+                          <span><RegionChange change={region.change} /></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })
+        )}
       </div>
     </section>
   );

@@ -60,6 +60,10 @@
   background: var(--color-surface);
 }
 
+.pt-mobile-list {
+  display: none;
+}
+
 .pt-table {
   width: 100%;
   min-width: 980px;
@@ -328,5 +332,208 @@
 
   .pt-search {
     min-width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .pt-toolbar {
+    position: sticky;
+    top: calc(var(--navbar-h) + var(--ticker-h) + 8px);
+    z-index: 12;
+    margin: 0 -0.25rem;
+    padding: 0.85rem 0.25rem 0;
+    background: linear-gradient(180deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 84%, transparent) 100%);
+  }
+
+  .pt-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+  }
+
+  .pt-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pt-tab {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding-inline: 0.9rem;
+  }
+
+  .pt-search {
+    min-height: 46px;
+    border-radius: 14px;
+  }
+
+  .pt-meta {
+    font-size: 0.78rem;
+  }
+
+  .pt-scroll-wrap {
+    display: none;
+  }
+
+  .pt-mobile-list {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 0.25rem;
+  }
+
+  .pt-mobile-empty {
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  .pt-mobile-card {
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    background:
+      radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 8%, transparent) 0%, transparent 34%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 95%, white) 0%, var(--color-surface) 100%);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+
+  .pt-mobile-card__header {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 1rem 1rem 0.85rem;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  .pt-mobile-card__title,
+  .pt-mobile-card__actions,
+  .pt-mobile-card__name {
+    display: flex;
+  }
+
+  .pt-mobile-card__title {
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .pt-mobile-card__name {
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .pt-mobile-card__name strong {
+    font-size: 0.98rem;
+  }
+
+  .pt-mobile-card__name small {
+    color: var(--color-text-muted);
+    font-size: 0.74rem;
+  }
+
+  .pt-mobile-card__actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.45rem;
+    flex-shrink: 0;
+  }
+
+  .pt-mobile-card__toggle {
+    color: var(--color-primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .pt-mobile-card__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    padding: 0 1rem 0.95rem;
+  }
+
+  .pt-mobile-card__metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.24rem;
+    padding: 0.8rem 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--color-bg) 40%, var(--color-surface));
+  }
+
+  .pt-mobile-card__metric strong {
+    font-size: 0.95rem;
+    line-height: 1.25;
+  }
+
+  .pt-mobile-card__metric small,
+  .pt-mobile-card__label {
+    color: var(--color-text-muted);
+    font-size: 0.73rem;
+  }
+
+  .pt-mobile-card__metric--range {
+    grid-column: 1 / -1;
+  }
+
+  .pt-mobile-card__sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0 1rem 1rem;
+  }
+
+  .pt-mobile-card__detail {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0 1rem 1rem;
+  }
+
+  .pt-mobile-region {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    padding: 0.8rem 0.85rem;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--color-bg) 60%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
+  }
+
+  .pt-mobile-region--conflict {
+    background: color-mix(in srgb, var(--color-down-bg) 65%, white);
+  }
+
+  .pt-mobile-region__meta,
+  .pt-mobile-region__price {
+    display: flex;
+    flex-direction: column;
+    gap: 0.14rem;
+  }
+
+  .pt-mobile-region__meta span,
+  .pt-mobile-region__price span {
+    color: var(--color-text-muted);
+    font-size: 0.73rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .pt-mobile-card__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .pt-mobile-card__metric--range {
+    grid-column: auto;
   }
 }
