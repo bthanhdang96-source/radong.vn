@@ -102,12 +102,12 @@ export default function HomeDashboard() {
       />
       <TopMovers items={payload.data} />
       <PriceTable data={payload.data} loading={loading} error={error ?? payload.errors[0] ?? null} />
-      <div className="home-dashboard__dock" aria-label="Tac vu nhanh tren dien thoai">
+      <div className="home-dashboard__dock" aria-label="Tác vụ nhanh trên điện thoại">
         <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('.summary-grid')}>
-          Tong quan
+          Tổng quan
         </button>
         <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('#bang-gia')}>
-          Bang gia
+          Bảng giá
         </button>
         <button
           className="home-dashboard__dock-button home-dashboard__dock-button--primary"
@@ -115,7 +115,7 @@ export default function HomeDashboard() {
           onClick={() => void handleRefresh()}
           disabled={refreshing}
         >
-          {refreshing ? 'Dang tai' : 'Lam moi'}
+          {refreshing ? 'Đang tải' : 'Làm mới'}
         </button>
       </div>
     </div>

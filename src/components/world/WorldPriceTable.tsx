@@ -218,7 +218,6 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
                         <div className="wpt__commodity-info">
                           <span className="wpt__commodity-name">{item.name}</span>
                         </div>
-                        <span className="wpt__symbol">{item.symbol}</span>
                       </div>
                     </td>
 
