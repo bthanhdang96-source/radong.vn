@@ -155,3 +155,11 @@ server/                    ← [NEW] Express.js Backend (port 3001)
 - Phân trang (Pagination) hoặc tính năng Load More cho Feed chợ.
 - Kết nối API thật qua Commodities-API hoặc Websocket để giá realtime.
 - Deploy: Frontend trên Vercel/Netlify, Backend trên Railway/Render.
+## 6. Session Notes
+
+- [01/05/2026] Marketplace Supabase wiring:
+  - Added `@supabase/supabase-js` to the Vite app.
+  - Enabled Vite `envPrefix` for both `VITE_` and `NEXT_PUBLIC_` so the current `.env` keys can be used without renaming.
+  - Added client-side Supabase config and marketplace data services in `src/lib/`.
+  - Replaced mocked marketplace feed/form with live Supabase read/write flow against `marketplace_listings` by default.
+  - Added optional env override `SUPABASE_MARKETPLACE_TABLE` (`VITE_` or `NEXT_PUBLIC_`) if the table name differs.
