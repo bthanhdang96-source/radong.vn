@@ -168,3 +168,6 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Added server-side Supabase runtime helpers and a Supabase-aware market data service that ingests crawler outputs when `SUPABASE_SERVICE_ROLE_KEY` is available, then reads VN/world responses from curated Supabase views.
   - Removed the public marketplace listing UI and route from the current website. Future user-submitted pricing is preserved only at the data-model level via `crowdsource_submissions`.
   - Added fallback behavior so the app still serves legacy file-cache data if the remote Supabase schema has not been applied yet or the service role key is missing.
+- [01/05/2026] Project security skill:
+  - Added `.agent/skills/web-security` so AI agents load web-security guardrails when explicitly asked for security work and when implementing security-sensitive features.
+  - Documented project hotspots for Supabase client separation, RLS, ingestion, redirects, secrets, and future crowdsource submission flows.
