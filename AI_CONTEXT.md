@@ -171,3 +171,4 @@ server/                    ← [NEW] Express.js Backend (port 3001)
 - [01/05/2026] Project security skill:
   - Added `.agent/skills/web-security` so AI agents load web-security guardrails when explicitly asked for security work and when implementing security-sensitive features.
   - Documented project hotspots for Supabase client separation, RLS, ingestion, redirects, secrets, and future crowdsource submission flows.
+  - Refined the skill from the full `claude promt generated/web-security.md` prompt by adding a two-pass audit method, an explicit security checklist, and a reporting structure for review tasks.

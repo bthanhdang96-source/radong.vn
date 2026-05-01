@@ -13,6 +13,24 @@ Apply this skill to keep security decisions explicit while building the Vite + R
 - Prefer reducing attack surface over adding flexibility.
 - Stop and ask for clarification if the request depends on unclear trust boundaries or impossible guarantees.
 - State residual risk in the final answer when a change still depends on external controls.
+- When the task is a security review or audit, read [references/security-audit-checklist.md](references/security-audit-checklist.md) and [references/security-review-reporting.md](references/security-review-reporting.md) before producing findings.
+
+## Audit Mode
+
+Use this mode when the user asks for a security review, audit, hardening review, threat model, penetration-style pass, or when a change lands in a highly sensitive path.
+
+1. Perform discovery first.
+   - Read the relevant code paths before making findings.
+   - Build a concrete model of framework, auth, database, routes, workers, webhooks, secrets, and deployment boundaries.
+   - Identify entry points and trace untrusted input to storage, rendering, external calls, and privileged actions.
+2. Perform systematic review second.
+   - Work section by section instead of jumping straight to conclusions.
+   - Give an explicit verdict for each checklist item: `PASS`, `FAIL`, `PARTIAL`, or `N/A`.
+   - Separate real vulnerabilities from missing verification. Use `PARTIAL` when evidence is incomplete.
+3. Report findings with enough detail to act.
+   - Include severity, category, precise location, exploit impact, and the smallest safe fix.
+   - Prioritize exploitable issues over theoretical concerns.
+   - Preserve working defenses in the summary so later changes do not remove them by accident.
 
 ## Mandatory Workflow
 
@@ -42,6 +60,7 @@ Apply this skill to keep security decisions explicit while building the Vite + R
 ## Project-Specific Guardrails
 
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser, `src/`, client env vars, or any response payload.
+- Never place server secrets behind public client prefixes such as `VITE_` or `NEXT_PUBLIC_`.
 - Use the anonymous or publishable Supabase key in the browser only for flows that are safe under RLS.
 - Keep service-role clients isolated to trusted server-side code paths. Do not re-export them into shared utilities that client code could import.
 - For new Supabase tables or views, require explicit RLS policies and verify whether reads should be public, user-scoped, or service-only.
@@ -50,6 +69,7 @@ Apply this skill to keep security decisions explicit while building the Vite + R
 - Treat ingestion, cron refresh, Telegram alerts, and admin data repair flows as privileged operations.
 - If the feature can work with a derived public view instead of raw tables or raw payload fields, prefer the derived view.
 - Read [references/project-security-hotspots.md](references/project-security-hotspots.md) before changing Supabase access, ingestion, or auth-adjacent files.
+- When a task touches secrets or deployment config, also verify `.gitignore` coverage, startup env validation, and production source map exposure.
 
 ## Feature Rules
 
@@ -90,6 +110,14 @@ Apply this skill to keep security decisions explicit while building the Vite + R
 - Do not fetch arbitrary user-supplied URLs without an allowlist and SSRF review.
 - Avoid returning stack traces, raw SQL errors, internal IDs, or secret-bearing config in responses.
 
+### Dependency, Build, and Platform Security
+
+- Keep a committed lockfile and prefer deterministic installs.
+- Audit dependencies when adding or upgrading packages, especially auth, crypto, upload, and request middleware packages.
+- Treat hallucinated, obscure, or freshly published packages as suspicious until verified.
+- Verify CORS settings match the intended callers and never pair wildcard origins with credentialed requests.
+- Check that production source maps, debug logs, and fallback behavior do not expose code, secrets, or privileged paths.
+
 ### Redirects and Navigation
 
 - Redirect only to internal paths or exact allowlisted origins.
@@ -117,4 +145,5 @@ Apply this skill to keep security decisions explicit while building the Vite + R
 
 - Mention the main security boundary you relied on, such as RLS, server-only logic, or an allowlist.
 - Mention important follow-up verification if code changed in a sensitive path.
+- For audit or review requests, organize the response so the user can see overall posture, critical findings, quick wins, and a prioritized remediation order.
 - If the task is low risk and does not touch a sensitive boundary, stay concise and do not add unnecessary process.
