@@ -6,7 +6,7 @@ import {
   getVnPricesHistory as getLegacyVnPricesHistory,
 } from './priceAggregator.js'
 import { foldText } from './crawlers/common.js'
-import type { CrawledPriceItem, RegionPrice, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
+import type { CrawledPriceItem, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
 import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
 import { processQueuedBatch } from './ingestion/worker.js'
@@ -16,6 +16,13 @@ import {
   USD_VND_RATE,
   VN_COMMODITY_META,
 } from './marketDataMappings.js'
+import {
+  buildCanonicalRegionSelections,
+  buildSourcePriorityLookup,
+  createRankedRegionCandidate,
+  pickSummaryRegionSelections,
+  toRegionPrices,
+} from './priceQuality.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from './supabaseClient.js'
 
 type LatestObservationRow = {
@@ -248,44 +255,6 @@ async function getLatestSourceSnapshots() {
   return [...bySource.values()]
 }
 
-function buildRegionRows(rows: LatestObservationRow[]): RegionPrice[] {
-  const grouped = new Map<string, LatestObservationRow[]>()
-
-  for (const row of rows) {
-    const regionLabel = getRegionLabelFromObservation(
-      row.province_code,
-      row.variety,
-      typeof row.raw_payload?.region === 'string' ? row.raw_payload.region : null,
-    )
-    const siblings = grouped.get(regionLabel) ?? []
-    siblings.push(row)
-    grouped.set(regionLabel, siblings)
-  }
-
-  return rows.map(row => {
-    const regionLabel = getRegionLabelFromObservation(
-      row.province_code,
-      row.variety,
-      typeof row.raw_payload?.region === 'string' ? row.raw_payload.region : null,
-    )
-    const siblings = grouped.get(regionLabel) ?? [row]
-    const prices = siblings.map(sibling => sibling.price_vnd)
-    const min = Math.min(...prices)
-    const max = Math.max(...prices)
-    const conflictPct = min > 0 ? roundNumber(((max - min) / min) * 100) : null
-
-    return {
-      region: regionLabel,
-      price: row.price_vnd,
-      change: typeof row.raw_payload?.change === 'number' ? row.raw_payload.change : null,
-      changePct: typeof row.raw_payload?.changePct === 'number' ? row.raw_payload.changePct : null,
-      source: (row.source in SOURCE_BASE_CONFIDENCE ? row.source : 'fallback') as SourceSnapshot['id'],
-      hasConflict: siblings.length > 1 && conflictPct !== null && conflictPct > 2,
-      conflictPct: siblings.length > 1 ? conflictPct : null,
-    }
-  })
-}
-
 function buildHistoricalLookups(rows: DailySummaryRow[]) {
   const rangeByCommodity = new Map<string, { low: number; high: number }>()
   const dailyByCommodity = new Map<
@@ -337,6 +306,7 @@ function buildVnResponseFromRows(
   sourceSnapshots: SourceSnapshot[],
 ): VnPricesResponse {
   const byCommodity = new Map<string, LatestObservationRow[]>()
+  const sourcePriorityLookup = buildSourcePriorityLookup(sourceSnapshots)
   for (const row of observationRows) {
     const entries = byCommodity.get(row.commodity_slug) ?? []
     entries.push(row)
@@ -357,7 +327,30 @@ function buildVnResponseFromRows(
         category: rows[0].raw_payload?.category ?? 'Khac',
         unit: rows[0].raw_payload?.unit ?? 'VND/kg',
       }
-      const prices = rows.map(row => row.price_vnd)
+      const regionSelections = pickSummaryRegionSelections(
+        buildCanonicalRegionSelections(
+          rows.map(row => {
+            const regionLabel = getRegionLabelFromObservation(
+              row.province_code,
+              row.variety,
+              typeof row.raw_payload?.region === 'string' ? row.raw_payload.region : null,
+            )
+            const source = (row.source in SOURCE_BASE_CONFIDENCE ? row.source : 'fallback') as SourceSnapshot['id']
+
+            return createRankedRegionCandidate({
+              region: regionLabel,
+              price: row.price_vnd,
+              change: typeof row.raw_payload?.change === 'number' ? row.raw_payload.change : null,
+              changePct: typeof row.raw_payload?.changePct === 'number' ? row.raw_payload.changePct : null,
+              source,
+              timestamp: row.recorded_at,
+              sourcePriority: sourcePriorityLookup.get(source),
+            })
+          }),
+        ),
+      )
+      const summaryCandidates = regionSelections.map(selection => selection.primary)
+      const prices = summaryCandidates.map(candidate => candidate.price)
       const fallbackPriceAvg = roundNumber(prices.reduce((sum, price) => sum + price, 0) / prices.length)
       const latestDate = rows.reduce((latest, row) => (row.recorded_at > latest ? row.recorded_at : latest), rows[0].recorded_at)
       const currentDateKey = normalizeDateKey(latestDate)
@@ -368,10 +361,7 @@ function buildVnResponseFromRows(
         : undefined
       const previousDaily = previousDateKey ? dailyState?.get(previousDateKey) : undefined
       const trend = trendByCommodity.get(commoditySlug)
-      const priceAvg =
-        currentDaily && currentDaily.observationCount > 0
-          ? roundNumber(currentDaily.weightedSum / currentDaily.observationCount)
-          : fallbackPriceAvg
+      const priceAvg = fallbackPriceAvg
       const previousAvg =
         previousDaily && previousDaily.observationCount > 0
           ? roundNumber(previousDaily.weightedSum / previousDaily.observationCount)
@@ -390,15 +380,15 @@ function buildVnResponseFromRows(
           ? trend.trend_7d_pct
           : changePct
       const historicalRange = rangeByCommodity.get(commoditySlug)
-      const regions = buildRegionRows(rows)
+      const regions = toRegionPrices(regionSelections)
 
       return {
         commodity: commoditySlug,
         commodityName: meta.commodityName,
         category: meta.category,
         unit: meta.unit,
-        priceHigh: currentDaily?.maxPrice ?? Math.max(...prices),
-        priceLow: currentDaily?.minPrice ?? Math.min(...prices),
+        priceHigh: Math.max(...prices),
+        priceLow: Math.min(...prices),
         priceAvg,
         change,
         changePct,
