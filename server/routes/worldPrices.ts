@@ -11,7 +11,7 @@ router.get('/world-prices', async (_req, res) => {
     const payload = await getWorldPricesResponse(forceRefresh)
     let data = payload.data
 
-    if (category && category !== 'Táº¥t cáº£') {
+    if (category && category !== 'Tất cả') {
       data = data.filter(item => item.category === (category as WorldCategory))
     }
 

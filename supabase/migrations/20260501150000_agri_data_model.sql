@@ -1,5 +1,9 @@
 create extension if not exists pgcrypto with schema extensions;
 
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to service_role;
+
 create table if not exists public.commodities (
     id serial primary key,
     name_vi text not null,
@@ -147,6 +151,7 @@ create index if not exists idx_world_prices_slug_time
 create or replace function public.sync_commodity_slug()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
     select slug into new.commodity_slug
@@ -156,6 +161,8 @@ begin
     return new;
 end;
 $$;
+
+revoke all on function public.sync_commodity_slug() from public;
 
 drop trigger if exists trg_sync_price_slug on public.price_observations;
 create trigger trg_sync_price_slug
@@ -270,6 +277,7 @@ create or replace function public.get_recent_median(
 )
 returns table (median_price numeric)
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
     return query
@@ -282,9 +290,12 @@ begin
 end;
 $$;
 
+revoke all on function public.get_recent_median(int, text, int) from public;
+
 create or replace function public.count_records_last_hour()
 returns table (count bigint)
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
     return query
@@ -293,6 +304,8 @@ begin
     where recorded_at >= now() - interval '1 hour';
 end;
 $$;
+
+revoke all on function public.count_records_last_hour() from public;
 
 drop materialized view if exists public.daily_price_summary;
 create materialized view public.daily_price_summary as
@@ -432,12 +445,14 @@ create unique index if not exists idx_latest_observation_details_id
 create index if not exists idx_latest_observation_details_slug
     on public.latest_observation_details (commodity_slug, province_code);
 
-create or replace view public.latest_daily_price_summary as
+create or replace view public.latest_daily_price_summary
+with (security_invoker = true) as
 select *
 from public.daily_price_summary
 where date = (select max(date) from public.daily_price_summary);
 
-create or replace view public.latest_world_prices_public as
+create or replace view public.latest_world_prices_public
+with (security_invoker = true) as
 select distinct on (commodity_slug)
     id,
     recorded_at,
@@ -452,11 +467,13 @@ select distinct on (commodity_slug)
 from public.world_prices
 order by commodity_slug, recorded_at desc, id desc;
 
-create or replace function public.refresh_curated_views()
+drop function if exists public.refresh_curated_views();
+
+create or replace function private.refresh_curated_views()
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
     refresh materialized view public.daily_price_summary;
@@ -467,9 +484,24 @@ begin
 end;
 $$;
 
+revoke all on function private.refresh_curated_views() from public;
+grant execute on function private.refresh_curated_views() to service_role;
+
+create or replace function public.refresh_curated_views()
+returns void
+language sql
+security invoker
+set search_path = public, private, pg_temp
+as $$
+    select private.refresh_curated_views();
+$$;
+
 revoke all on function public.refresh_curated_views() from public;
 grant execute on function public.refresh_curated_views() to service_role;
 
+alter table public.commodities enable row level security;
+alter table public.provinces enable row level security;
+alter table public.weather_cache enable row level security;
 alter table public.price_observations enable row level security;
 alter table public.world_prices enable row level security;
 alter table public.user_profiles enable row level security;
@@ -489,6 +521,13 @@ create policy "public read provinces"
     on public.provinces
     for select
     using (true);
+
+drop policy if exists "service weather cache" on public.weather_cache;
+create policy "service weather cache"
+    on public.weather_cache
+    for all
+    using (auth.role() = 'service_role')
+    with check (auth.role() = 'service_role');
 
 drop policy if exists "public read price" on public.price_observations;
 create policy "public read price"
@@ -520,22 +559,22 @@ drop policy if exists "users own profile" on public.user_profiles;
 create policy "users own profile"
     on public.user_profiles
     for all
-    using (auth.uid() = id)
-    with check (auth.uid() = id);
+    using (auth.uid() is not null and auth.uid() = id)
+    with check (auth.uid() is not null and auth.uid() = id);
 
 drop policy if exists "users own alerts" on public.price_alerts;
 create policy "users own alerts"
     on public.price_alerts
     for all
-    using (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
+    using (auth.uid() is not null and auth.uid() = user_id)
+    with check (auth.uid() is not null and auth.uid() = user_id);
 
 drop policy if exists "users own crowdsource submissions" on public.crowdsource_submissions;
 create policy "users own crowdsource submissions"
     on public.crowdsource_submissions
     for all
-    using (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
+    using (auth.uid() is not null and auth.uid() = user_id)
+    with check (auth.uid() is not null and auth.uid() = user_id);
 
 drop policy if exists "service raw crawl logs" on public.raw_crawl_logs;
 create policy "service raw crawl logs"
