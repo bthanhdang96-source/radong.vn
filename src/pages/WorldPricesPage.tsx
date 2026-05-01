@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import WorldSummaryCards from '../components/world/WorldSummaryCards'
 import WorldPriceTable from '../components/world/WorldPriceTable'
-import { DEFAULT_USD_VND_RATE, FALLBACK_WORLD_DATA, type WorldCommodityItem, type WorldPricesResponse } from '../data/worldCommodityData'
+import { DEFAULT_USD_VND_RATE, FALLBACK_WORLD_DATA, WORLD_CATEGORIES, type WorldCategory, type WorldCommodityItem, type WorldPricesResponse } from '../data/worldCommodityData'
 import './WorldPricesPage.css'
 
 export default function WorldPricesPage() {
   const [data, setData] = useState<WorldCommodityItem[]>([])
+  const [categories, setCategories] = useState<WorldCategory[]>(WORLD_CATEGORIES)
   const [exchangeRate, setExchangeRate] = useState(DEFAULT_USD_VND_RATE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,18 +28,29 @@ export default function WorldPricesPage() {
 
       if (result.success && result.data.length > 0) {
         setData(result.data)
+        setCategories(result.categories)
         setExchangeRate(result.exchangeRate)
-        setDataSource('api')
-        setLastUpdate(new Date().toLocaleDateString('vi-VN'))
+        setDataSource(result.status === 'fallback' ? 'fallback' : 'api')
+        setLastUpdate(
+          result.lastUpdated
+            ? new Date(result.lastUpdated).toLocaleString('vi-VN')
+            : new Date(
+                result.data.reduce(
+                  (latest, item) => (item.lastUpdate > latest ? item.lastUpdate : latest),
+                  result.data[0]?.lastUpdate ?? new Date().toISOString(),
+                ),
+              ).toLocaleString('vi-VN'),
+        )
       } else {
         throw new Error('Empty response from API')
       }
     } catch {
       console.warn('[WorldPrices] API unavailable, using fallback data')
       setData(FALLBACK_WORLD_DATA)
+      setCategories(WORLD_CATEGORIES)
       setExchangeRate(DEFAULT_USD_VND_RATE)
       setDataSource('fallback')
-      setLastUpdate('04/2026 (tham chiếu)')
+      setLastUpdate(new Date(FALLBACK_WORLD_DATA[0]?.lastUpdate ?? Date.now()).toLocaleString('vi-VN'))
       setError(null)
     } finally {
       setLoading(false)
@@ -122,7 +134,7 @@ export default function WorldPricesPage() {
       ) : null}
 
       <WorldSummaryCards data={data} exchangeRate={exchangeRate} />
-      <WorldPriceTable data={data} exchangeRate={exchangeRate} loading={loading} />
+      <WorldPriceTable data={data} categories={categories} exchangeRate={exchangeRate} loading={loading} />
     </div>
   )
 }

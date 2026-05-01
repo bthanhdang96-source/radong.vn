@@ -1,18 +1,18 @@
 import { useState, useMemo, useCallback, type CSSProperties } from 'react';
 import type { WorldCommodityItem, WorldCategory } from '../../data/worldCommodityData';
-import { WORLD_CATEGORIES } from '../../data/worldCommodityData';
 import './WorldPriceTable.css';
 
 interface Props {
   data: WorldCommodityItem[];
+  categories: WorldCategory[];
   exchangeRate: number;
   loading?: boolean;
 }
 
-type SortKey = 'name' | 'priceCurrent' | 'changePct' | 'priceVND';
+type SortKey = 'name' | 'priceCurrent' | 'changePct' | 'priceVndKg';
 type SortDir = 'asc' | 'desc';
 
-export default function WorldPriceTable({ data, exchangeRate, loading }: Props) {
+export default function WorldPriceTable({ data, categories, exchangeRate, loading }: Props) {
   const [activeCategory, setActiveCategory] = useState<WorldCategory>('Tất cả');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -61,15 +61,15 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
         case 'changePct':
           cmp = a.changePct - b.changePct;
           break;
-        case 'priceVND':
-          cmp = a.priceCurrent - b.priceCurrent; // same ratio
+        case 'priceVndKg':
+          cmp = (getReferenceVndKg(a, exchangeRate) ?? Number.NEGATIVE_INFINITY) - (getReferenceVndKg(b, exchangeRate) ?? Number.NEGATIVE_INFINITY);
           break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
     return result;
-  }, [data, activeCategory, searchQuery, sortKey, sortDir]);
+  }, [data, activeCategory, searchQuery, sortKey, sortDir, exchangeRate]);
 
   const renderSortIcon = (key: SortKey) => {
     if (sortKey !== key) return <span className="wpt-sort-icon wpt-sort-icon--inactive">&#8597;</span>;
@@ -122,7 +122,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
       {/* Category tabs */}
       <div className="wpt__controls">
         <div className="wpt__tabs" role="tablist">
-          {WORLD_CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const count =
               cat === 'Tất cả'
                 ? data.length
@@ -176,8 +176,8 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
               <th className="wpt__th wpt__th--price" onClick={() => handleSort('priceCurrent')}>
                 Giá (USD) {renderSortIcon('priceCurrent')}
               </th>
-              <th className="wpt__th wpt__th--price-vnd" onClick={() => handleSort('priceVND')}>
-                Giá (VND) {renderSortIcon('priceVND')}
+              <th className="wpt__th wpt__th--price-vnd" onClick={() => handleSort('priceVndKg')}>
+                VND/kg qđ {renderSortIcon('priceVndKg')}
               </th>
               <th className="wpt__th wpt__th--change" onClick={() => handleSort('changePct')}>
                 Thay đổi {renderSortIcon('changePct')}
@@ -204,7 +204,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
               filteredData.map((item, index) => {
                 const isUp = item.changePct > 0;
                 const isDown = item.changePct < 0;
-                const priceVND = convertToVND(item.priceCurrent, exchangeRate);
+                const priceVND = getReferenceVndKg(item, exchangeRate);
 
                 return (
                   <tr
@@ -271,7 +271,7 @@ export default function WorldPriceTable({ data, exchangeRate, loading }: Props) 
           Hiển thị {filteredData.length} / {data.length} mặt hàng
         </span>
         <span className="wpt__footer-source">
-          Nguồn: World Bank Commodity Markets &middot; Tỷ giá: {exchangeRate.toLocaleString('vi-VN')} VND/USD
+          Nguồn: Supabase curated views &middot; Tỷ giá tham chiếu: {exchangeRate.toLocaleString('vi-VN')} VND/USD
         </span>
       </div>
     </section>
@@ -305,8 +305,19 @@ function formatVND(value: number): string {
  * Prices in "USD/tấn" are per metric ton,
  * "USD/kg" are per kilogram, etc.
  */
-function convertToVND(priceUSD: number, rate: number): number | null {
-  // Simple conversion: just multiply by exchange rate
-  // The unit stays the same (VND/kg, VND/tấn, etc.)
-  return priceUSD * rate;
+function getReferenceVndKg(item: WorldCommodityItem, rate: number): number | null {
+  if (typeof item.priceVndKg === 'number' && Number.isFinite(item.priceVndKg)) {
+    return item.priceVndKg;
+  }
+
+  const unit = item.unit.toLowerCase();
+  if (unit.includes('usd/kg')) {
+    return item.priceCurrent * rate;
+  }
+
+  if (unit.includes('usd/tấn') || unit.includes('usd/tan') || unit.includes('usd/ton')) {
+    return (item.priceCurrent * rate) / 1000;
+  }
+
+  return null;
 }

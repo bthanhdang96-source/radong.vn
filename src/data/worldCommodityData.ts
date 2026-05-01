@@ -24,15 +24,19 @@ export interface WorldCommodityItem {
   changePct: number;     // Percentage change
   low52w: number;
   high52w: number;
+  priceVndKg?: number | null;
   currency: 'USD';
   lastUpdate: string;    // ISO date string
 }
 
 export interface WorldPricesResponse {
   success: boolean;
+  status?: 'live' | 'fallback';
+  sourceMode?: 'supabase_curated' | 'legacy';
   count: number;
   exchangeRate: number;
   categories: WorldCategory[];
+  lastUpdated?: string;
   data: WorldCommodityItem[];
 }
 

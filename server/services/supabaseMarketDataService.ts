@@ -45,8 +45,22 @@ type LatestObservationRow = {
 type DailySummaryRow = {
   date: string
   commodity_slug: string
+  province_code: string | null
+  market_type: string
+  avg_price: number
   min_price: number
   max_price: number
+  observation_count: number
+  sources: string[] | null
+}
+
+type CommodityTrendRow = {
+  commodity_slug: string
+  avg_7d: number | null
+  avg_30d: number | null
+  trend_7d_pct: number | null
+  trend_30d_pct: number | null
+  updated_at: string
 }
 
 type RawCrawlLogRow = {
@@ -67,6 +81,17 @@ type LatestWorldPriceRow = {
   price_vnd_kg: number | null
   source_url: string | null
   raw_payload: Partial<WorldCommodityItem> & Record<string, unknown>
+}
+
+type WorldPricesResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  sourceMode: 'supabase_curated' | 'legacy'
+  count: number
+  exchangeRate: number
+  categories: string[]
+  lastUpdated: string
+  data: Array<WorldCommodityItem & { priceVndKg?: number | null }>
 }
 
 type NormalizedObservation = {
@@ -104,6 +129,10 @@ function getRecommendation(changePct: number): 'Mua' | 'Bán' | 'Giữ' {
 
 function isRelationMissing(message: string) {
   return message.includes('relation') || message.includes('does not exist')
+}
+
+function normalizeDateKey(value: string) {
+  return value.slice(0, 10)
 }
 
 async function getCommodityLookup() {
@@ -240,7 +269,7 @@ async function getDailySummaryRows() {
 
   const { data, error } = await client
     .from('daily_price_summary')
-    .select('date, commodity_slug, min_price, max_price')
+    .select('date, commodity_slug, province_code, market_type, avg_price, min_price, max_price, observation_count, sources')
     .gte('date', start.toISOString())
 
   if (error) {
@@ -248,6 +277,23 @@ async function getDailySummaryRows() {
   }
 
   return data as DailySummaryRow[]
+}
+
+async function getCommodityTrendRows() {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('commodity_trends')
+    .select('commodity_slug, avg_7d, avg_30d, trend_7d_pct, trend_30d_pct, updated_at')
+
+  if (error) {
+    throw error
+  }
+
+  return data as CommodityTrendRow[]
 }
 
 async function getLatestSourceSnapshots() {
@@ -317,9 +363,54 @@ function buildRegionRows(rows: LatestObservationRow[]): RegionPrice[] {
   })
 }
 
+function buildHistoricalLookups(rows: DailySummaryRow[]) {
+  const rangeByCommodity = new Map<string, { low: number; high: number }>()
+  const dailyByCommodity = new Map<
+    string,
+    Map<string, { weightedSum: number; observationCount: number; minPrice: number; maxPrice: number }>
+  >()
+
+  for (const row of rows) {
+    const range = rangeByCommodity.get(row.commodity_slug)
+    if (!range) {
+      rangeByCommodity.set(row.commodity_slug, {
+        low: row.min_price,
+        high: row.max_price,
+      })
+    } else {
+      range.low = Math.min(range.low, row.min_price)
+      range.high = Math.max(range.high, row.max_price)
+    }
+
+    const dateKey = normalizeDateKey(row.date)
+    const byDate = dailyByCommodity.get(row.commodity_slug) ?? new Map()
+    const aggregate = byDate.get(dateKey) ?? {
+      weightedSum: 0,
+      observationCount: 0,
+      minPrice: row.min_price,
+      maxPrice: row.max_price,
+    }
+    const weight = row.observation_count > 0 ? row.observation_count : 1
+
+    aggregate.weightedSum += row.avg_price * weight
+    aggregate.observationCount += weight
+    aggregate.minPrice = Math.min(aggregate.minPrice, row.min_price)
+    aggregate.maxPrice = Math.max(aggregate.maxPrice, row.max_price)
+
+    byDate.set(dateKey, aggregate)
+    dailyByCommodity.set(row.commodity_slug, byDate)
+  }
+
+  return {
+    rangeByCommodity,
+    dailyByCommodity,
+  }
+}
+
 function buildVnResponseFromRows(
   observationRows: LatestObservationRow[],
   dailySummaryRows: DailySummaryRow[],
+  trendRows: CommodityTrendRow[],
   sourceSnapshots: SourceSnapshot[],
 ): VnPricesResponse {
   const byCommodity = new Map<string, LatestObservationRow[]>()
@@ -329,17 +420,12 @@ function buildVnResponseFromRows(
     byCommodity.set(row.commodity_slug, entries)
   }
 
-  const historicalRanges = dailySummaryRows.reduce<Record<string, { low: number; high: number }>>((acc, row) => {
-    const current = acc[row.commodity_slug]
-    if (!current) {
-      acc[row.commodity_slug] = { low: row.min_price, high: row.max_price }
-      return acc
-    }
-
-    current.low = Math.min(current.low, row.min_price)
-    current.high = Math.max(current.high, row.max_price)
-    return acc
-  }, {})
+  const { rangeByCommodity, dailyByCommodity } = buildHistoricalLookups(dailySummaryRows)
+  const trendByCommodity = new Map(trendRows.map(row => [row.commodity_slug, row]))
+  const latestSourceFetchedAt = sourceSnapshots.reduce(
+    (latest, snapshot) => (snapshot.fetchedAt > latest ? snapshot.fetchedAt : latest),
+    observationRows[0]?.recorded_at ?? new Date().toISOString(),
+  )
 
   const summaries = [...byCommodity.entries()]
     .map(([commoditySlug, rows]) => {
@@ -349,18 +435,38 @@ function buildVnResponseFromRows(
         unit: rows[0].raw_payload?.unit ?? 'VND/kg',
       }
       const prices = rows.map(row => row.price_vnd)
-      const previousPrices = rows
-        .map(row => (typeof row.raw_payload?.previousPrice === 'number' ? row.raw_payload.previousPrice : null))
-        .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0)
-
-      const priceAvg = roundNumber(prices.reduce((sum, price) => sum + price, 0) / prices.length)
+      const fallbackPriceAvg = roundNumber(prices.reduce((sum, price) => sum + price, 0) / prices.length)
+      const latestDate = rows.reduce((latest, row) => (row.recorded_at > latest ? row.recorded_at : latest), rows[0].recorded_at)
+      const currentDateKey = normalizeDateKey(latestDate)
+      const dailyState = dailyByCommodity.get(commoditySlug)
+      const currentDaily = dailyState?.get(currentDateKey)
+      const previousDateKey = dailyState
+        ? [...dailyState.keys()].filter(dateKey => dateKey < currentDateKey).sort().at(-1)
+        : undefined
+      const previousDaily = previousDateKey ? dailyState?.get(previousDateKey) : undefined
+      const trend = trendByCommodity.get(commoditySlug)
+      const priceAvg =
+        currentDaily && currentDaily.observationCount > 0
+          ? roundNumber(currentDaily.weightedSum / currentDaily.observationCount)
+          : fallbackPriceAvg
       const previousAvg =
-        previousPrices.length > 0
-          ? roundNumber(previousPrices.reduce((sum, price) => sum + price, 0) / previousPrices.length)
-          : priceAvg
-      const change = roundNumber(priceAvg - previousAvg)
-      const changePct = previousAvg > 0 ? roundNumber((change / previousAvg) * 100) : 0
-      const historicalRange = historicalRanges[commoditySlug]
+        previousDaily && previousDaily.observationCount > 0
+          ? roundNumber(previousDaily.weightedSum / previousDaily.observationCount)
+          : trend?.avg_30d && trend.avg_30d > 0
+            ? roundNumber(trend.avg_30d)
+            : null
+      const change = previousAvg && previousAvg > 0 ? roundNumber(priceAvg - previousAvg) : 0
+      const changePct =
+        previousAvg && previousAvg > 0
+          ? roundNumber((change / previousAvg) * 100)
+          : typeof trend?.trend_7d_pct === 'number'
+            ? roundNumber(trend.trend_7d_pct)
+            : 0
+      const recommendationBasis =
+        typeof trend?.trend_7d_pct === 'number' && Number.isFinite(trend.trend_7d_pct)
+          ? trend.trend_7d_pct
+          : changePct
+      const historicalRange = rangeByCommodity.get(commoditySlug)
       const regions = buildRegionRows(rows)
 
       return {
@@ -368,30 +474,25 @@ function buildVnResponseFromRows(
         commodityName: meta.commodityName,
         category: meta.category,
         unit: meta.unit,
-        priceHigh: Math.max(...prices),
-        priceLow: Math.min(...prices),
+        priceHigh: currentDaily?.maxPrice ?? Math.max(...prices),
+        priceLow: currentDaily?.minPrice ?? Math.min(...prices),
         priceAvg,
         change,
         changePct,
-        low52w: historicalRange?.low ?? Math.min(...prices),
-        high52w: historicalRange?.high ?? Math.max(...prices),
+        low52w: historicalRange?.low ?? (currentDaily?.minPrice ?? Math.min(...prices)),
+        high52w: historicalRange?.high ?? (currentDaily?.maxPrice ?? Math.max(...prices)),
         regions,
         sources: [...new Set(rows.map(row => row.source as SourceSnapshot['id']))],
-        recommendation: getRecommendation(changePct),
-        lastUpdated: rows.reduce((latest, row) => (row.recorded_at > latest ? row.recorded_at : latest), rows[0].recorded_at),
+        recommendation: getRecommendation(recommendationBasis),
+        lastUpdated: latestDate,
       }
     })
     .sort((a, b) => b.priceAvg - a.priceAvg)
 
-  const lastUpdated = observationRows.reduce(
-    (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
-    observationRows[0]?.recorded_at ?? new Date().toISOString(),
-  )
-
   return {
     status: 'live',
     fetchedAt: new Date().toISOString(),
-    lastUpdated,
+    lastUpdated: latestSourceFetchedAt,
     data: summaries,
     sources: sourceSnapshots,
     errors: [],
@@ -404,12 +505,13 @@ async function buildVnResponseFromSupabase() {
     return null
   }
 
-  const [dailySummaryRows, sourceSnapshots] = await Promise.all([
+  const [dailySummaryRows, sourceSnapshots, trendRows] = await Promise.all([
     getDailySummaryRows(),
     getLatestSourceSnapshots(),
+    getCommodityTrendRows(),
   ])
 
-  return buildVnResponseFromRows(observationRows, dailySummaryRows ?? [], sourceSnapshots)
+  return buildVnResponseFromRows(observationRows, dailySummaryRows ?? [], trendRows ?? [], sourceSnapshots)
 }
 
 async function syncVnPricesToSupabase() {
@@ -579,7 +681,7 @@ async function getLatestWorldRows() {
   return data as LatestWorldPriceRow[]
 }
 
-async function buildWorldResponseFromSupabase() {
+async function buildWorldResponseFromSupabase(): Promise<WorldPricesResponse | null> {
   const rows = await getLatestWorldRows()
   if (!rows || rows.length === 0) {
     return null
@@ -592,7 +694,7 @@ async function buildWorldResponseFromSupabase() {
       name: typeof raw.name === 'string' ? raw.name : row.commodity_slug,
       nameEn: typeof raw.nameEn === 'string' ? raw.nameEn : row.commodity_slug,
       symbol: typeof raw.symbol === 'string' ? raw.symbol : row.commodity_slug.toUpperCase(),
-      category: typeof raw.category === 'string' ? raw.category : 'Khac',
+      category: typeof raw.category === 'string' ? raw.category : 'Khác',
       exchange: row.exchange,
       unit: row.price_unit,
       priceCurrent: row.price_usd,
@@ -603,16 +705,24 @@ async function buildWorldResponseFromSupabase() {
       changePct: typeof raw.changePct === 'number' ? raw.changePct : 0,
       low52w: typeof raw.low52w === 'number' ? raw.low52w : row.price_usd,
       high52w: typeof raw.high52w === 'number' ? raw.high52w : row.price_usd,
+      priceVndKg: row.price_vnd_kg,
       currency: 'USD' as const,
       lastUpdate: row.recorded_at,
     }
   })
+  const lastUpdated = rows.reduce(
+    (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
+    rows[0]?.recorded_at ?? new Date().toISOString(),
+  )
 
   return {
     success: true,
+    status: 'live',
+    sourceMode: 'supabase_curated',
     count: data.length,
     exchangeRate: USD_VND_RATE,
     categories: getCategories(),
+    lastUpdated,
     data,
   }
 }
@@ -663,15 +773,22 @@ export function getVnPricesHistory(date: string) {
   return getLegacyVnPricesHistory(date)
 }
 
-export async function getWorldPricesResponse(forceRefresh = false) {
+export async function getWorldPricesResponse(forceRefresh = false): Promise<WorldPricesResponse> {
   const runtime = getSupabaseRuntimeStatus()
   if (!runtime.hasReadConfig) {
     const data = await getLegacyWorldPrices(forceRefresh)
+    const lastUpdated = data.reduce(
+      (latest, item) => (item.lastUpdate > latest ? item.lastUpdate : latest),
+      data[0]?.lastUpdate ?? new Date().toISOString(),
+    )
     return {
       success: true,
+      status: 'fallback',
+      sourceMode: 'legacy',
       count: data.length,
       exchangeRate: USD_VND_RATE,
       categories: getCategories(),
+      lastUpdated,
       data,
     }
   }
@@ -692,11 +809,18 @@ export async function getWorldPricesResponse(forceRefresh = false) {
   }
 
   const data = await getLegacyWorldPrices(forceRefresh)
+  const lastUpdated = data.reduce(
+    (latest, item) => (item.lastUpdate > latest ? item.lastUpdate : latest),
+    data[0]?.lastUpdate ?? new Date().toISOString(),
+  )
   return {
     success: true,
+    status: 'fallback',
+    sourceMode: 'legacy',
     count: data.length,
     exchangeRate: USD_VND_RATE,
     categories: getCategories(),
+    lastUpdated,
     data,
   }
 }
