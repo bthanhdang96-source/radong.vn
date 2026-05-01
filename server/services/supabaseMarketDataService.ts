@@ -5,13 +5,13 @@ import {
   getVnPrices as getLegacyVnPrices,
   getVnPricesHistory as getLegacyVnPricesHistory,
 } from './priceAggregator.js'
-import { foldText } from './crawlers/common.js'
 import type { CrawledPriceItem, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
 import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
 import { processQueuedBatch } from './ingestion/worker.js'
 import {
   getRegionLabelFromObservation,
+  convertWorldPriceToUsdKg,
   SOURCE_BASE_CONFIDENCE,
   USD_VND_RATE,
   VN_COMMODITY_META,
@@ -45,14 +45,20 @@ type LatestObservationRow = {
   }
 }
 
+type CommodityWorldRow = {
+  id: number
+  slug: string
+  world_to_kg_factor: number | null
+}
+
 type DailySummaryRow = {
   date: string
   commodity_slug: string
   province_code: string | null
-  market_type: string
-  avg_price: number
-  min_price: number
-  max_price: number
+  price_type: string
+  avg_price_vnd: number
+  min_price_vnd: number
+  max_price_vnd: number
   observation_count: number
   sources: string[] | null
 }
@@ -67,7 +73,7 @@ type CommodityTrendRow = {
 }
 
 type RawCrawlLogRow = {
-  source: string
+  source_name: string
   source_url: string | null
   crawled_at: string
   raw_json: {
@@ -99,6 +105,20 @@ type WorldPricesResponse = {
 
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
+}
+
+async function loadCommodityWorldLookup() {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client.from('commodities').select('id, slug, world_to_kg_factor')
+  if (error) {
+    throw error
+  }
+
+  return new Map(((data ?? []) as CommodityWorldRow[]).map(row => [row.slug, row]))
 }
 
 function getRecommendation(changePct: number): 'Mua' | 'Bán' | 'Giữ' {
@@ -144,7 +164,7 @@ async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
   }
 
   const rows = sourceSnapshots.map(source => ({
-    source: source.id,
+    source_name: source.id,
     source_url: source.latestArticleUrl ?? source.url,
     raw_json: {
       snapshot: source,
@@ -178,6 +198,7 @@ async function getLatestObservationRows() {
   const { data, error } = await client
     .from('latest_observation_details')
     .select('recorded_at, commodity_slug, province_code, variety, quality_grade, price_vnd, source, raw_payload')
+    .in('market_type', ['farm_gate', 'wholesale'])
     .order('commodity_slug', { ascending: true })
     .order('price_vnd', { ascending: false })
 
@@ -199,8 +220,9 @@ async function getDailySummaryRows() {
 
   const { data, error } = await client
     .from('daily_price_summary')
-    .select('date, commodity_slug, province_code, market_type, avg_price, min_price, max_price, observation_count, sources')
+    .select('date, commodity_slug, province_code, price_type, avg_price_vnd, min_price_vnd, max_price_vnd, observation_count, sources')
     .gte('date', start.toISOString())
+    .in('price_type', ['farm_gate', 'wholesale'])
 
   if (error) {
     throw error
@@ -218,6 +240,7 @@ async function getCommodityTrendRows() {
   const { data, error } = await client
     .from('commodity_trends')
     .select('commodity_slug, avg_7d, avg_30d, trend_7d_pct, trend_30d_pct, updated_at')
+    .eq('price_type', 'wholesale')
 
   if (error) {
     throw error
@@ -234,7 +257,7 @@ async function getLatestSourceSnapshots() {
 
   const { data, error } = await client
     .from('raw_crawl_logs')
-    .select('source, source_url, crawled_at, raw_json')
+    .select('source_name, source_url, crawled_at, raw_json')
     .order('crawled_at', { ascending: false })
     .limit(20)
 
@@ -245,11 +268,11 @@ async function getLatestSourceSnapshots() {
   const bySource = new Map<string, SourceSnapshot>()
   for (const row of data as RawCrawlLogRow[]) {
     const snapshot = row.raw_json?.snapshot
-    if (!snapshot || bySource.has(row.source)) {
+    if (!snapshot || bySource.has(row.source_name)) {
       continue
     }
 
-    bySource.set(row.source, snapshot)
+    bySource.set(row.source_name, snapshot)
   }
 
   return [...bySource.values()]
@@ -266,12 +289,12 @@ function buildHistoricalLookups(rows: DailySummaryRow[]) {
     const range = rangeByCommodity.get(row.commodity_slug)
     if (!range) {
       rangeByCommodity.set(row.commodity_slug, {
-        low: row.min_price,
-        high: row.max_price,
+        low: row.min_price_vnd,
+        high: row.max_price_vnd,
       })
     } else {
-      range.low = Math.min(range.low, row.min_price)
-      range.high = Math.max(range.high, row.max_price)
+      range.low = Math.min(range.low, row.min_price_vnd)
+      range.high = Math.max(range.high, row.max_price_vnd)
     }
 
     const dateKey = normalizeDateKey(row.date)
@@ -279,15 +302,15 @@ function buildHistoricalLookups(rows: DailySummaryRow[]) {
     const aggregate = byDate.get(dateKey) ?? {
       weightedSum: 0,
       observationCount: 0,
-      minPrice: row.min_price,
-      maxPrice: row.max_price,
+      minPrice: row.min_price_vnd,
+      maxPrice: row.max_price_vnd,
     }
     const weight = row.observation_count > 0 ? row.observation_count : 1
 
-    aggregate.weightedSum += row.avg_price * weight
+    aggregate.weightedSum += row.avg_price_vnd * weight
     aggregate.observationCount += weight
-    aggregate.minPrice = Math.min(aggregate.minPrice, row.min_price)
-    aggregate.maxPrice = Math.max(aggregate.maxPrice, row.max_price)
+    aggregate.minPrice = Math.min(aggregate.minPrice, row.min_price_vnd)
+    aggregate.maxPrice = Math.max(aggregate.maxPrice, row.max_price_vnd)
 
     byDate.set(dateKey, aggregate)
     dailyByCommodity.set(row.commodity_slug, byDate)
@@ -491,18 +514,9 @@ async function syncVnPricesToSupabase() {
   return true
 }
 
-function convertWorldPriceToVndKg(item: WorldCommodityItem) {
-  const foldedUnit = foldText(item.unit)
-
-  if (foldedUnit.includes('usd/kg')) {
-    return roundNumber(item.priceCurrent * USD_VND_RATE)
-  }
-
-  if (foldedUnit.includes('usd/tan') || foldedUnit.includes('usd/ton') || foldedUnit.includes('usd/t')) {
-    return roundNumber((item.priceCurrent * USD_VND_RATE) / 1000)
-  }
-
-  return null
+function convertWorldPriceToVndKg(item: WorldCommodityItem, factor?: number | null) {
+  const usdKg = convertWorldPriceToUsdKg(item.priceCurrent, item.unit, factor)
+  return roundNumber(usdKg * USD_VND_RATE)
 }
 
 async function syncWorldPricesToSupabase(forceRefresh: boolean) {
@@ -512,6 +526,7 @@ async function syncWorldPricesToSupabase(forceRefresh: boolean) {
   }
 
   const commodityLookup = await loadCommodityLookup(client)
+  const commodityWorldLookup = await loadCommodityWorldLookup()
 
   const items = await getLegacyWorldPrices(forceRefresh)
   const today = new Date().toISOString().slice(0, 10)
@@ -529,17 +544,30 @@ async function syncWorldPricesToSupabase(forceRefresh: boolean) {
   const rows = items
     .map(item => {
       const commodityId = commodityLookup.get(item.id)
-      if (!commodityId) {
+      const commodityMeta = commodityWorldLookup?.get(item.id)
+      if (!commodityId || !commodityMeta) {
         return null
       }
+
+      const priceUsdKg = convertWorldPriceToUsdKg(item.priceCurrent, item.unit, commodityMeta.world_to_kg_factor)
+      const change1wPct =
+        item.priceLastWeek > 0 ? roundNumber(((item.priceCurrent - item.priceLastWeek) / item.priceLastWeek) * 100) : 0
 
       return {
         recorded_at: item.lastUpdate,
         commodity_id: commodityId,
         exchange: item.exchange,
-        price_usd: item.priceCurrent,
-        price_unit: item.unit,
-        price_vnd_kg: convertWorldPriceToVndKg(item),
+        contract_month: null,
+        price_raw: item.priceCurrent,
+        price_unit_raw: item.unit,
+        price_usd_kg: priceUsdKg,
+        price_vnd_kg: convertWorldPriceToVndKg(item, commodityMeta.world_to_kg_factor),
+        exchange_rate: USD_VND_RATE,
+        change_1d: item.change,
+        change_1d_pct: item.changePct,
+        change_1w_pct: change1wPct,
+        volume: null,
+        open_interest: null,
         source_url: null,
         raw_payload: item,
       }

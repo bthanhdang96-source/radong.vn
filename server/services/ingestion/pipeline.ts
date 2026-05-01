@@ -2,10 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CrawledPriceItem, SourceId } from '../crawlers/types.js'
 import {
   classifyRiceRegionLabel,
+  inferPriceType,
   getProvinceCodeFromRegion,
   isAggregateRegionLabel,
+  SOURCE_TYPE_BY_SOURCE_ID,
   SOURCE_BASE_CONFIDENCE,
   USD_VND_RATE,
+  type PriceType,
+  type SourceType,
 } from '../marketDataMappings.js'
 import { pushErrorToQueue } from './queue.js'
 
@@ -41,12 +45,17 @@ export type NormalizedObservation = {
   variety: string | null
   quality_grade: string | null
   province_code: string | null
-  market_type: 'farm_gate' | 'wholesale' | 'retail' | 'export'
-  price_vnd: number
+  market_name: string | null
+  country_code: string
+  price_type: PriceType
+  price_vnd: number | null
   unit: string
-  price_usd: number
-  source: string
+  price_usd: number | null
+  exchange_rate: number
+  source_type: SourceType
+  source_name: string
   source_url: string | null
+  article_title: string | null
   confidence: number
   flags: string[]
   raw_payload: Record<string, unknown>
@@ -60,7 +69,7 @@ type NormalizationResult =
     }
   | {
       error: {
-        source: string
+        source_name: string
         error_type: string
         reason: string
         raw_payload: Record<string, unknown>
@@ -105,7 +114,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
   if (!commodityId) {
     return {
       error: {
-        source: message.source,
+        source_name: message.source,
         error_type: 'unknown_commodity',
         reason: `Commodity slug "${item.commodity}" is not seeded in commodities`,
         raw_payload: {
@@ -119,7 +128,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
   let provinceCode: string | null = getProvinceCodeFromRegion(item.region)
   let variety: string | null = null
   let qualityGrade: string | null = null
-  let marketType: NormalizedObservation['market_type'] = 'wholesale'
+  let priceType: PriceType = inferPriceType({ sourceId: message.source })
   const flags: string[] = []
   const penalties: number[] = []
   const notes: string[] = []
@@ -128,7 +137,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
     const riceClassification = classifyRiceRegionLabel(item.region)
     variety = riceClassification.variety
     qualityGrade = riceClassification.qualityGrade
-    marketType = riceClassification.marketType
+    priceType = riceClassification.marketType
     provinceCode = null
   } else if (isAggregateRegionLabel(item.region)) {
     flags.push('aggregate_region')
@@ -143,6 +152,8 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
     penalties.push(0.05)
   }
 
+  flags.push('price_type_inferred')
+
   return {
     value: {
       recorded_at: message.crawledAt,
@@ -151,12 +162,17 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
       variety,
       quality_grade: qualityGrade,
       province_code: provinceCode,
-      market_type: marketType,
+      market_name: null,
+      country_code: 'VNM',
+      price_type: priceType,
       price_vnd: roundNumber(item.price),
       unit: 'kg',
       price_usd: roundNumber(item.price / USD_VND_RATE),
-      source: message.source,
+      exchange_rate: USD_VND_RATE,
+      source_type: SOURCE_TYPE_BY_SOURCE_ID[message.source] ?? 'crawl_news',
+      source_name: message.source,
       source_url: message.sourceUrl,
+      article_title: null,
       confidence: SOURCE_BASE_CONFIDENCE[message.source] ?? 0.65,
       flags,
       raw_payload: {
@@ -171,6 +187,17 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
 
 function checkBounds(record: NormalizedObservation): ValidationResult {
   const bounds = PRICE_BOUNDS[record.commodity_slug]
+  const priceVnd = record.price_vnd
+
+  if (priceVnd === null) {
+    return {
+      passed: false,
+      reason: 'Normalized observation is missing price_vnd',
+      flag: 'unparseable_price',
+      confidencePenalty: 0,
+    }
+  }
+
   if (!bounds) {
     return {
       passed: true,
@@ -179,19 +206,19 @@ function checkBounds(record: NormalizedObservation): ValidationResult {
     }
   }
 
-  if (record.price_vnd < bounds.min) {
+  if (priceVnd < bounds.min) {
     return {
       passed: false,
-      reason: `Price ${record.price_vnd.toLocaleString('en-US')} is below ${bounds.min.toLocaleString('en-US')}`,
+      reason: `Price ${priceVnd.toLocaleString('en-US')} is below ${bounds.min.toLocaleString('en-US')}`,
       flag: 'below_minimum',
       confidencePenalty: 0,
     }
   }
 
-  if (record.price_vnd > bounds.max) {
+  if (priceVnd > bounds.max) {
     return {
       passed: false,
-      reason: `Price ${record.price_vnd.toLocaleString('en-US')} is above ${bounds.max.toLocaleString('en-US')}`,
+      reason: `Price ${priceVnd.toLocaleString('en-US')} is above ${bounds.max.toLocaleString('en-US')}`,
       flag: 'above_maximum',
       confidencePenalty: 0,
     }
@@ -240,8 +267,8 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
     .from('price_observations')
     .select('id', { head: true, count: 'exact' })
     .eq('commodity_id', record.commodity_id)
-    .eq('market_type', record.market_type)
-    .eq('source', record.source)
+    .eq('price_type', record.price_type)
+    .eq('source_name', record.source_name)
     .gte('recorded_at', windowStart.toISOString())
     .lte('recorded_at', windowEnd.toISOString())
 
@@ -274,6 +301,7 @@ async function checkSpike(record: NormalizedObservation, db: SupabaseClient): Pr
   const { data, error } = await db.rpc('get_recent_median', {
     p_commodity_id: record.commodity_id,
     p_province_code: record.province_code,
+    p_price_type: record.price_type,
     p_days: 7,
   })
 
@@ -291,6 +319,7 @@ async function checkSpike(record: NormalizedObservation, db: SupabaseClient): Pr
   }
 
   const medianPrice = Number(medianValue)
+  const currentPrice = record.price_vnd
   if (!Number.isFinite(medianPrice) || medianPrice <= 0) {
     return {
       passed: true,
@@ -299,7 +328,16 @@ async function checkSpike(record: NormalizedObservation, db: SupabaseClient): Pr
     }
   }
 
-  const changePct = Math.abs(record.price_vnd - medianPrice) / medianPrice * 100
+  if (currentPrice === null) {
+    return {
+      passed: false,
+      reason: 'Normalized observation is missing price_vnd',
+      flag: 'unparseable_price',
+      confidencePenalty: 0,
+    }
+  }
+
+  const changePct = Math.abs(currentPrice - medianPrice) / medianPrice * 100
   if (changePct > 40) {
     return {
       passed: true,
@@ -324,7 +362,7 @@ export async function recordIngestionError(
   await pushErrorToQueue(message, errorType, reason)
 
   const { error } = await db.from('ingestion_errors').insert({
-    source: message.source,
+    source_name: message.source,
     error_type: errorType,
     reason,
     raw_payload: {

@@ -7,7 +7,7 @@ type ObservationRow = {
   recorded_at: string
   commodity_slug: string
   province_code: string | null
-  market_type: string
+  price_type: string
   price_vnd: number
   confidence: number
   flags: string[]
@@ -111,15 +111,15 @@ async function main() {
   const [{ data: observationData, error: observationError }, { data: errorData, error: errorQueryError }] = await Promise.all([
     db
       .from('price_observations')
-      .select('recorded_at, commodity_slug, province_code, market_type, price_vnd, confidence, flags, source_url')
-      .eq('source', 'congthuong')
+      .select('recorded_at, commodity_slug, province_code, price_type, price_vnd, confidence, flags, source_url')
+      .eq('source_name', 'congthuong')
       .gte('recorded_at', sinceIso)
       .order('recorded_at', { ascending: false })
       .limit(20),
     db
       .from('ingestion_errors')
       .select('failed_at, error_type, reason, raw_payload')
-      .eq('source', 'congthuong')
+      .eq('source_name', 'congthuong')
       .gte('failed_at', sinceIso)
       .order('failed_at', { ascending: false })
       .limit(20),
