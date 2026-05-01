@@ -10,7 +10,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "sync:github": "powershell -ExecutionPolicy Bypass -File ./scripts/sync-github.ps1"
+    "sync:github": "powershell -ExecutionPolicy Bypass -File ./scripts/sync-github.ps1",
+    "supabase:start": "npx supabase start",
+    "supabase:stop": "npx supabase stop",
+    "supabase:reset": "npx supabase db reset",
+    "supabase:push": "npx supabase db push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",

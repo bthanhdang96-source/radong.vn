@@ -163,3 +163,8 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Added client-side Supabase config and marketplace data services in `src/lib/`.
   - Replaced mocked marketplace feed/form with live Supabase read/write flow against `marketplace_listings` by default.
   - Added optional env override `SUPABASE_MARKETPLACE_TABLE` (`VITE_` or `NEXT_PUBLIC_`) if the table name differs.
+- [01/05/2026] Supabase curated model migration:
+  - Initialized Supabase CLI in-repo (`supabase/`) and added the first migration for commodities, provinces, price observations, world prices, raw logs, ingestion errors, user profiles, alerts, crowdsource submissions, materialized views, RLS, and refresh helpers.
+  - Added server-side Supabase runtime helpers and a Supabase-aware market data service that ingests crawler outputs when `SUPABASE_SERVICE_ROLE_KEY` is available, then reads VN/world responses from curated Supabase views.
+  - Removed the public marketplace listing UI and route from the current website. Future user-submitted pricing is preserved only at the data-model level via `crowdsource_submissions`.
+  - Added fallback behavior so the app still serves legacy file-cache data if the remote Supabase schema has not been applied yet or the service role key is missing.

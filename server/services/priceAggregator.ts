@@ -141,7 +141,7 @@ function toResponse(dayData: CrawledDayData, status: VnPricesResponse['status'],
   };
 }
 
-async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | null; errors: string[] }> {
+export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | null; errors: string[] }> {
   const timestamp = new Date().toISOString();
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];

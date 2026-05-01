@@ -1,66 +1,52 @@
-import { Router } from 'express';
-import { getWorldPrices, getCategories } from '../services/worldBankService.js';
-import type { WorldCategory } from '../services/worldBankService.js';
+import { Router } from 'express'
+import { getWorldPricesResponse } from '../services/supabaseMarketDataService.js'
+import type { WorldCategory } from '../services/worldBankService.js'
 
-const router = Router();
+const router = Router()
 
-// Reference exchange rate (updated periodically)
-const USD_VND_RATE = 25_850;
-
-/**
- * GET /api/world-prices
- * Query params:
- *   - category: filter by category (optional)
- *   - q: search query (optional)
- */
 router.get('/world-prices', async (_req, res) => {
   try {
-    const { category, q } = _req.query;
-    let data = await getWorldPrices();
+    const { category, q, refresh } = _req.query
+    const forceRefresh = refresh === '1' || refresh === 'true'
+    const payload = await getWorldPricesResponse(forceRefresh)
+    let data = payload.data
 
-    // Filter by category
-    if (category && category !== 'Tất cả') {
-      data = data.filter((item) => item.category === (category as WorldCategory));
+    if (category && category !== 'Táº¥t cáº£') {
+      data = data.filter(item => item.category === (category as WorldCategory))
     }
 
-    // Search filter
     if (q && typeof q === 'string' && q.trim()) {
-      const query = q.toLowerCase().trim();
+      const query = q.toLowerCase().trim()
       data = data.filter(
-        (item) =>
+        item =>
           item.name.toLowerCase().includes(query) ||
           item.nameEn.toLowerCase().includes(query) ||
-          item.symbol.toLowerCase().includes(query)
-      );
+          item.symbol.toLowerCase().includes(query),
+      )
     }
 
     res.json({
-      success: true,
+      ...payload,
       count: data.length,
-      exchangeRate: USD_VND_RATE,
-      categories: getCategories(),
       data,
-    });
+    })
   } catch (err) {
-    console.error('[API] Error fetching world prices:', err);
+    console.error('[API] Error fetching world prices:', err)
     res.status(500).json({
       success: false,
       error: 'Failed to fetch world commodity prices',
-    });
+    })
   }
-});
+})
 
-/**
- * GET /api/exchange-rate
- */
 router.get('/exchange-rate', (_req, res) => {
   res.json({
     success: true,
-    rate: USD_VND_RATE,
+    rate: 25_850,
     pair: 'USD/VND',
     source: 'Reference rate',
     lastUpdate: new Date().toISOString(),
-  });
-});
+  })
+})
 
-export default router;
+export default router

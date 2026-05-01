@@ -1,0 +1,2 @@
+-- Lookup data is seeded inside committed migrations so remote db push remains reproducible.
+-- Add optional local-only fixtures here if needed later.

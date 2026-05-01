@@ -9,6 +9,25 @@ This repository is configured to publish committed changes to `https://github.co
 - Set `AUTO_PUSH_ON_COMMIT=0` if you need to skip the auto-push hook for a specific shell session.
 - Make sure `git config user.name` and `git config user.email` are set before the first commit.
 
+## Supabase
+
+This repo now uses Supabase CLI migrations under [supabase](./supabase).
+
+- `npm run supabase:start` starts the local Supabase stack.
+- `npm run supabase:reset` reapplies migrations and seed locally.
+- `npm run supabase:push` pushes committed migrations to the linked project.
+
+Required environment variables:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Runtime behavior:
+
+- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase and reads curated views.
+- If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
+
 ## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

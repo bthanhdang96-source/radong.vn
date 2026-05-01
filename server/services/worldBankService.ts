@@ -287,9 +287,9 @@ function findColumnValue(row: Record<string, unknown>, key: string): number | nu
  * Get world commodity prices.
  * Strategy: Cache → World Bank API → Fallback static data
  */
-export async function getWorldPrices(): Promise<WorldCommodityItem[]> {
+export async function getWorldPrices(forceRefresh = false): Promise<WorldCommodityItem[]> {
   // 1. Try cache
-  const cached = getCached<WorldCommodityItem[]>(CACHE_KEY);
+  const cached = !forceRefresh ? getCached<WorldCommodityItem[]>(CACHE_KEY) : null;
   if (cached) {
     console.log('[WorldPrices] Serving from cache');
     return cached;

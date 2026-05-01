@@ -2,7 +2,8 @@ import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';
 import apiRouter from './routes/index.js';
-import { getVnPrices } from './services/priceAggregator.js';
+import { getSupabaseRuntimeStatus } from './services/supabaseClient.js';
+import { getVnPrices } from './services/supabaseMarketDataService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,7 +25,11 @@ app.use((req, _res, next) => {
 app.use('/api', apiRouter);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    supabase: getSupabaseRuntimeStatus(),
+  });
 });
 
 app.use((_req, res) => {
