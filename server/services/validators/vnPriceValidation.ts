@@ -1,13 +1,5 @@
 import type { CrawledPriceItem, SourceSnapshot } from '../crawlers/types.js';
-
-type Bounds = { min: number; max: number };
-
-const PRICE_BOUNDS: Record<string, Bounds> = {
-  'ca-phe-robusta': { min: 60_000, max: 160_000 },
-  'ho-tieu': { min: 80_000, max: 250_000 },
-  'heo-hoi': { min: 40_000, max: 100_000 },
-  'gao-noi-dia': { min: 3_000, max: 30_000 },
-};
+import { PRICE_BOUNDS } from '../ingestion/pipeline.js';
 
 const REGION_ALIASES: Record<string, string> = {
   'dak lak': 'Dak Lak',

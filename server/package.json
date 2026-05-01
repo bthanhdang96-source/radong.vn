@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch index.ts",
-    "start": "tsx index.ts"
+    "start": "tsx index.ts",
+    "monitor": "tsx services/ingestion/monitor.ts",
+    "typecheck": "tsc --noEmit",
+    "worker": "tsx services/ingestion/worker.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
@@ -14,6 +17,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "node-cron": "^4.2.1",
+    "redis": "^4.7.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

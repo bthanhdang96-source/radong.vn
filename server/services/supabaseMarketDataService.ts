@@ -7,20 +7,16 @@ import {
 } from './priceAggregator.js'
 import { foldText } from './crawlers/common.js'
 import type { CrawledPriceItem, RegionPrice, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
+import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
+import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
+import { processQueuedBatch } from './ingestion/worker.js'
 import {
-  classifyRiceRegionLabel,
-  getProvinceCodeFromRegion,
   getRegionLabelFromObservation,
   SOURCE_BASE_CONFIDENCE,
   USD_VND_RATE,
   VN_COMMODITY_META,
 } from './marketDataMappings.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from './supabaseClient.js'
-
-type CommodityRow = {
-  id: number
-  slug: string
-}
 
 type LatestObservationRow = {
   recorded_at: string
@@ -94,23 +90,6 @@ type WorldPricesResponse = {
   data: Array<WorldCommodityItem & { priceVndKg?: number | null }>
 }
 
-type NormalizedObservation = {
-  recorded_at: string
-  commodity_id: number
-  variety: string | null
-  quality_grade: string | null
-  province_code: string | null
-  market_type: 'farm_gate' | 'wholesale' | 'retail' | 'export'
-  price_vnd: number
-  unit: string
-  price_usd: number
-  source: string
-  source_url: string | null
-  confidence: number
-  flags: string[]
-  raw_payload: Record<string, unknown>
-}
-
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
 }
@@ -135,98 +114,6 @@ function normalizeDateKey(value: string) {
   return value.slice(0, 10)
 }
 
-async function getCommodityLookup() {
-  const client = getSupabaseAdminClient()
-  if (!client) {
-    return null
-  }
-
-  const { data, error } = await client.from('commodities').select('id, slug')
-  if (error) {
-    throw error
-  }
-
-  return new Map(((data ?? []) as CommodityRow[]).map(row => [row.slug, row.id]))
-}
-
-function normalizeObservation(item: CrawledPriceItem, commodityLookup: Map<string, number>) {
-  const commodityId = commodityLookup.get(item.commodity)
-  if (!commodityId) {
-    return {
-      error: {
-        source: item.source,
-        error_type: 'unknown_commodity',
-        reason: `Commodity slug "${item.commodity}" is not seeded in commodities`,
-        raw_payload: item,
-      },
-    }
-  }
-
-  let provinceCode: string | null = getProvinceCodeFromRegion(item.region)
-  let variety: string | null = null
-  let qualityGrade: string | null = null
-  let marketType: NormalizedObservation['market_type'] = 'wholesale'
-  const flags: string[] = []
-  let confidence = SOURCE_BASE_CONFIDENCE[item.source]
-
-  if (item.commodity === 'gao-noi-dia') {
-    const riceClassification = classifyRiceRegionLabel(item.region)
-    variety = riceClassification.variety
-    qualityGrade = riceClassification.qualityGrade
-    marketType = riceClassification.marketType
-    provinceCode = null
-  } else if (!provinceCode) {
-    flags.push('unknown_region')
-    confidence -= 0.2
-  }
-
-  if (item.changePct === null || item.previousPrice === null) {
-    flags.push('no_history')
-    confidence -= 0.05
-  }
-
-  if (confidence < 0.5) {
-    flags.push('low_confidence')
-  }
-
-  confidence = Math.max(0.1, roundNumber(confidence))
-
-  return {
-    value: {
-      recorded_at: item.timestamp,
-      commodity_id: commodityId,
-      variety,
-      quality_grade: qualityGrade,
-      province_code: provinceCode,
-      market_type: marketType,
-      price_vnd: roundNumber(item.price),
-      unit: 'kg',
-      price_usd: roundNumber(item.price / USD_VND_RATE),
-      source: item.source,
-      source_url: null,
-      confidence,
-      flags,
-      raw_payload: {
-        ...item,
-        provinceCode,
-      },
-    } satisfies NormalizedObservation,
-  }
-}
-
-async function insertIngestionErrors(errors: Array<Record<string, unknown>>) {
-  if (errors.length === 0) {
-    return
-  }
-
-  const client = getSupabaseAdminClient()
-  if (!client) {
-    return
-  }
-
-  await client.from('ingestion_errors').insert(errors)
-}
-
 async function refreshCuratedViews() {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -236,6 +123,42 @@ async function refreshCuratedViews() {
   const { error } = await client.rpc('refresh_curated_views')
   if (error) {
     throw error
+  }
+}
+
+async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
+  if (sourceSnapshots.length === 0) {
+    return
+  }
+
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return
+  }
+
+  const rows = sourceSnapshots.map(source => ({
+    source: source.id,
+    source_url: source.latestArticleUrl ?? source.url,
+    raw_json: {
+      snapshot: source,
+      coverage: source.coverage,
+      syncedAt: new Date().toISOString(),
+    },
+  }))
+
+  const { error } = await client.from('raw_crawl_logs').insert(rows)
+  if (error) {
+    throw error
+  }
+}
+
+function buildQueueMessage(item: CrawledPriceItem, sourceSnapshots: SourceSnapshot[]): IngestionQueueMessage {
+  const sourceSnapshot = sourceSnapshots.find(snapshot => snapshot.id === item.source)
+  return {
+    source: item.source,
+    sourceUrl: sourceSnapshot?.latestArticleUrl ?? sourceSnapshot?.url ?? null,
+    crawledAt: item.timestamp,
+    raw: item,
   }
 }
 
@@ -520,77 +443,60 @@ async function syncVnPricesToSupabase() {
     return false
   }
 
-  const commodityLookup = await getCommodityLookup()
+  const commodityLookup = await loadCommodityLookup(client)
   if (!commodityLookup) {
     return false
   }
 
   const live = await fetchLiveDayData()
-  const errors: Array<Record<string, unknown>> = []
-  const rows: NormalizedObservation[] = []
 
   if (!live.dayData) {
-    await insertIngestionErrors(
-      live.errors.map(message => ({
-        source: 'crawler',
-        error_type: 'schema_invalid',
-        reason: message,
-        raw_payload: { message },
-      })),
-    )
+    for (const message of live.errors) {
+      await recordIngestionError(
+        client,
+        {
+          source: 'fallback',
+          sourceUrl: null,
+          crawledAt: new Date().toISOString(),
+          raw: {
+            commodity: 'crawler-error',
+            commodityName: 'Crawler Error',
+            category: 'system',
+            region: 'system',
+            price: 0,
+            unit: 'VND/kg',
+            change: null,
+            changePct: null,
+            timestamp: new Date().toISOString(),
+            source: 'fallback',
+            previousPrice: null,
+          },
+        },
+        'schema_invalid',
+        message,
+      )
+    }
     return false
   }
 
-  for (const item of live.dayData.items) {
-    const normalized = normalizeObservation(item, commodityLookup)
-    if ('error' in normalized && normalized.error) {
-      errors.push(normalized.error)
-      continue
+  if (isRedisQueueConfigured()) {
+    await enqueueDayData(live.dayData)
+
+    if (shouldProcessInline()) {
+      while (true) {
+        const batch = await processQueuedBatch(25)
+        if (batch.processedCount === 0) {
+          break
+        }
+      }
     }
-
-    rows.push(normalized.value)
-  }
-
-  await insertIngestionErrors(errors)
-
-  const start = new Date(live.dayData.date)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
-  const sourceIds = [...new Set(live.dayData.items.map(item => item.source))]
-
-  const deleteResponse = await client
-    .from('price_observations')
-    .delete()
-    .gte('recorded_at', start.toISOString())
-    .lt('recorded_at', end.toISOString())
-    .in('source', sourceIds)
-
-  if (deleteResponse.error) {
-    throw deleteResponse.error
-  }
-
-  if (rows.length > 0) {
-    const insertResponse = await client.from('price_observations').insert(rows)
-    if (insertResponse.error) {
-      throw insertResponse.error
+  } else {
+    for (const item of live.dayData.items) {
+      await processIngestionMessage(client, commodityLookup, buildQueueMessage(item, live.dayData.sources))
     }
   }
 
-  const crawlLogs = live.dayData.sources.map(source => ({
-    source: source.id,
-    source_url: source.url,
-    raw_json: {
-      snapshot: source,
-      coverage: source.coverage,
-      syncedAt: new Date().toISOString(),
-    },
-  }))
-
-  const crawlLogResponse = await client.from('raw_crawl_logs').insert(crawlLogs)
-  if (crawlLogResponse.error) {
-    throw crawlLogResponse.error
-  }
-
+  await persistSourceSnapshots(live.dayData.sources)
   await refreshCuratedViews()
   return true
 }
@@ -615,10 +521,7 @@ async function syncWorldPricesToSupabase(forceRefresh: boolean) {
     return false
   }
 
-  const commodityLookup = await getCommodityLookup()
-  if (!commodityLookup) {
-    return false
-  }
+  const commodityLookup = await loadCommodityLookup(client)
 
   const items = await getLegacyWorldPrices(forceRefresh)
   const today = new Date().toISOString().slice(0, 10)

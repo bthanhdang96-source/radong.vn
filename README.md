@@ -22,11 +22,16 @@ Required environment variables:
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `REDIS_URL` for the queue/worker path
+- `INGESTION_INLINE_PROCESSING=true|false` to choose inline queue draining vs external worker
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for ingestion alerts
 
 Runtime behavior:
 
 - If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase and reads curated views.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
+- If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
+- Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 
 ## React + TypeScript + Vite
 
