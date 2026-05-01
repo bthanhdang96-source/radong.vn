@@ -3,6 +3,7 @@ import type { CrawledPriceItem, SourceId } from '../crawlers/types.js'
 import {
   classifyRiceRegionLabel,
   getProvinceCodeFromRegion,
+  isAggregateRegionLabel,
   SOURCE_BASE_CONFIDENCE,
   USD_VND_RATE,
 } from '../marketDataMappings.js'
@@ -71,6 +72,11 @@ export const PRICE_BOUNDS: Record<string, Bounds> = {
   'ho-tieu': { min: 80_000, max: 250_000 },
   'heo-hoi': { min: 40_000, max: 100_000 },
   'gao-noi-dia': { min: 3_000, max: 30_000 },
+  cashew: { min: 20_000, max: 60_000 },
+  cocoa: { min: 5_000, max: 90_000 },
+  'ca-tra': { min: 20_000, max: 70_000 },
+  'cam-sanh': { min: 5_000, max: 80_000 },
+  'buoi-nam-roi': { min: 10_000, max: 80_000 },
 }
 
 function roundNumber(value: number) {
@@ -124,6 +130,8 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
     qualityGrade = riceClassification.qualityGrade
     marketType = riceClassification.marketType
     provinceCode = null
+  } else if (isAggregateRegionLabel(item.region)) {
+    flags.push('aggregate_region')
   } else if (!provinceCode) {
     flags.push('unknown_region')
     penalties.push(0.2)

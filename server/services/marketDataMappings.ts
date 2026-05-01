@@ -31,12 +31,41 @@ export const VN_COMMODITY_META: Record<
     category: 'Luong thuc',
     unit: 'VND/kg',
   },
+  cashew: {
+    commodityName: 'Hat dieu',
+    category: 'Cay cong nghiep',
+    unit: 'VND/kg',
+  },
+  cocoa: {
+    commodityName: 'Ca cao',
+    category: 'Cay cong nghiep',
+    unit: 'VND/kg',
+  },
+  'ca-tra': {
+    commodityName: 'Ca tra',
+    category: 'Thuy san',
+    unit: 'VND/kg',
+  },
+  'cam-sanh': {
+    commodityName: 'Cam sanh',
+    category: 'Trai cay',
+    unit: 'VND/kg',
+  },
+  'buoi-nam-roi': {
+    commodityName: 'Buoi Nam Roi',
+    category: 'Trai cay',
+    unit: 'VND/kg',
+  },
 }
 
 export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   nongnghiep: 0.78,
   vietnambiz: 0.74,
   congthuong: 0.82,
+  vietfood: 0.86,
+  vpsaspice: 0.8,
+  giaca_nsvl: 0.79,
+  banggianongsan: 0.73,
   fallback: 0.35,
 }
 
@@ -123,6 +152,20 @@ export function classifyRiceRegionLabel(region: string): RiceClassification {
 
 export function getProvinceCodeFromRegion(region: string) {
   return PROVINCE_CODE_BY_FOLDED_NAME[foldText(region)] ?? null
+}
+
+const AGGREGATE_REGION_LABELS = new Set([
+  'viet nam',
+  'toan quoc',
+  'noi dia',
+  'dbscl',
+  'dong bang song cuu long',
+  'mien tay',
+  'tay nguyen',
+])
+
+export function isAggregateRegionLabel(region: string) {
+  return AGGREGATE_REGION_LABELS.has(foldText(region))
 }
 
 export function getRegionLabelFromObservation(

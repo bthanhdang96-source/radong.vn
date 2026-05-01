@@ -12,6 +12,10 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   nongnghiep: 100,
   vietnambiz: 95,
   congthuong: 90,
+  vietfood: 88,
+  vpsaspice: 84,
+  giaca_nsvl: 82,
+  banggianongsan: 76,
   fallback: 0,
 };
 
@@ -87,7 +91,8 @@ export function parseNumber(value: string): number {
 
 export function parseSignedChange(value: string): number | null {
   const normalized = value.replace(/\s+/g, ' ').trim();
-  if (!normalized || normalized === '-') {
+  const folded = foldText(normalized);
+  if (!normalized || normalized === '-' || folded.includes('khong doi') || folded.includes('moi cap nhat')) {
     return 0;
   }
 
@@ -96,7 +101,7 @@ export function parseSignedChange(value: string): number | null {
     return null;
   }
 
-  if (/giam/i.test(foldText(normalized)) && parsed > 0) {
+  if (/giam/i.test(folded) && parsed > 0) {
     return -parsed;
   }
 

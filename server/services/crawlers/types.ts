@@ -1,4 +1,12 @@
-export type SourceId = 'nongnghiep' | 'vietnambiz' | 'congthuong' | 'fallback';
+export type SourceId =
+  | 'nongnghiep'
+  | 'vietnambiz'
+  | 'congthuong'
+  | 'vpsaspice'
+  | 'banggianongsan'
+  | 'vietfood'
+  | 'giaca_nsvl'
+  | 'fallback';
 
 export interface SourceSnapshot {
   id: SourceId;

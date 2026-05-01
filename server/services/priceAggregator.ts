@@ -1,7 +1,11 @@
 import { appendHistory, getCached, getCacheEntry, getHistory, listHistoryDates, setCache } from './cacheService.js';
+import { crawlBanggianongsan } from './crawlers/banggianongsanCrawler.js';
 import { crawlCongthuong } from './crawlers/congthuongCrawler.js';
+import { crawlGiacaNsvl } from './crawlers/giacaNsvlCrawler.js';
 import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
 import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
+import { crawlVietfood } from './crawlers/vietfoodCrawler.js';
+import { crawlVpsaspice } from './crawlers/vpsaspiceCrawler.js';
 import type {
   CommoditySummary,
   CrawledDayData,
@@ -146,9 +150,33 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];
 
-  const [nongnghiep, vietnambiz, congthuong] = await Promise.all([crawlNongnghiep(), crawlVietnambiz(), crawlCongthuong()]);
-  const items = [...nongnghiep.items, ...vietnambiz.items, ...congthuong.items];
-  const sources: SourceSnapshot[] = [...nongnghiep.sources, ...vietnambiz.sources, ...congthuong.sources];
+  const [nongnghiep, vietnambiz, congthuong, vpsaspice, banggianongsan, vietfood, giacaNsvl] = await Promise.all([
+    crawlNongnghiep(),
+    crawlVietnambiz(),
+    crawlCongthuong(),
+    crawlVpsaspice(),
+    crawlBanggianongsan(),
+    crawlVietfood(),
+    crawlGiacaNsvl(),
+  ]);
+  const items = [
+    ...nongnghiep.items,
+    ...vietnambiz.items,
+    ...congthuong.items,
+    ...vpsaspice.items,
+    ...banggianongsan.items,
+    ...vietfood.items,
+    ...giacaNsvl.items,
+  ];
+  const sources: SourceSnapshot[] = [
+    ...nongnghiep.sources,
+    ...vietnambiz.sources,
+    ...congthuong.sources,
+    ...vpsaspice.sources,
+    ...banggianongsan.sources,
+    ...vietfood.sources,
+    ...giacaNsvl.sources,
+  ];
 
   for (const source of sources) {
     if (!source.success && source.error) {

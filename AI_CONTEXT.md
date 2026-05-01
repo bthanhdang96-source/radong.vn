@@ -172,3 +172,8 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Added `.agent/skills/web-security` so AI agents load web-security guardrails when explicitly asked for security work and when implementing security-sensitive features.
   - Documented project hotspots for Supabase client separation, RLS, ingestion, redirects, secrets, and future crowdsource submission flows.
   - Refined the skill from the full `claude promt generated/web-security.md` prompt by adding a two-pass audit method, an explicit security checklist, and a reporting structure for review tasks.
+- [01/05/2026] Phase 1 crawl expansion:
+  - Added new source integrations for `vpsaspice`, `banggianongsan`, `vietfood`, and `giaca.nsvl` on top of the existing `nongnghiep`, `vietnambiz`, and `congthuong` crawlers.
+  - Extended commodity coverage for phase 1 with `ca-tra`, `cam-sanh`, and `buoi-nam-roi`, and added live-source metadata for `cashew` and `cocoa`.
+  - Updated aggregation and ingestion normalization so national-level rows such as `Viet Nam` can be ingested without being treated as broken province mappings.
+  - Verified the new orchestration path with `fetchLiveDayData()` and observed 17 source snapshots, 174 crawled items, and 9 commodities in the combined live dataset.
