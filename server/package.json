@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch index.ts",
+    "ingestion:sample": "tsx scripts/enqueueSampleIngestion.ts",
     "start": "tsx index.ts",
     "monitor": "tsx services/ingestion/monitor.ts",
     "typecheck": "tsc --noEmit",
-    "worker": "tsx services/ingestion/worker.ts"
+    "worker": "tsx services/ingestion/worker.ts",
+    "worker:once": "tsx services/ingestion/worker.ts --once"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",

@@ -33,6 +33,14 @@ Runtime behavior:
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 
+Quick local verification for the ingestion pipeline:
+
+- Start Redis and ensure `.env` includes `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `REDIS_URL`.
+- Queue a sample message with `npm --prefix server run ingestion:sample` or choose a scenario such as `npm --prefix server run ingestion:sample -- --scenario=duplicate`.
+- Process the queue once with `npm --prefix server run worker:once`, or keep `npm --prefix server run worker` running continuously.
+- Check health with `npm --prefix server run monitor`.
+- Optional scenarios: `valid`, `duplicate`, `stale`, `spike`.
+
 ## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

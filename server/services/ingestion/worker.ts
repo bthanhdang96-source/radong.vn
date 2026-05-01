@@ -70,8 +70,20 @@ export async function runWorker() {
   }
 }
 
+async function main() {
+  if (process.argv.includes('--once')) {
+    const result = await processQueuedBatch(25)
+    console.log(
+      `[Ingestion Worker] once processed=${result.processedCount} inserted=${result.insertedCount} failed=${result.failedCount}`,
+    )
+    return
+  }
+
+  await runWorker()
+}
+
 if (process.argv[1]?.endsWith('worker.ts')) {
-  runWorker().catch(error => {
+  main().catch(error => {
     console.error('[Ingestion Worker] Fatal error:', error)
     process.exitCode = 1
   })
