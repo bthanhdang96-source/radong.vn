@@ -38,6 +38,7 @@ Quick local verification for the ingestion pipeline:
 - Start Redis and ensure `.env` includes `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `REDIS_URL`.
 - Queue a sample message with `npm --prefix server run ingestion:sample` or choose a scenario such as `npm --prefix server run ingestion:sample -- --scenario=duplicate`.
 - Process the queue once with `npm --prefix server run worker:once`, or keep `npm --prefix server run worker` running continuously.
+- Verify database results with `npm --prefix server run ingestion:verify -- --scenario=valid --tag=<tag-from-sample-output>`.
 - Check health with `npm --prefix server run monitor`.
 - Optional scenarios: `valid`, `duplicate`, `stale`, `spike`.
 

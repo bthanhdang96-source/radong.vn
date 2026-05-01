@@ -25,6 +25,10 @@ function getScenario(): ScenarioName {
   throw new Error(`Unsupported scenario "${scenario}"`)
 }
 
+function getTag() {
+  return getArgValue('tag') ?? new Date().toISOString().replace(/[:.]/g, '-')
+}
+
 function isoOffsetHours(hoursAgo: number) {
   return new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString()
 }
@@ -46,13 +50,17 @@ function createSampleItem(overrides: Partial<CrawledPriceItem> = {}): CrawledPri
   }
 }
 
-function getScenarioDefinition(scenario: ScenarioName): SampleDefinition {
+function buildSourceUrl(scenario: ScenarioName, tag: string) {
+  return `https://example.local/ingestion-test/${scenario}?tag=${encodeURIComponent(tag)}`
+}
+
+function getScenarioDefinition(scenario: ScenarioName, tag: string): SampleDefinition {
   switch (scenario) {
     case 'duplicate': {
       const item = createSampleItem()
       return {
         source: item.source,
-        sourceUrl: 'https://example.local/ingestion-test/duplicate',
+        sourceUrl: buildSourceUrl('duplicate', tag),
         description: 'Queues two identical records so the second should hit duplicate detection after the first insert.',
         items: [item, { ...item }],
       }
@@ -60,7 +68,7 @@ function getScenarioDefinition(scenario: ScenarioName): SampleDefinition {
     case 'stale':
       return {
         source: 'congthuong',
-        sourceUrl: 'https://example.local/ingestion-test/stale',
+        sourceUrl: buildSourceUrl('stale', tag),
         description: 'Queues one stale record older than 48 hours to verify freshness rejection.',
         items: [
           createSampleItem({
@@ -71,7 +79,7 @@ function getScenarioDefinition(scenario: ScenarioName): SampleDefinition {
     case 'spike':
       return {
         source: 'congthuong',
-        sourceUrl: 'https://example.local/ingestion-test/spike',
+        sourceUrl: buildSourceUrl('spike', tag),
         description: 'Queues one extreme but still in-bounds record to exercise spike detection when 7-day history exists.',
         items: [
           createSampleItem({
@@ -86,7 +94,7 @@ function getScenarioDefinition(scenario: ScenarioName): SampleDefinition {
     default:
       return {
         source: 'congthuong',
-        sourceUrl: 'https://example.local/ingestion-test/valid',
+        sourceUrl: buildSourceUrl('valid', tag),
         description: 'Queues one valid record that should insert successfully.',
         items: [createSampleItem()],
       }
@@ -99,16 +107,20 @@ async function main() {
   }
 
   const scenario = getScenario()
-  const sample = getScenarioDefinition(scenario)
+  const tag = getTag()
+  const sample = getScenarioDefinition(scenario, tag)
 
   for (const item of sample.items) {
     await enqueueMessage(buildQueueMessage(item, sample.sourceUrl))
   }
 
   console.log(`[Sample Ingestion] scenario=${scenario}`)
+  console.log(`[Sample Ingestion] tag=${tag}`)
   console.log(`[Sample Ingestion] queued=${sample.items.length}`)
+  console.log(`[Sample Ingestion] sourceUrl=${sample.sourceUrl}`)
   console.log(`[Sample Ingestion] description=${sample.description}`)
   console.log('[Sample Ingestion] Next: run `npm --prefix server run worker:once` or keep `npm --prefix server run worker` active.')
+  console.log(`[Sample Ingestion] Verify: npm --prefix server run ingestion:verify -- --scenario=${scenario} --tag=${tag}`)
 }
 
 main().catch(error => {

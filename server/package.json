@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "ingestion:sample": "tsx scripts/enqueueSampleIngestion.ts",
+    "ingestion:verify": "tsx scripts/verifySampleIngestion.ts",
     "start": "tsx index.ts",
     "monitor": "tsx services/ingestion/monitor.ts",
     "typecheck": "tsc --noEmit",
