@@ -19,8 +19,6 @@ export default function Footer() {
             <h3 className="footer__title">Dịch vụ</h3>
             <ul className="footer__links">
               <li><a href="#bang-gia">Bảng giá trực tuyến</a></li>
-              <li><a href="#phan-tich">Phân tích kỹ thuật</a></li>
-              <li><a href="#du-bao">Dự báo thị trường</a></li>
               <li><a href="#api">API Dữ liệu</a></li>
             </ul>
           </div>

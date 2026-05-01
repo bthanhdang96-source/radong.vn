@@ -4,9 +4,7 @@ import './Navbar.css'
 
 const NAV_LINKS = [
   { label: 'Bảng Giá', to: '/' },
-  { label: 'Thị trường', to: '/#thi-truong' },
   { label: 'Thế giới', to: '/thegioi' },
-  { label: 'Phân tích', to: '/#phan-tich' },
   { label: 'Tin tức', to: '/#tin-tuc' },
 ]
 
