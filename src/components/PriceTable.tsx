@@ -1,7 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   CATEGORY_LABELS,
-  COMMODITY_META,
   FALLBACK_VN_PRICES,
   SOURCE_LABELS,
   type CommoditySummary,
@@ -167,10 +166,8 @@ export default function PriceTable({
                       <td className="pt-td pt-td--name">
                         <button className="pt-expand" onClick={() => toggleExpanded(item.commodity)} aria-expanded={isExpanded}>
                           <span className="pt-expand__icon">{isExpanded ? '▼' : '▶'}</span>
-                          <span className="pt-code">{COMMODITY_META[item.commodity]?.short ?? 'VN'}</span>
                           <span className="pt-name__text">
                             <strong>{item.commodityName}</strong>
-                            <small>{COMMODITY_META[item.commodity]?.nameEn ?? 'Vietnam commodity'}</small>
                           </span>
                         </button>
                       </td>

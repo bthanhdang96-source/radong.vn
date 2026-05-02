@@ -66,12 +66,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   fallback: 'Fallback',
 };
 
-export const COMMODITY_META: Record<string, { short: string; nameEn: string }> = {
-  'ca-phe-robusta': { short: 'CF', nameEn: 'Robusta Coffee' },
-  'ho-tieu': { short: 'HT', nameEn: 'Black Pepper' },
-  'heo-hoi': { short: 'HH', nameEn: 'Live Pig' },
-  'gao-noi-dia': { short: 'GA', nameEn: 'Domestic Rice' },
-};
+
 
 export const FALLBACK_VN_PRICES: VnPricesResponse = {
   status: 'fallback',
