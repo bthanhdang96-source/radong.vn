@@ -6,6 +6,8 @@ export type SourceId =
   | 'banggianongsan'
   | 'vietfood'
   | 'giaca_nsvl'
+  | 'shopee'
+  | 'customs'
   | 'fallback';
 
 export interface SourceSnapshot {
@@ -22,6 +24,7 @@ export interface SourceSnapshot {
   droppedCount?: number;
   dedupCount?: number;
   validationErrors?: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface CrawledPriceItem {
@@ -35,6 +38,14 @@ export interface CrawledPriceItem {
   changePct: number | null;
   timestamp: string;
   source: SourceId;
+  priceType?: 'farm_gate' | 'wholesale' | 'retail' | 'export';
+  marketName?: string | null;
+  articleTitle?: string | null;
+  countryCode?: string | null;
+  exchangeRate?: number | null;
+  priceUsd?: number | null;
+  dedupeKey?: string | null;
+  extra?: Record<string, unknown>;
   previousPrice?: number | null;
 }
 

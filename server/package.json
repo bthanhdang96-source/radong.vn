@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "crawler:customs": "tsx scripts/runCustomsCrawler.ts",
+    "crawler:preflight": "tsx scripts/crawlerPreflight.ts",
+    "crawler:shopee": "tsx scripts/runShopeeCrawler.ts",
+    "crawler:shopee:refresh-session": "tsx scripts/refreshShopeeSession.ts",
+    "crawler:status": "tsx scripts/crawlerStatus.ts",
     "dev": "tsx watch index.ts",
     "ingestion:sample": "tsx scripts/enqueueSampleIngestion.ts",
     "ingestion:verify": "tsx scripts/verifySampleIngestion.ts",
@@ -20,6 +25,8 @@
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "node-cron": "^4.2.1",
+    "pdf-parse": "^2.4.5",
+    "playwright": "^1.59.1",
     "redis": "^4.7.1",
     "xlsx": "^0.18.5"
   },

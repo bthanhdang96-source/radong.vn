@@ -4,6 +4,7 @@ import {
   classifyRiceRegionLabel,
   inferPriceType,
   getProvinceCodeFromRegion,
+  normalizeExternalCommoditySlug,
   isAggregateRegionLabel,
   SOURCE_TYPE_BY_SOURCE_ID,
   SOURCE_BASE_CONFIDENCE,
@@ -11,16 +12,12 @@ import {
   type PriceType,
   type SourceType,
 } from '../marketDataMappings.js'
+import { BASE_PRICE_BOUNDS, buildObservationDedupeKey, getValidationBounds } from './observationRules.js'
 import { pushErrorToQueue } from './queue.js'
 
 type CommodityRow = {
   id: number
   slug: string
-}
-
-type Bounds = {
-  min: number
-  max: number
 }
 
 type ValidationResult = {
@@ -56,6 +53,7 @@ export type NormalizedObservation = {
   source_name: string
   source_url: string | null
   article_title: string | null
+  dedupe_key: string
   confidence: number
   flags: string[]
   raw_payload: Record<string, unknown>
@@ -76,17 +74,7 @@ type NormalizationResult =
       }
     }
 
-export const PRICE_BOUNDS: Record<string, Bounds> = {
-  'ca-phe-robusta': { min: 60_000, max: 160_000 },
-  'ho-tieu': { min: 80_000, max: 250_000 },
-  'heo-hoi': { min: 40_000, max: 100_000 },
-  'gao-noi-dia': { min: 3_000, max: 30_000 },
-  cashew: { min: 20_000, max: 60_000 },
-  cocoa: { min: 5_000, max: 90_000 },
-  'ca-tra': { min: 20_000, max: 70_000 },
-  'cam-sanh': { min: 5_000, max: 80_000 },
-  'buoi-nam-roi': { min: 10_000, max: 80_000 },
-}
+export const PRICE_BOUNDS = BASE_PRICE_BOUNDS
 
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
@@ -109,14 +97,15 @@ function calculateConfidence(source: SourceId, penalties: number[]) {
 
 function normalizeObservation(message: IngestionQueueMessage, commodityLookup: Map<string, number>): NormalizationResult {
   const item = message.raw
-  const commodityId = commodityLookup.get(item.commodity)
+  const commoditySlug = normalizeExternalCommoditySlug(item.commodity)
+  const commodityId = commodityLookup.get(commoditySlug)
 
   if (!commodityId) {
     return {
       error: {
         source_name: message.source,
         error_type: 'unknown_commodity',
-        reason: `Commodity slug "${item.commodity}" is not seeded in commodities`,
+        reason: `Commodity slug "${item.commodity}" normalized to "${commoditySlug}" is not seeded in commodities`,
         raw_payload: {
           ...message,
           raw: item,
@@ -128,12 +117,16 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
   let provinceCode: string | null = getProvinceCodeFromRegion(item.region)
   let variety: string | null = null
   let qualityGrade: string | null = null
-  let priceType: PriceType = inferPriceType({ sourceId: message.source })
+  let priceType: PriceType = inferPriceType({
+    sourceId: message.source,
+    articleTitle: item.articleTitle ?? null,
+    declaredPriceType: item.priceType ?? null,
+  })
   const flags: string[] = []
   const penalties: number[] = []
   const notes: string[] = []
 
-  if (item.commodity === 'gao-noi-dia') {
+  if (commoditySlug === 'gao-noi-dia' && priceType !== 'retail' && priceType !== 'export') {
     const riceClassification = classifyRiceRegionLabel(item.region)
     variety = riceClassification.variety
     qualityGrade = riceClassification.qualityGrade
@@ -152,32 +145,50 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
     penalties.push(0.05)
   }
 
-  flags.push('price_type_inferred')
+  if (!item.priceType) {
+    flags.push('price_type_inferred')
+  }
 
   return {
     value: {
       recorded_at: message.crawledAt,
       commodity_id: commodityId,
-      commodity_slug: item.commodity,
+      commodity_slug: commoditySlug,
       variety,
       quality_grade: qualityGrade,
       province_code: provinceCode,
-      market_name: null,
-      country_code: 'VNM',
+      market_name: item.marketName ?? null,
+      country_code: item.countryCode ?? 'VNM',
       price_type: priceType,
       price_vnd: roundNumber(item.price),
       unit: 'kg',
-      price_usd: roundNumber(item.price / USD_VND_RATE),
-      exchange_rate: USD_VND_RATE,
+      price_usd: item.priceUsd ?? roundNumber(item.price / USD_VND_RATE),
+      exchange_rate: item.exchangeRate ?? USD_VND_RATE,
       source_type: SOURCE_TYPE_BY_SOURCE_ID[message.source] ?? 'crawl_news',
       source_name: message.source,
       source_url: message.sourceUrl,
-      article_title: null,
+      article_title: item.articleTitle ?? null,
+      dedupe_key: buildObservationDedupeKey({
+        sourceName: message.source,
+        commoditySlug,
+        priceType,
+        provinceCode,
+        marketName: item.marketName ?? null,
+        articleTitle: item.articleTitle ?? null,
+        sourceUrl: message.sourceUrl,
+        countryCode: item.countryCode ?? 'VNM',
+        priceVnd: item.price,
+        recordedAt: message.crawledAt,
+        explicitKey: item.dedupeKey ?? null,
+        extra: item.extra ?? null,
+      }),
       confidence: SOURCE_BASE_CONFIDENCE[message.source] ?? 0.65,
       flags,
       raw_payload: {
         ...item,
+        commoditySlug,
         provinceCode,
+        dedupeKey: item.dedupeKey ?? null,
       },
     },
     penalties,
@@ -186,7 +197,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
 }
 
 function checkBounds(record: NormalizedObservation): ValidationResult {
-  const bounds = PRICE_BOUNDS[record.commodity_slug]
+  const bounds = getValidationBounds(record.commodity_slug, record.price_type)
   const priceVnd = record.price_vnd
 
   if (priceVnd === null) {
@@ -261,23 +272,15 @@ function checkFreshness(record: NormalizedObservation): ValidationResult {
 async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient): Promise<ValidationResult> {
   const windowEnd = new Date(record.recorded_at)
   const windowStart = new Date(windowEnd)
-  windowStart.setHours(windowStart.getHours() - 6)
+  windowStart.setDate(windowStart.getDate() - 14)
 
-  let query = db
+  const { count, error } = await db
     .from('price_observations')
     .select('id', { head: true, count: 'exact' })
-    .eq('commodity_id', record.commodity_id)
-    .eq('price_type', record.price_type)
     .eq('source_name', record.source_name)
+    .eq('dedupe_key', record.dedupe_key)
     .gte('recorded_at', windowStart.toISOString())
     .lte('recorded_at', windowEnd.toISOString())
-
-  query =
-    record.province_code === null
-      ? query.is('province_code', null)
-      : query.eq('province_code', record.province_code)
-
-  const { count, error } = await query
   if (error) {
     throw error
   }
@@ -285,7 +288,7 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
   if ((count ?? 0) > 0) {
     return {
       passed: false,
-      reason: 'Duplicate observation found within 6 hours',
+      reason: 'Duplicate observation fingerprint found within 14 days',
       flag: 'duplicate',
       confidencePenalty: 0,
     }

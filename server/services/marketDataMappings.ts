@@ -65,6 +65,36 @@ export const VN_COMMODITY_META: Record<
     category: 'Trai cay',
     unit: 'VND/kg',
   },
+  shrimp: {
+    commodityName: 'Tom',
+    category: 'Thuy san',
+    unit: 'VND/kg',
+  },
+  pangasius: {
+    commodityName: 'Ca tra fillet',
+    category: 'Thuy san',
+    unit: 'VND/kg',
+  },
+  corn: {
+    commodityName: 'Ngo',
+    category: 'Luong thuc',
+    unit: 'VND/kg',
+  },
+  soybeans: {
+    commodityName: 'Dau tuong',
+    category: 'Luong thuc',
+    unit: 'VND/kg',
+  },
+  'rubber-rss3': {
+    commodityName: 'Cao su RSS3',
+    category: 'Cay cong nghiep',
+    unit: 'VND/kg',
+  },
+  'rubber-tsr20': {
+    commodityName: 'Cao su TSR20',
+    category: 'Cay cong nghiep',
+    unit: 'VND/kg',
+  },
 }
 
 export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
@@ -75,6 +105,8 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   vpsaspice: 0.8,
   giaca_nsvl: 0.79,
   banggianongsan: 0.73,
+  shopee: 0.7,
+  customs: 0.95,
   fallback: 0.35,
 }
 
@@ -86,8 +118,67 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   vpsaspice: 'crawl_news',
   giaca_nsvl: 'crawl_news',
   banggianongsan: 'crawl_news',
+  shopee: 'crawl_ecom',
+  customs: 'customs',
   fallback: 'api_partner',
 }
+
+// External crawlers may use business-friendly slugs from prompts or source systems.
+// Normalize them to the current seeded commodity slugs before ingestion.
+export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
+  'ca-phe': 'ca-phe-robusta',
+  'ca-phe-robusta': 'ca-phe-robusta',
+  'coffee-robusta': 'coffee-robusta',
+  'coffee-arabica': 'coffee-arabica',
+  'lua-gao': 'gao-noi-dia',
+  'gao-xuat-khau': 'rice-5pct',
+  'gao-noi-dia': 'gao-noi-dia',
+  'tieu': 'ho-tieu',
+  'ho-tieu': 'ho-tieu',
+  dieu: 'cashew',
+  cashew: 'cashew',
+  'ca-tra': 'ca-tra',
+  pangasius: 'pangasius',
+  'tom-the': 'shrimp',
+  'tom-su': 'shrimp',
+  shrimp: 'shrimp',
+  'cao-su': 'rubber-rss3',
+  'rubber-rss3': 'rubber-rss3',
+  'rubber-tsr20': 'rubber-tsr20',
+  ngo: 'corn',
+  corn: 'corn',
+  'dau-tuong': 'soybeans',
+  soybeans: 'soybeans',
+}
+
+// Only a subset of prompt commodities can be mapped safely to current seeded data.
+// Additional commodities like durian, watermelon, dragon fruit, etc. should be added
+// to the database before enabling them in production crawlers.
+export const SAFE_EXTERNAL_COMMODITY_TARGETS = new Set<string>([
+  'ca-phe',
+  'ca-phe-robusta',
+  'coffee-robusta',
+  'coffee-arabica',
+  'lua-gao',
+  'gao-xuat-khau',
+  'gao-noi-dia',
+  'tieu',
+  'ho-tieu',
+  'dieu',
+  'cashew',
+  'ca-tra',
+  'pangasius',
+  'tom-the',
+  'tom-su',
+  'shrimp',
+  'cao-su',
+  'rubber-rss3',
+  'rubber-tsr20',
+  'ngo',
+  'corn',
+  'dau-tuong',
+  'soybeans',
+])
 
 type ProvinceSeed = {
   code: string
@@ -196,6 +287,11 @@ export function inferPriceType(input: {
     default:
       return 'wholesale' satisfies PriceType
   }
+}
+
+export function normalizeExternalCommoditySlug(value: string) {
+  const folded = foldText(value)
+  return EXTERNAL_COMMODITY_ALIASES[folded] ?? EXTERNAL_COMMODITY_ALIASES[value] ?? value
 }
 
 export function convertWorldPriceToUsdKg(price: number, unit: string, factor?: number | null) {

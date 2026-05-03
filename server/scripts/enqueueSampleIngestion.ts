@@ -2,7 +2,7 @@ import 'dotenv/config'
 import type { CrawledPriceItem, SourceId } from '../services/crawlers/types.js'
 import { buildQueueMessage, enqueueMessage, isRedisQueueConfigured } from '../services/ingestion/queue.js'
 
-type ScenarioName = 'valid' | 'duplicate' | 'stale' | 'spike'
+type ScenarioName = 'valid' | 'duplicate' | 'stale' | 'spike' | 'granular'
 
 type SampleDefinition = {
   source: SourceId
@@ -18,7 +18,7 @@ function getArgValue(name: string) {
 
 function getScenario(): ScenarioName {
   const scenario = (getArgValue('scenario') ?? 'valid') as ScenarioName
-  if (['valid', 'duplicate', 'stale', 'spike'].includes(scenario)) {
+  if (['valid', 'duplicate', 'stale', 'spike', 'granular'].includes(scenario)) {
     return scenario
   }
 
@@ -87,6 +87,44 @@ function getScenarioDefinition(scenario: ScenarioName, tag: string): SampleDefin
             change: 24_000,
             previousPrice: 135_000,
             changePct: 17.78,
+          }),
+        ],
+      }
+    case 'granular':
+      return {
+        source: 'customs',
+        sourceUrl: buildSourceUrl('granular', tag),
+        description: 'Queues two export records with the same commodity and date but different dedupe fingerprints so both should insert.',
+        items: [
+          createSampleItem({
+            source: 'customs',
+            commodity: 'ca-phe',
+            region: 'Viet Nam',
+            price: 78_000,
+            change: null,
+            changePct: null,
+            previousPrice: null,
+            priceType: 'export',
+            marketName: 'Hoa Ky',
+            countryCode: 'USA',
+            priceUsd: 3.02,
+            exchangeRate: 25_850,
+            dedupeKey: `customs-usa-${tag}`,
+          }),
+          createSampleItem({
+            source: 'customs',
+            commodity: 'ca-phe',
+            region: 'Viet Nam',
+            price: 78_000,
+            change: null,
+            changePct: null,
+            previousPrice: null,
+            priceType: 'export',
+            marketName: 'Duc',
+            countryCode: 'DEU',
+            priceUsd: 3.02,
+            exchangeRate: 25_850,
+            dedupeKey: `customs-deu-${tag}`,
           }),
         ],
       }

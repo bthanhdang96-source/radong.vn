@@ -1,5 +1,6 @@
 import type { CrawledPriceItem, SourceSnapshot } from '../crawlers/types.js';
-import { PRICE_BOUNDS } from '../ingestion/pipeline.js';
+import { buildObservationDedupeKey, getValidationBounds } from '../ingestion/observationRules.js';
+import { getProvinceCodeFromRegion, inferPriceType, normalizeExternalCommoditySlug } from '../marketDataMappings.js';
 
 const REGION_ALIASES: Record<string, string> = {
   'dak lak': 'Dak Lak',
@@ -73,7 +74,13 @@ function cloneItem(item: CrawledPriceItem): CrawledPriceItem {
 }
 
 function isWithinBounds(item: CrawledPriceItem): boolean {
-  const bounds = PRICE_BOUNDS[item.commodity];
+  const commoditySlug = normalizeExternalCommoditySlug(item.commodity);
+  const priceType = inferPriceType({
+    sourceId: item.source,
+    articleTitle: item.articleTitle ?? null,
+    declaredPriceType: item.priceType ?? null,
+  });
+  const bounds = getValidationBounds(commoditySlug, priceType);
   if (!bounds) {
     return true;
   }
@@ -87,6 +94,8 @@ function scoreItem(item: CrawledPriceItem): number {
   if (item.changePct !== null) score += 1;
   if (item.previousPrice !== null && item.previousPrice !== undefined) score += 1;
   if (item.region.length > 0) score += 1;
+  if (item.marketName) score += 1;
+  if (item.dedupeKey) score += 2;
   return score;
 }
 
@@ -107,7 +116,25 @@ export function validateAndDedupSourceBatch(
       continue;
     }
 
-    const dedupKey = [item.commodity, normalizeForLookup(item.region), item.source, item.timestamp.slice(0, 10)].join('|');
+    const commoditySlug = normalizeExternalCommoditySlug(item.commodity);
+    const priceType = inferPriceType({
+      sourceId: item.source,
+      articleTitle: item.articleTitle ?? null,
+      declaredPriceType: item.priceType ?? null,
+    });
+    const dedupKey = buildObservationDedupeKey({
+      sourceName: item.source,
+      commoditySlug,
+      priceType,
+      provinceCode: getProvinceCodeFromRegion(item.region),
+      marketName: item.marketName ?? item.region,
+      articleTitle: item.articleTitle ?? null,
+      countryCode: item.countryCode ?? 'VNM',
+      priceVnd: item.price,
+      recordedAt: item.timestamp,
+      explicitKey: item.dedupeKey ?? null,
+      extra: item.extra ?? null,
+    });
     const existing = deduped.get(dedupKey);
 
     if (!existing) {

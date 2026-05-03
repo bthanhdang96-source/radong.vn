@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { getSupabaseAdminClient } from '../services/supabaseClient.js'
 
-type ScenarioName = 'valid' | 'duplicate' | 'stale' | 'spike'
+type ScenarioName = 'valid' | 'duplicate' | 'stale' | 'spike' | 'granular'
 
 type ObservationRow = {
   recorded_at: string
@@ -23,6 +23,13 @@ type ErrorRow = {
   } | null
 }
 
+type ScenarioExpectation = {
+  minObservations: number
+  minErrors: number
+  expectedErrorType: string | null
+  sourceName: string
+}
+
 function getArgValue(name: string) {
   const prefix = `--${name}=`
   return process.argv.find(arg => arg.startsWith(prefix))?.slice(prefix.length)
@@ -30,7 +37,7 @@ function getArgValue(name: string) {
 
 function getScenario(): ScenarioName {
   const scenario = (getArgValue('scenario') ?? 'valid') as ScenarioName
-  if (['valid', 'duplicate', 'stale', 'spike'].includes(scenario)) {
+  if (['valid', 'duplicate', 'stale', 'spike', 'granular'].includes(scenario)) {
     return scenario
   }
 
@@ -55,25 +62,35 @@ function buildSourceUrlMatcher(scenario: ScenarioName, tag: string) {
   return tag ? `${base}?tag=${encodeURIComponent(tag)}` : base
 }
 
-function scenarioExpectation(scenario: ScenarioName) {
+function scenarioExpectation(scenario: ScenarioName): ScenarioExpectation {
   switch (scenario) {
     case 'duplicate':
       return {
         minObservations: 1,
         minErrors: 1,
         expectedErrorType: 'duplicate',
+        sourceName: 'congthuong',
       }
     case 'stale':
       return {
         minObservations: 0,
         minErrors: 1,
         expectedErrorType: 'stale_data',
+        sourceName: 'congthuong',
       }
     case 'spike':
       return {
         minObservations: 1,
         minErrors: 0,
         expectedErrorType: null,
+        sourceName: 'congthuong',
+      }
+    case 'granular':
+      return {
+        minObservations: 2,
+        minErrors: 0,
+        expectedErrorType: null,
+        sourceName: 'customs',
       }
     case 'valid':
     default:
@@ -81,6 +98,7 @@ function scenarioExpectation(scenario: ScenarioName) {
         minObservations: 1,
         minErrors: 0,
         expectedErrorType: null,
+        sourceName: 'congthuong',
       }
   }
 }
@@ -112,14 +130,14 @@ async function main() {
     db
       .from('price_observations')
       .select('recorded_at, commodity_slug, province_code, price_type, price_vnd, confidence, flags, source_url')
-      .eq('source_name', 'congthuong')
+      .eq('source_name', expectation.sourceName)
       .gte('recorded_at', sinceIso)
       .order('recorded_at', { ascending: false })
       .limit(20),
     db
       .from('ingestion_errors')
       .select('failed_at, error_type, reason, raw_payload')
-      .eq('source_name', 'congthuong')
+      .eq('source_name', expectation.sourceName)
       .gte('failed_at', sinceIso)
       .order('failed_at', { ascending: false })
       .limit(20),

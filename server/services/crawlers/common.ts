@@ -16,6 +16,8 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   vpsaspice: 84,
   giaca_nsvl: 82,
   banggianongsan: 76,
+  customs: 96,
+  shopee: 70,
   fallback: 0,
 };
 
@@ -163,6 +165,7 @@ export function finalizeSourceBatch(
   coverage: string[],
   rawItems: CrawledPriceItem[],
   latestArticleUrl?: string,
+  metadata?: Record<string, unknown>,
 ): CrawlerResult {
   const validated = validateAndDedupSourceBatch(
     {
@@ -175,6 +178,7 @@ export function finalizeSourceBatch(
       priority: SOURCE_PRIORITIES[id],
       coverage,
       latestArticleUrl,
+      metadata,
       error: rawItems.length > 0 ? undefined : 'No rows parsed from latest article',
     },
     rawItems,
@@ -194,6 +198,7 @@ export function failedSource(
   coverage: string[],
   error: unknown,
   latestArticleUrl?: string,
+  metadata?: Record<string, unknown>,
 ): CrawlerResult {
   return {
     items: [],
@@ -208,6 +213,7 @@ export function failedSource(
         priority: SOURCE_PRIORITIES[id],
         coverage,
         latestArticleUrl,
+        metadata,
         error: error instanceof Error ? error.message : 'Unknown crawler error',
       },
     ],

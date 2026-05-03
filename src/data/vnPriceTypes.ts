@@ -1,4 +1,14 @@
-export type SourceId = 'nongnghiep' | 'vietnambiz' | 'congthuong' | 'fallback';
+export type SourceId =
+  | 'nongnghiep'
+  | 'vietnambiz'
+  | 'congthuong'
+  | 'vpsaspice'
+  | 'banggianongsan'
+  | 'vietfood'
+  | 'giaca_nsvl'
+  | 'shopee'
+  | 'customs'
+  | 'fallback';
 
 export interface PriceSourceStatus {
   id: SourceId;
@@ -63,6 +73,12 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   nongnghiep: 'nongnghiepmoitruong.vn',
   vietnambiz: 'vietnambiz.vn',
   congthuong: 'congthuong.vn',
+  vpsaspice: 'vpsa.org.vn',
+  banggianongsan: 'banggianongsan.com',
+  vietfood: 'vietfood.org.vn',
+  giaca_nsvl: 'giacansvl.vn',
+  shopee: 'Shopee',
+  customs: 'customs.gov.vn',
   fallback: 'Fallback',
 };
 

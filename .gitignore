@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 server/data/cache/
+server/.runtime/
 
 # Editor directories and files
 .vscode/*
