@@ -1,0 +1,118 @@
+{
+  "ca phe robusta": [
+    {
+      "item_basic": {
+        "name": "Ca phe robusta hat nhan 1kg loai A",
+        "price": 12900000000,
+        "historical_sold": 24,
+        "shop_location": "Dak Lak",
+        "itemid": 1001,
+        "shopid": 5001,
+        "item_rating": {
+          "rating_star": 4.8
+        }
+      }
+    },
+    {
+      "item_basic": {
+        "name": "Ca phe robusta tui 100g dac biet",
+        "price": 3500000000,
+        "historical_sold": 10,
+        "shop_location": "Dak Lak",
+        "itemid": 1002,
+        "shopid": 5001,
+        "item_rating": {
+          "rating_star": 4.9
+        }
+      }
+    }
+  ],
+  "gao st25": [
+    {
+      "item_basic": {
+        "name": "Gao ST25 ngon 5kg tui hut chan khong",
+        "price": 15500000000,
+        "historical_sold": 31,
+        "shop_location": "Can Tho",
+        "itemid": 2001,
+        "shopid": 6001,
+        "item_rating": {
+          "rating_star": 4.7
+        }
+      }
+    }
+  ],
+  "ho tieu den": [
+    {
+      "item_basic": {
+        "name": "Ho tieu den xay 500g",
+        "price": 6500000000,
+        "historical_sold": 19,
+        "shop_location": "Dak Nong",
+        "itemid": 3001,
+        "shopid": 7001,
+        "item_rating": {
+          "rating_star": 4.6
+        }
+      }
+    },
+    {
+      "item_basic": {
+        "name": "Ho tieu den hat 1kg loai 1",
+        "price": 16500000000,
+        "historical_sold": 12,
+        "shop_location": "Dak Nong",
+        "itemid": 3002,
+        "shopid": 7002,
+        "item_rating": {
+          "rating_star": 4.5
+        }
+      }
+    }
+  ],
+  "ca tra phi le": [
+    {
+      "item_basic": {
+        "name": "Ca tra phi le 1kg dong lanh",
+        "price": 8900000000,
+        "historical_sold": 40,
+        "shop_location": "An Giang",
+        "itemid": 4001,
+        "shopid": 8001,
+        "item_rating": {
+          "rating_star": 4.8
+        }
+      }
+    }
+  ],
+  "tom the tuoi": [
+    {
+      "item_basic": {
+        "name": "Tom the tuoi 1kg size 40",
+        "price": 22500000000,
+        "historical_sold": 15,
+        "shop_location": "Ca Mau",
+        "itemid": 5001,
+        "shopid": 9001,
+        "item_rating": {
+          "rating_star": 4.9
+        }
+      }
+    }
+  ],
+  "hat dieu tuoi": [
+    {
+      "item_basic": {
+        "name": "Hat dieu song 1kg Binh Phuoc",
+        "price": 18500000000,
+        "historical_sold": 18,
+        "shop_location": "Binh Phuoc",
+        "itemid": 6001,
+        "shopid": 9101,
+        "item_rating": {
+          "rating_star": 4.7
+        }
+      }
+    }
+  ]
+}
