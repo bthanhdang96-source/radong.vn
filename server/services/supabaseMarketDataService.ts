@@ -15,6 +15,7 @@ import {
   SOURCE_BASE_CONFIDENCE,
   USD_VND_RATE,
   VN_COMMODITY_META,
+  type PriceType,
 } from './marketDataMappings.js'
 import {
   buildCanonicalRegionSelections,
@@ -103,6 +104,12 @@ type WorldPricesResponse = {
   data: Array<WorldCommodityItem & { priceVndKg?: number | null }>
 }
 
+type VnPriceQueryOptions = {
+  priceTypes?: PriceType[]
+}
+
+const DEFAULT_VN_PRICE_TYPES: PriceType[] = ['farm_gate', 'wholesale']
+
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
 }
@@ -139,6 +146,18 @@ function isRelationMissing(message: string) {
 
 function normalizeDateKey(value: string) {
   return value.slice(0, 10)
+}
+
+function getRequestedPriceTypes(options?: VnPriceQueryOptions) {
+  const requested = options?.priceTypes?.filter(Boolean)
+  return requested && requested.length > 0 ? requested : DEFAULT_VN_PRICE_TYPES
+}
+
+function isDefaultPriceTypeQuery(priceTypes: PriceType[]) {
+  return (
+    priceTypes.length === DEFAULT_VN_PRICE_TYPES.length &&
+    DEFAULT_VN_PRICE_TYPES.every(priceType => priceTypes.includes(priceType))
+  )
 }
 
 async function refreshCuratedViews() {
@@ -189,7 +208,7 @@ function buildQueueMessage(item: CrawledPriceItem, sourceSnapshots: SourceSnapsh
   }
 }
 
-async function getLatestObservationRows() {
+async function getLatestObservationRows(priceTypes: PriceType[]) {
   const client = getSupabaseReadClient()
   if (!client) {
     return null
@@ -198,7 +217,7 @@ async function getLatestObservationRows() {
   const { data, error } = await client
     .from('latest_observation_details')
     .select('recorded_at, commodity_slug, province_code, variety, quality_grade, price_vnd, source, raw_payload')
-    .in('market_type', ['farm_gate', 'wholesale'])
+    .in('price_type', priceTypes)
     .order('commodity_slug', { ascending: true })
     .order('price_vnd', { ascending: false })
 
@@ -209,7 +228,7 @@ async function getLatestObservationRows() {
   return data as LatestObservationRow[]
 }
 
-async function getDailySummaryRows() {
+async function getDailySummaryRows(priceTypes: PriceType[]) {
   const client = getSupabaseReadClient()
   if (!client) {
     return null
@@ -222,7 +241,7 @@ async function getDailySummaryRows() {
     .from('daily_price_summary')
     .select('date, commodity_slug, province_code, price_type, avg_price_vnd, min_price_vnd, max_price_vnd, observation_count, sources')
     .gte('date', start.toISOString())
-    .in('price_type', ['farm_gate', 'wholesale'])
+    .in('price_type', priceTypes)
 
   if (error) {
     throw error
@@ -231,16 +250,17 @@ async function getDailySummaryRows() {
   return data as DailySummaryRow[]
 }
 
-async function getCommodityTrendRows() {
+async function getCommodityTrendRows(priceTypes: PriceType[]) {
   const client = getSupabaseReadClient()
   if (!client) {
     return null
   }
 
+  const preferredPriceType = priceTypes.includes('wholesale') ? 'wholesale' : priceTypes[0]
   const { data, error } = await client
     .from('commodity_trends')
     .select('commodity_slug, avg_7d, avg_30d, trend_7d_pct, trend_30d_pct, updated_at')
-    .eq('price_type', 'wholesale')
+    .eq('price_type', preferredPriceType)
 
   if (error) {
     throw error
@@ -435,16 +455,27 @@ function buildVnResponseFromRows(
   }
 }
 
-async function buildVnResponseFromSupabase() {
-  const observationRows = await getLatestObservationRows()
+function buildUnsupportedPriceTypeResponse(priceTypes: PriceType[]): VnPricesResponse {
+  return {
+    status: 'fallback',
+    fetchedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString(),
+    data: [],
+    sources: [],
+    errors: [`Custom price type query (${priceTypes.join(',')}) requires Supabase curated data`],
+  }
+}
+
+async function buildVnResponseFromSupabase(priceTypes: PriceType[]) {
+  const observationRows = await getLatestObservationRows(priceTypes)
   if (!observationRows || observationRows.length === 0) {
     return null
   }
 
   const [dailySummaryRows, sourceSnapshots, trendRows] = await Promise.all([
-    getDailySummaryRows(),
+    getDailySummaryRows(priceTypes),
     getLatestSourceSnapshots(),
-    getCommodityTrendRows(),
+    getCommodityTrendRows(priceTypes),
   ])
 
   return buildVnResponseFromRows(observationRows, dailySummaryRows ?? [], trendRows ?? [], sourceSnapshots)
@@ -648,10 +679,13 @@ async function buildWorldResponseFromSupabase(): Promise<WorldPricesResponse | n
   }
 }
 
-export async function getVnPrices(forceRefresh = false): Promise<VnPricesResponse> {
+export async function getVnPrices(forceRefresh = false, options?: VnPriceQueryOptions): Promise<VnPricesResponse> {
+  const priceTypes = getRequestedPriceTypes(options)
   const runtime = getSupabaseRuntimeStatus()
   if (!runtime.hasReadConfig) {
-    return getLegacyVnPrices(forceRefresh)
+    return isDefaultPriceTypeQuery(priceTypes)
+      ? getLegacyVnPrices(forceRefresh)
+      : buildUnsupportedPriceTypeResponse(priceTypes)
   }
 
   try {
@@ -659,7 +693,7 @@ export async function getVnPrices(forceRefresh = false): Promise<VnPricesRespons
       await syncVnPricesToSupabase()
     }
 
-    const dbResponse = await buildVnResponseFromSupabase()
+    const dbResponse = await buildVnResponseFromSupabase(priceTypes)
     if (dbResponse) {
       return dbResponse
     }
@@ -669,7 +703,9 @@ export async function getVnPrices(forceRefresh = false): Promise<VnPricesRespons
     }
   }
 
-  return getLegacyVnPrices(forceRefresh)
+  return isDefaultPriceTypeQuery(priceTypes)
+    ? getLegacyVnPrices(forceRefresh)
+    : buildUnsupportedPriceTypeResponse(priceTypes)
 }
 
 export async function getVnPriceSourceStatus() {

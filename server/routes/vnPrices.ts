@@ -1,14 +1,31 @@
 import { Router } from 'express'
 import { getVnPriceSourceStatus, getVnPrices, getVnPricesHistory } from '../services/supabaseMarketDataService.js'
+import type { PriceType } from '../services/marketDataMappings.js'
 
 const router = Router()
+const VALID_PRICE_TYPES = new Set(['farm_gate', 'wholesale', 'retail', 'export'])
 
 let lastRefreshAt = 0
 const REFRESH_COOLDOWN_MS = 15 * 60 * 1000
 
+function parsePriceTypes(value: unknown): PriceType[] | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined
+  }
+
+  const parsed = value
+    .split(',')
+    .map(entry => entry.trim())
+    .filter((entry): entry is PriceType => VALID_PRICE_TYPES.has(entry))
+
+  return parsed.length > 0 ? parsed : undefined
+}
+
 router.get('/vn-prices', async (_req, res) => {
   try {
-    const payload = await getVnPrices(false)
+    const payload = await getVnPrices(false, {
+      priceTypes: parsePriceTypes(_req.query.priceType),
+    })
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('[API] Failed to load VN prices:', error)
@@ -29,7 +46,9 @@ router.get('/vn-prices/refresh', async (_req, res) => {
 
   try {
     lastRefreshAt = now
-    const payload = await getVnPrices(true)
+    const payload = await getVnPrices(true, {
+      priceTypes: parsePriceTypes(_req.query.priceType),
+    })
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('[API] Failed to refresh VN prices:', error)

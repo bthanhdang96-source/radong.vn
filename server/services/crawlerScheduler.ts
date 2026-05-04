@@ -1,4 +1,5 @@
 import cron from 'node-cron'
+import { crawlBhx } from './crawlers/bhxCrawler.js'
 import { crawlCustoms } from './crawlers/customsCrawler.js'
 import { crawlShopee } from './crawlers/shopeeCrawler.js'
 import { ensureFreshShopeeSession, readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
@@ -6,6 +7,10 @@ import { syncCrawlerResultToSupabase } from './ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from './supabaseClient.js'
 
 type CrawlerScheduleConfig = {
+  bhxCrawlEnabled: boolean
+  bhxCrawlCron: string
+  bhxDryRun: boolean
+  bhxEnabledRegions: string[]
   shopeeRefreshEnabled: boolean
   shopeeRefreshCron: string
   shopeeCrawlEnabled: boolean
@@ -17,6 +22,7 @@ type CrawlerScheduleConfig = {
   customsDryRun: boolean
 }
 
+const DEFAULT_BHX_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_SHOPEE_REFRESH_CRON = '0 */6 * * *'
 const DEFAULT_SHOPEE_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_CUSTOMS_CRON = '0 8 * * 3'
@@ -50,6 +56,13 @@ function parsePositiveInteger(value: string | undefined, defaultValue: number) {
 export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
   const shopeeSchedulerEnabled = parseBoolean(process.env.SHOPEE_SCHEDULER_ENABLED, false)
   return {
+    bhxCrawlEnabled: parseBoolean(process.env.BHX_CRAWL_ENABLED, false),
+    bhxCrawlCron: process.env.BHX_CRAWL_CRON?.trim() || DEFAULT_BHX_CRAWL_CRON,
+    bhxDryRun: parseBoolean(process.env.BHX_SCHEDULE_DRY_RUN, false),
+    bhxEnabledRegions: (process.env.BHX_ENABLED_REGIONS ?? 'HCM')
+      .split(',')
+      .map(value => value.trim().toUpperCase())
+      .filter(Boolean),
     shopeeRefreshEnabled: parseBoolean(process.env.SHOPEE_SESSION_REFRESH_ENABLED, shopeeSchedulerEnabled),
     shopeeRefreshCron: process.env.SHOPEE_REFRESH_CRON?.trim() || DEFAULT_SHOPEE_REFRESH_CRON,
     shopeeCrawlEnabled: parseBoolean(process.env.SHOPEE_CRAWL_ENABLED, shopeeSchedulerEnabled),
@@ -94,7 +107,11 @@ function shouldSkipShopeeCrawlForCooldown(metadata: Awaited<ReturnType<typeof re
   return cooldownEndsAt.getTime() > Date.now()
 }
 
-async function syncCrawlerResult(jobName: string, dryRun: boolean, result: Awaited<ReturnType<typeof crawlCustoms> | ReturnType<typeof crawlShopee>>) {
+async function syncCrawlerResult(
+  jobName: string,
+  dryRun: boolean,
+  result: Awaited<ReturnType<typeof crawlBhx> | ReturnType<typeof crawlCustoms> | ReturnType<typeof crawlShopee>>,
+) {
   const source = result.sources[0]
   console.log(`[${jobName}] success=${source?.success ?? false} items=${result.items.length}`)
   if (source?.metadata) {
@@ -153,6 +170,17 @@ export async function runShopeeCrawlJob(trigger = 'manual') {
   })
 }
 
+export async function runBhxCrawlJob(trigger = 'manual') {
+  const config = getCrawlerScheduleConfig()
+  await runExclusive('bhx-crawl', async () => {
+    console.log(`[BHX Crawl] started (${trigger})`)
+    const result = await crawlBhx({
+      regionCodes: config.bhxEnabledRegions,
+    })
+    await syncCrawlerResult('BHX Crawl', config.bhxDryRun, result)
+  })
+}
+
 export async function runCustomsCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('customs-crawl', async () => {
@@ -181,6 +209,12 @@ export function registerCrawlerSchedules() {
 
   schedulesRegistered = true
   const config = getCrawlerScheduleConfig()
+
+  if (config.bhxCrawlEnabled) {
+    registerSchedule('bhx-crawl', config.bhxCrawlCron, () => runBhxCrawlJob(`cron:${config.bhxCrawlCron}`))
+  } else {
+    console.log('[Crawler Scheduler] BHX crawl schedule is disabled')
+  }
 
   if (config.shopeeRefreshEnabled) {
     registerSchedule('shopee-session-refresh', config.shopeeRefreshCron, () =>

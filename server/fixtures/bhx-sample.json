@@ -1,0 +1,254 @@
+{
+  "regions": [
+    {
+      "code": "HCM",
+      "regionName": "TP. Ho Chi Minh",
+      "provinceId": 1027,
+      "wardId": 0,
+      "storeId": 2546,
+      "categories": {
+        "trai-cay-tuoi-ngon": [
+          {
+            "id": 321604,
+            "name": "Cam sanh",
+            "fullName": "Cam sanh trai tu 130g tro len",
+            "url": "/trai-cay-tuoi-ngon/cam-sanh",
+            "unit": "Kg",
+            "canonical": "500g",
+            "productCode": "1232855000546",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Trai cay",
+              "url": "trai-cay-tuoi-ngon"
+            },
+            "productPrices": [
+              {
+                "price": 17000,
+                "netUnitValue": 1
+              }
+            ]
+          },
+          {
+            "id": 400001,
+            "name": "Xoai cat",
+            "fullName": "Xoai cat Hoa Loc hop 500g",
+            "url": "/trai-cay-tuoi-ngon/xoai-cat-hoa-loc-hop-500g",
+            "unit": "Hop",
+            "canonical": "500g",
+            "productCode": "XOAICAT500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Trai cay",
+              "url": "trai-cay-tuoi-ngon"
+            },
+            "productPrices": [
+              {
+                "price": 29500,
+                "netUnitValue": 0.5
+              }
+            ]
+          },
+          {
+            "id": 400002,
+            "name": "Chuoi cau",
+            "fullName": "Chuoi cau 1kg",
+            "url": "/trai-cay-tuoi-ngon/chuoi-cau-1kg",
+            "unit": "Kg",
+            "canonical": "1kg",
+            "productCode": "CHUOI1KG",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Trai cay",
+              "url": "trai-cay-tuoi-ngon"
+            },
+            "productPrices": [
+              {
+                "price": 24000,
+                "netUnitValue": 1
+              }
+            ]
+          },
+          {
+            "id": 400003,
+            "name": "Mit to",
+            "fullName": "Mit to hop 500g",
+            "url": "/trai-cay-tuoi-ngon/mit-to-hop-500g",
+            "unit": "Hop",
+            "canonical": "500g",
+            "productCode": "MIT500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Trai cay",
+              "url": "trai-cay-tuoi-ngon"
+            },
+            "productPrices": [
+              {
+                "price": 21000,
+                "netUnitValue": 0.5
+              }
+            ]
+          }
+        ],
+        "rau-sach": [
+          {
+            "id": 400101,
+            "name": "Rau muong",
+            "fullName": "Rau muong tui 500g",
+            "url": "/rau-sach/rau-muong-tui-500g",
+            "unit": "Tui",
+            "canonical": "500g",
+            "productCode": "RAUMUONG500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Rau la",
+              "url": "rau-sach"
+            },
+            "productPrices": [
+              {
+                "price": 9000,
+                "netUnitValue": 0.5
+              }
+            ]
+          },
+          {
+            "id": 400102,
+            "name": "Ca chua",
+            "fullName": "Ca chua bi hop 500g",
+            "url": "/rau-sach/ca-chua-bi-hop-500g",
+            "unit": "Hop",
+            "canonical": "500g",
+            "productCode": "CACHUA500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Rau la",
+              "url": "rau-sach"
+            },
+            "productPrices": [
+              {
+                "price": 18000,
+                "netUnitValue": 0.5
+              }
+            ]
+          },
+          {
+            "id": 400103,
+            "name": "Cai bo xoi",
+            "fullName": "Cai bo xoi tui 300g",
+            "url": "/rau-sach/cai-bo-xoi-tui-300g",
+            "unit": "Tui",
+            "canonical": "300g",
+            "productCode": "CAIBOXOI300",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Rau la",
+              "url": "rau-sach"
+            },
+            "productPrices": [
+              {
+                "price": 15000,
+                "netUnitValue": 0.3
+              }
+            ]
+          }
+        ],
+        "cu": [
+          {
+            "id": 400201,
+            "name": "Toi",
+            "fullName": "Toi ta tui 200g",
+            "url": "/cu/toi-ta-tui-200g",
+            "unit": "Tui",
+            "canonical": "200g",
+            "productCode": "TOI200",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Cu qua",
+              "url": "cu"
+            },
+            "productPrices": [
+              {
+                "price": 16000,
+                "netUnitValue": 0.2
+              }
+            ]
+          },
+          {
+            "id": 400202,
+            "name": "Khoai lang",
+            "fullName": "Khoai lang tui 500g",
+            "url": "/cu/khoai-lang-tui-500g",
+            "unit": "Tui",
+            "canonical": "500g",
+            "productCode": "KHOAILANG500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Cu qua",
+              "url": "cu"
+            },
+            "productPrices": [
+              {
+                "price": 14000,
+                "netUnitValue": 0.5
+              }
+            ]
+          }
+        ],
+        "thit-heo": [
+          {
+            "id": 400301,
+            "name": "Thit nac vai heo",
+            "fullName": "Thit nac vai heo khay 500g",
+            "url": "/thit-heo/thit-nac-vai-heo-khay-500g",
+            "unit": "Khay",
+            "canonical": "500g",
+            "productCode": "THITHEO500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Thit heo",
+              "url": "thit-heo"
+            },
+            "productPrices": [
+              {
+                "price": 84500,
+                "netUnitValue": 0.5
+              }
+            ]
+          }
+        ],
+        "ca-tom-muc-ech": [
+          {
+            "id": 400401,
+            "name": "Tom the",
+            "fullName": "Tom the khay 500g",
+            "url": "/ca-tom-muc-ech/tom-the-khay-500g",
+            "unit": "Khay",
+            "canonical": "500g",
+            "productCode": "TOMTHE500",
+            "brandName": "Bach hoa XANH",
+            "isNetUnit": true,
+            "category": {
+              "name": "Ca tom muc ech",
+              "url": "ca-tom-muc-ech"
+            },
+            "productPrices": [
+              {
+                "price": 99500,
+                "netUnitValue": 0.5
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

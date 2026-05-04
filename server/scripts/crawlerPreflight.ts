@@ -52,6 +52,13 @@ async function main() {
       detail: supabase.hasAdminConfig ? 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are configured' : 'Missing admin Supabase configuration',
     },
     {
+      name: 'bhx_scheduler_flags',
+      ok: !schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0,
+      detail: schedule.bhxCrawlEnabled
+        ? `enabled with cron ${schedule.bhxCrawlCron} across regions ${schedule.bhxEnabledRegions.join(',')}`
+        : 'disabled; safe default until retail rollout',
+    },
+    {
       name: 'customs_scheduler_flags',
       ok: !schedule.customsEnabled || schedule.customsCron.length > 0,
       detail: schedule.customsEnabled

@@ -16,6 +16,7 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   vpsaspice: 84,
   giaca_nsvl: 82,
   banggianongsan: 76,
+  bhx: 75,
   customs: 96,
   shopee: 70,
   fallback: 0,

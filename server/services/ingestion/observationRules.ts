@@ -17,6 +17,20 @@ export const BASE_PRICE_BOUNDS: Record<string, Bounds> = {
   'ca-tra': { min: 20_000, max: 70_000 },
   'cam-sanh': { min: 5_000, max: 80_000 },
   'buoi-nam-roi': { min: 10_000, max: 80_000 },
+  'ca-chua': { min: 12_000, max: 35_000 },
+  'hanh-tay': { min: 15_000, max: 35_000 },
+  toi: { min: 45_000, max: 100_000 },
+  'khoai-tay': { min: 12_000, max: 28_000 },
+  'bap-cai': { min: 8_000, max: 25_000 },
+  'rau-muong': { min: 7_000, max: 18_000 },
+  'cai-xanh': { min: 10_000, max: 25_000 },
+  ot: { min: 35_000, max: 90_000 },
+  'bi-do': { min: 8_000, max: 20_000 },
+  'khoai-lang': { min: 10_000, max: 28_000 },
+  xoai: { min: 20_000, max: 55_000 },
+  chuoi: { min: 12_000, max: 35_000 },
+  mit: { min: 18_000, max: 45_000 },
+  'thit-heo': { min: 75_000, max: 160_000 },
 }
 
 const PRICE_TYPE_BOUND_MULTIPLIERS: Record<PriceType, { min: number; max: number }> = {

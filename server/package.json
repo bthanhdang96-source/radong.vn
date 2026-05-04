@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "crawler:bhx": "tsx scripts/runBhxCrawler.ts",
     "crawler:customs": "tsx scripts/runCustomsCrawler.ts",
     "crawler:preflight": "tsx scripts/crawlerPreflight.ts",
     "crawler:shopee": "tsx scripts/runShopeeCrawler.ts",

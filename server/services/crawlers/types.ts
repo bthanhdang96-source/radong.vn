@@ -6,6 +6,7 @@ export type SourceId =
   | 'banggianongsan'
   | 'vietfood'
   | 'giaca_nsvl'
+  | 'bhx'
   | 'shopee'
   | 'customs'
   | 'fallback';
