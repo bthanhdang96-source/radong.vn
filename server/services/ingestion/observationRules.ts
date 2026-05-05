@@ -51,6 +51,7 @@ type DedupeKeyInput = {
   commoditySlug: string
   priceType: string
   provinceCode?: string | null
+  regionLabel?: string | null
   marketName?: string | null
   articleTitle?: string | null
   sourceUrl?: string | null
@@ -134,6 +135,7 @@ export function buildObservationDedupeKey(input: DedupeKeyInput) {
         input.commoditySlug,
         input.priceType,
         input.provinceCode ?? input.countryCode ?? 'na',
+        input.regionLabel ?? 'na',
         input.marketName ?? getExtraFingerprintHint(input.extra) ?? input.articleTitle ?? input.sourceUrl ?? 'na',
         roundPriceForFingerprint(input.priceVnd),
         normalizeRecordedDate(input.recordedAt),

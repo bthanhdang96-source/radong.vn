@@ -173,6 +173,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         commoditySlug,
         priceType,
         provinceCode,
+        regionLabel: item.region,
         marketName: item.marketName ?? null,
         articleTitle: item.articleTitle ?? null,
         sourceUrl: message.sourceUrl,
