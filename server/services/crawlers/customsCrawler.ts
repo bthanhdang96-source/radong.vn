@@ -151,7 +151,8 @@ function normalizeMonthYear(date: Date, monthOffset = 0) {
 }
 
 function buildReportCode(reportYear: number, reportMonth: number, periodNumber: number) {
-  return `${reportYear}-T${reportMonth}K${periodNumber}-1X(VN-SB).pdf`
+  // The live customs file host uses lowercase report filenames and is case-sensitive.
+  return `${reportYear}-t${reportMonth}k${periodNumber}-1x(vn-sb).pdf`
 }
 
 function buildCustomsPdfCandidates(now = new Date(), maxLookbackDays = 45) {
