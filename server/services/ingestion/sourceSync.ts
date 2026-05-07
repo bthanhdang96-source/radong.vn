@@ -1,6 +1,7 @@
 import type { CrawledDayData, CrawlerResult, SourceSnapshot } from '../crawlers/types.js'
 import { getProvinceCodeFromRegion, inferPriceType, normalizeExternalCommoditySlug } from '../marketDataMappings.js'
 import { getSupabaseAdminClient } from '../supabaseClient.js'
+import { retryTransient } from '../transientNetwork.js'
 import { buildObservationDedupeKey } from './observationRules.js'
 import { buildQueueMessage, enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './queue.js'
 import { loadCommodityLookup, processIngestionMessage } from './pipeline.js'
@@ -176,7 +177,7 @@ export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promis
   }
 
   const sourceDayData = toDayData(result)
-  const filtered = await filterExistingItems(sourceDayData)
+  const filtered = await retryTransient(() => filterExistingItems(sourceDayData))
   const dayData: CrawledDayData = {
     ...sourceDayData,
     items: filtered.items,
@@ -185,13 +186,14 @@ export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promis
   let insertedCount = 0
   let failedCount = 0
   let enqueuedCount = 0
+  let skippedDuplicateCount = filtered.skippedDuplicateCount
 
   if (dayData.items.length > 0 && isRedisQueueConfigured()) {
-    enqueuedCount = await enqueueDayData(dayData)
+    enqueuedCount = await retryTransient(() => enqueueDayData(dayData))
 
     if (shouldProcessInline()) {
       while (true) {
-        const batch = await processQueuedBatch(25)
+        const batch = await retryTransient(() => processQueuedBatch(25))
         processedCount += batch.processedCount
         insertedCount += batch.insertedCount
         failedCount += batch.failedCount
@@ -202,29 +204,33 @@ export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promis
       }
     }
   } else if (dayData.items.length > 0) {
-    const commodityLookup = await loadCommodityLookup(client)
+    const commodityLookup = await retryTransient(() => loadCommodityLookup(client))
     const snapshotBySource = new Map(dayData.sources.map(source => [source.id, source]))
 
     for (const item of dayData.items) {
       processedCount += 1
       const sourceSnapshot = snapshotBySource.get(item.source)
-      const outcome = await processIngestionMessage(
-        client,
-        commodityLookup,
-        buildQueueMessage(item, sourceSnapshot?.latestArticleUrl ?? sourceSnapshot?.url ?? null),
+      const outcome = await retryTransient(() =>
+        processIngestionMessage(
+          client,
+          commodityLookup,
+          buildQueueMessage(item, sourceSnapshot?.latestArticleUrl ?? sourceSnapshot?.url ?? null),
+        ),
       )
 
       if (outcome.inserted) {
         insertedCount += 1
+      } else if (outcome.errorType === 'duplicate') {
+        skippedDuplicateCount += 1
       } else {
         failedCount += 1
       }
     }
   }
 
-  await persistSourceSnapshots(dayData.sources)
+  await retryTransient(() => persistSourceSnapshots(dayData.sources))
   if (insertedCount > 0) {
-    await refreshCuratedViews()
+    await retryTransient(() => refreshCuratedViews())
   }
 
   return {
@@ -232,6 +238,6 @@ export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promis
     insertedCount,
     failedCount,
     enqueuedCount,
-    skippedDuplicateCount: filtered.skippedDuplicateCount,
+    skippedDuplicateCount,
   }
 }

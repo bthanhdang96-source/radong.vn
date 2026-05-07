@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { captureBhxCategoryProducts, closeBhxBrowser, launchBhxBrowser, type BhxResolvedRegion } from './bhxBrowser.js'
+import { closeBhxApiSession, fetchBhxCategoryProducts, launchBhxApiSession, type BhxResolvedRegion } from './bhxBrowser.js'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
 import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
@@ -90,10 +91,10 @@ const BHX_REGION_SEEDS: BhxRegionSeed[] = [
     provinceLookup: 'thanh pho ho chi minh',
     fallback: { provinceId: 1027, wardId: 0, storeId: 2546 },
   },
-  { code: 'DNG', displayName: 'Da Nang', provinceLookup: 'thanh pho da nang' },
-  { code: 'CTO', displayName: 'Can Tho', provinceLookup: 'thanh pho can tho' },
-  { code: 'DNI', displayName: 'Dong Nai', provinceLookup: 'tinh dong nai' },
-  { code: 'BNI', displayName: 'Bac Ninh', provinceLookup: 'tinh bac ninh' },
+  { code: 'DNG', displayName: 'Da Nang', provinceLookup: 'thanh pho da nang', fallback: { provinceId: 1020, wardId: 101383, storeId: 14947 } },
+  { code: 'CTO', displayName: 'Can Tho', provinceLookup: 'thanh pho can tho', fallback: { provinceId: 1032, wardId: 100097, storeId: 9495 } },
+  { code: 'DNI', displayName: 'Dong Nai', provinceLookup: 'tinh dong nai', fallback: { provinceId: 1026, wardId: 100759, storeId: 6363 } },
+  { code: 'BNI', displayName: 'Bac Ninh', provinceLookup: 'tinh bac ninh', fallback: { provinceId: 1010, wardId: 102459, storeId: 30216 } },
 ]
 
 function getEnabledRegionCodes(options: CrawlBhxOptions) {
@@ -140,7 +141,16 @@ async function fetchBhxLocations() {
       const timeout = setTimeout(() => controller.abort(), 15_000)
       const response = await fetch(BHX_LOCATION_API_URL, {
         headers: {
-          'user-agent': 'Mozilla/5.0',
+          accept: 'application/json, text/plain, */*',
+          authorization: 'Bearer 113A3D032F4058428206CB37D4D1C7C3',
+          deviceid: randomUUID(),
+          platform: 'webnew',
+          reversehost: 'http://bhxapi.live',
+          referer: BHX_HOME_URL,
+          'referer-url': BHX_HOME_URL,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+          xapikey: 'bhx-api-core-2022',
+          'customer-id': '',
         },
         signal: controller.signal,
       })
@@ -165,8 +175,8 @@ async function fetchBhxLocations() {
 function toLookupKey(value: string) {
   return value
     .normalize('NFD')
+    .replace(/[\u0111\u0110]/g, 'd')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd')
     .toLowerCase()
 }
 
@@ -349,7 +359,7 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
       unitRaw: product.unit ?? null,
       canonical: product.canonical ?? null,
       listingUrl,
-      sourceFormat: 'browser_api_intercept',
+      sourceFormat: 'browser_request_context',
       provinceId: region.provinceId,
       wardId: region.wardId,
       storeId: region.storeId,
@@ -416,12 +426,12 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
         }
       }
     } else {
-      const browser = await launchBhxBrowser()
+      const session = await launchBhxApiSession()
       try {
         for (const region of resolution.regions) {
           for (const category of categoryTargets) {
             try {
-              const response = await captureBhxCategoryProducts(browser, region, category.categoryUrl, maxProductsPerCategory)
+              const response = await fetchBhxCategoryProducts(session, region, category.categoryUrl, maxProductsPerCategory)
               const categoryItems = response.products
                 .slice(0, maxProductsPerCategory)
                 .map(product => toCrawledItem(product as BhxApiProduct, region, category.categoryUrl))
@@ -435,7 +445,7 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
           }
         }
       } finally {
-        await closeBhxBrowser(browser)
+        await closeBhxApiSession(session)
       }
     }
 
@@ -449,7 +459,7 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
       BHX_HOME_URL,
       {
         fixturePath,
-        sourceMode: fixture ? 'fixture' : 'browser_live',
+        sourceMode: fixture ? 'fixture' : 'browser_request_context',
         regionCodes,
         resolvedRegionCodes: resolution.regions.map(region => region.code),
         categoryUrls: categoryTargets.map(target => target.categoryUrl),
@@ -468,7 +478,7 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
       BHX_HOME_URL,
       {
         fixturePath,
-        sourceMode: fixturePath ? 'fixture' : 'browser_live',
+        sourceMode: fixturePath ? 'fixture' : 'browser_request_context',
         regionCodes,
         categoryUrls: categoryTargets.map(target => target.categoryUrl),
         maxProductsPerCategory,

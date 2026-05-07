@@ -52,6 +52,7 @@ Runtime behavior:
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 - Customs crawler is intentionally separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:customs`.
+- BHX crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:bhx`.
 - Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
@@ -71,6 +72,15 @@ Quick local verification for the customs aggregate crawler:
 - To force manual mode from env, set `CUSTOMS_REPORT_DISCOVERY_MODE=manual` and `CUSTOMS_REPORT_URL=<customs-pdf-url>`.
 - To verify idempotency, run the same customs command twice and confirm the second run inserts `0` new rows or leaves the customs count unchanged.
 - Metadata such as discovery mode, parser backend, report code, and enabled slug allowlist are stored in `raw_crawl_logs.raw_json.snapshot.metadata`.
+
+Quick local verification for the BHX retail crawler:
+
+- Run the fixture parser smoke test:
+  `npm --prefix server run crawler:bhx -- --fixture=server/fixtures/bhx-sample.json --dry-run`
+- Run the live multi-region crawl without syncing:
+  `npm --prefix server run crawler:bhx -- --dry-run --regions=HCM,DNG,CTO,DNI,BNI`
+- The live path bootstraps a browser request context once, then reuses that authenticated request profile for `Category/V2/GetCate`, which is more stable than relying on repeated `page.goto` intercepts.
+- Region resolution prefers the live location API and falls back to seeded `provinceId/wardId/storeId` values for `HCM`, `DNG`, `CTO`, `DNI`, and `BNI` when the resolver is unstable.
 
 Quick local verification for the Co.op retail crawler:
 

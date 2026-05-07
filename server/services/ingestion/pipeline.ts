@@ -12,6 +12,7 @@ import {
   type PriceType,
   type SourceType,
 } from '../marketDataMappings.js'
+import { isTransientNetworkError } from '../transientNetwork.js'
 import { BASE_PRICE_BOUNDS, buildObservationDedupeKey, getValidationBounds } from './observationRules.js'
 import { pushErrorToQueue } from './queue.js'
 
@@ -164,6 +165,10 @@ function roundNumber(value: number) {
   return Number(value.toFixed(2))
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export async function loadCommodityLookup(db: SupabaseClient) {
   const { data, error } = await db.from('commodities').select('id, slug')
   if (error) {
@@ -171,6 +176,48 @@ export async function loadCommodityLookup(db: SupabaseClient) {
   }
 
   return new Map(((data ?? []) as CommodityRow[]).map(row => [row.slug, row.id]))
+}
+
+async function hasExistingObservationByLegacyNaturalKey(record: NormalizedObservation, db: SupabaseClient) {
+  let query = db
+    .from('price_observations')
+    .select('id', { head: true, count: 'exact' })
+    .eq('source', record.source_name)
+    .eq('commodity_slug', record.commodity_slug)
+    .eq('market_type', record.price_type)
+    .eq('recorded_at', record.recorded_at)
+    .eq('unit', record.unit)
+
+  query = record.price_vnd === null ? query.is('price_vnd', null) : query.eq('price_vnd', record.price_vnd)
+  query = record.province_code === null ? query.is('province_code', null) : query.eq('province_code', record.province_code)
+  query = record.variety === null ? query.is('variety', null) : query.eq('variety', record.variety)
+  query = record.quality_grade === null ? query.is('quality_grade', null) : query.eq('quality_grade', record.quality_grade)
+
+  const { count, error } = await query
+  if (error) {
+    throw error
+  }
+
+  return (count ?? 0) > 0
+}
+
+async function hasExistingObservation(record: NormalizedObservation, db: SupabaseClient) {
+  const modern = await db
+    .from('price_observations')
+    .select('id', { head: true, count: 'exact' })
+    .eq('source_name', record.source_name)
+    .eq('dedupe_key', record.dedupe_key)
+    .eq('recorded_at', record.recorded_at)
+
+  if (modern.error) {
+    if (isLegacyPriceObservationFingerprintError(modern.error)) {
+      return hasExistingObservationByLegacyNaturalKey(record, db)
+    }
+
+    throw modern.error
+  }
+
+  return (modern.count ?? 0) > 0
 }
 
 function calculateConfidence(source: SourceId, penalties: number[]) {
@@ -368,11 +415,21 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
     .lte('recorded_at', windowEnd.toISOString())
   if (error) {
     if (isLegacyPriceObservationFingerprintError(error)) {
+      const exists = await hasExistingObservationByLegacyNaturalKey(record, db)
+      if (exists) {
+        return {
+          passed: false,
+          reason: 'Duplicate legacy observation found for the same crawl timestamp',
+          flag: 'duplicate',
+          confidencePenalty: 0,
+        }
+      }
+
       return {
         passed: true,
-        flag: 'dedupe_key_unavailable',
-        confidencePenalty: 0.05,
-        note: 'Remote Supabase schema is missing modern duplicate-check columns; duplicate pre-check skipped',
+        flag: 'legacy_duplicate_check',
+        confidencePenalty: 0,
+        note: 'Remote Supabase schema is missing modern duplicate-check columns; used exact legacy-key duplicate check',
       }
     }
 
@@ -392,6 +449,46 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
     passed: true,
     confidencePenalty: 0,
   }
+}
+
+async function performObservationInsert(record: NormalizedObservation, db: SupabaseClient) {
+  const { error } = await db.from('price_observations').insert(record)
+  if (!error) {
+    return
+  }
+
+  const retry = await db.from('price_observations').insert(toLegacyObservationInsert(record))
+  if (retry.error) {
+    throw retry.error
+  }
+}
+
+async function insertObservationWithRetry(record: NormalizedObservation, db: SupabaseClient) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await performObservationInsert(record, db)
+      return
+    } catch (error) {
+      lastError = error
+      if (!isTransientNetworkError(error)) {
+        throw error
+      }
+
+      const exists = await hasExistingObservation(record, db).catch(() => false)
+      if (exists) {
+        return
+      }
+
+      if (attempt < 3) {
+        await sleep(attempt * 400)
+        continue
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Unable to insert observation')
 }
 
 async function checkSpike(record: NormalizedObservation, db: SupabaseClient): Promise<ValidationResult> {
@@ -534,23 +631,7 @@ export async function processIngestionMessage(
     validationNotes,
   }
 
-  let { error } = await db.from('price_observations').insert(clean)
-  if (error) {
-    const retry = await db.from('price_observations').insert(toLegacyObservationInsert(clean))
-    if (!retry.error) {
-      return { inserted: true, errorType: null }
-    }
-
-    if (isMissingDedupeKeyColumnError(error) && !retry.error) {
-      return { inserted: true, errorType: null }
-    }
-
-    error = retry.error ?? error
-  }
-
-  if (error) {
-    throw error
-  }
+  await insertObservationWithRetry(clean, db)
 
   return { inserted: true, errorType: null }
 }
