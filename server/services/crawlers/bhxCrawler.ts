@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { captureBhxCategoryProducts, closeBhxBrowser, launchBhxBrowser, type BhxResolvedRegion } from './bhxBrowser.js'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
+import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
 
 type BhxApiPriceOption = {
@@ -65,14 +66,6 @@ type BhxCategoryTarget = {
   label: string
 }
 
-type BhxMatcher = {
-  slug: string
-  commodityName: string
-  category: string
-  keywords: string[]
-  excludeKeywords?: string[]
-}
-
 export type CrawlBhxOptions = {
   fixturePath?: string | null
   regionCodes?: string[] | null
@@ -101,67 +94,6 @@ const BHX_REGION_SEEDS: BhxRegionSeed[] = [
   { code: 'CTO', displayName: 'Can Tho', provinceLookup: 'thanh pho can tho' },
   { code: 'DNI', displayName: 'Dong Nai', provinceLookup: 'tinh dong nai' },
   { code: 'BNI', displayName: 'Bac Ninh', provinceLookup: 'tinh bac ninh' },
-]
-
-const BHX_PRODUCT_MATCHERS: BhxMatcher[] = [
-  { slug: 'cam-sanh', commodityName: 'Cam sanh', category: 'Trai cay', keywords: ['cam sanh'] },
-  { slug: 'buoi-nam-roi', commodityName: 'Buoi Nam Roi', category: 'Trai cay', keywords: ['buoi nam roi'] },
-  { slug: 'xoai', commodityName: 'Xoai', category: 'Trai cay', keywords: ['xoai'], excludeKeywords: ['say', 'mut'] },
-  { slug: 'chuoi', commodityName: 'Chuoi', category: 'Trai cay', keywords: ['chuoi'], excludeKeywords: ['say', 'mut'] },
-  { slug: 'mit', commodityName: 'Mit', category: 'Trai cay', keywords: ['mit'], excludeKeywords: ['say', 'mut'] },
-  { slug: 'ca-chua', commodityName: 'Ca chua', category: 'Rau cu', keywords: ['ca chua'], excludeKeywords: ['sot'] },
-  { slug: 'hanh-tay', commodityName: 'Hanh tay', category: 'Rau cu', keywords: ['hanh tay'] },
-  { slug: 'toi', commodityName: 'Toi', category: 'Rau cu', keywords: ['toi'], excludeKeywords: ['toi den'] },
-  { slug: 'khoai-tay', commodityName: 'Khoai tay', category: 'Rau cu', keywords: ['khoai tay'] },
-  { slug: 'bap-cai', commodityName: 'Bap cai', category: 'Rau cu', keywords: ['bap cai'] },
-  {
-    slug: 'rau-muong',
-    commodityName: 'Rau muong',
-    category: 'Rau cu',
-    keywords: ['rau muong'],
-  },
-  {
-    slug: 'cai-xanh',
-    commodityName: 'Cai xanh',
-    category: 'Rau cu',
-    keywords: ['cai xanh'],
-  },
-  {
-    slug: 'cai-xanh',
-    commodityName: 'Cai xanh',
-    category: 'Rau cu',
-    keywords: ['cai bo xoi'],
-  },
-  {
-    slug: 'cai-xanh',
-    commodityName: 'Cai xanh',
-    category: 'Rau cu',
-    keywords: ['cai thia'],
-  },
-  { slug: 'ot', commodityName: 'Ot', category: 'Rau cu', keywords: ['ot'], excludeKeywords: ['tuong ot'] },
-  { slug: 'bi-do', commodityName: 'Bi do', category: 'Rau cu', keywords: ['bi do'] },
-  { slug: 'khoai-lang', commodityName: 'Khoai lang', category: 'Rau cu', keywords: ['khoai lang'] },
-  {
-    slug: 'thit-heo',
-    commodityName: 'Thit heo',
-    category: 'Chan nuoi',
-    keywords: ['heo'],
-    excludeKeywords: ['xuc xich', 'cha bong', 'lap xuong', 'dong hop', 'vien', 'xay'],
-  },
-  {
-    slug: 'shrimp',
-    commodityName: 'Tom',
-    category: 'Thuy san',
-    keywords: ['tom'],
-    excludeKeywords: ['kho', 'ruoc', 'nuoc mam', 'snack'],
-  },
-  {
-    slug: 'ca-tra',
-    commodityName: 'Ca tra',
-    category: 'Thuy san',
-    keywords: ['ca tra'],
-    excludeKeywords: ['vien', 'xuc xich'],
-  },
 ]
 
 function getEnabledRegionCodes(options: CrawlBhxOptions) {
@@ -306,35 +238,6 @@ async function resolveBhxRegions(regionCodes: string[]) {
   }
 }
 
-function parseQuantityKgFromText(value: string | undefined | null) {
-  if (!value) {
-    return null
-  }
-
-  const folded = foldText(value)
-  const multiKg = folded.match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*kg\b/)
-  if (multiKg) {
-    return Number(multiKg[1].replace(',', '.')) * Number(multiKg[2].replace(',', '.'))
-  }
-
-  const multiGram = folded.match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*(g|gr|gram)\b/)
-  if (multiGram) {
-    return (Number(multiGram[1].replace(',', '.')) * Number(multiGram[2].replace(',', '.'))) / 1000
-  }
-
-  const kgMatch = folded.match(/(\d+(?:[.,]\d+)?)\s*kg\b/)
-  if (kgMatch) {
-    return Number(kgMatch[1].replace(',', '.'))
-  }
-
-  const gramMatch = folded.match(/(\d+(?:[.,]\d+)?)\s*(g|gr|gram)\b/)
-  if (gramMatch) {
-    return Number(gramMatch[1].replace(',', '.')) / 1000
-  }
-
-  return null
-}
-
 function getQuantityKg(product: BhxApiProduct, priceOption: BhxApiPriceOption) {
   if (typeof priceOption.netUnitValue === 'number' && Number.isFinite(priceOption.netUnitValue) && priceOption.netUnitValue > 0) {
     return priceOption.netUnitValue
@@ -372,24 +275,6 @@ function getPricePerKg(product: BhxApiProduct) {
   return null
 }
 
-function matchCommodity(productName: string) {
-  const folded = foldText(productName)
-
-  for (const matcher of BHX_PRODUCT_MATCHERS) {
-    if (!matcher.keywords.every(keyword => folded.includes(keyword))) {
-      continue
-    }
-
-    if (matcher.excludeKeywords?.some(keyword => folded.includes(keyword))) {
-      continue
-    }
-
-    return matcher
-  }
-
-  return null
-}
-
 async function loadFixture(path: string) {
   const candidates = [resolve(path)]
   if (path.startsWith('server/')) {
@@ -419,7 +304,7 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
     return null
   }
 
-  const commodity = matchCommodity(productName)
+  const commodity = matchRetailCommodity(productName)
   if (!commodity) {
     return null
   }

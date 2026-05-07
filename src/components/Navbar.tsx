@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import './Navbar.css'
 
 const NAV_LINKS = [
-  { label: 'Bảng Giá', to: '/' },
+  { label: 'Bảng giá', to: '/' },
+  { label: 'Chuỗi giá', to: '/chuoi-gia' },
   { label: 'Thế giới', to: '/thegioi' },
   { label: 'Tin tức', to: '/#tin-tuc' },
 ]
@@ -65,7 +66,7 @@ export default function Navbar() {
             </svg>
           </div>
           <div className="navbar__logo-text">
-            <span className="navbar__logo-main">NôngSản</span>
+            <span className="navbar__logo-main">NongSan</span>
             <span className="navbar__logo-sub">VN</span>
           </div>
         </Link>

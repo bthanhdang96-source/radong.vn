@@ -1,7 +1,9 @@
 import cron from 'node-cron'
 import { crawlBhx } from './crawlers/bhxCrawler.js'
+import { crawlCoop } from './crawlers/coopCrawler.js'
 import { crawlCustoms } from './crawlers/customsCrawler.js'
 import { crawlShopee } from './crawlers/shopeeCrawler.js'
+import type { CrawlerResult } from './crawlers/types.js'
 import { ensureFreshShopeeSession, readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
 import { syncCrawlerResultToSupabase } from './ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from './supabaseClient.js'
@@ -11,6 +13,12 @@ type CrawlerScheduleConfig = {
   bhxCrawlCron: string
   bhxDryRun: boolean
   bhxEnabledRegions: string[]
+  coopCrawlEnabled: boolean
+  coopCrawlCron: string
+  coopDryRun: boolean
+  coopEnabledRegions: string[]
+  coopEnabledCategories: string[]
+  coopMaxPagesPerCategory: number
   shopeeRefreshEnabled: boolean
   shopeeRefreshCron: string
   shopeeCrawlEnabled: boolean
@@ -23,6 +31,7 @@ type CrawlerScheduleConfig = {
 }
 
 const DEFAULT_BHX_CRAWL_CRON = '15 6,14 * * *'
+const DEFAULT_COOP_CRAWL_CRON = '20 6,14 * * *'
 const DEFAULT_SHOPEE_REFRESH_CRON = '0 */6 * * *'
 const DEFAULT_SHOPEE_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_CUSTOMS_CRON = '0 8 * * 3'
@@ -53,16 +62,49 @@ function parsePositiveInteger(value: string | undefined, defaultValue: number) {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : defaultValue
 }
 
+function parseCsvUppercase(value: string | undefined, fallback: string[]) {
+  const raw = value?.trim()
+  if (!raw) {
+    return fallback
+  }
+
+  return raw
+    .split(',')
+    .map(entry => entry.trim().toUpperCase())
+    .filter(Boolean)
+}
+
+function parseCsvCategorySlugs(value: string | undefined, fallback: string[]) {
+  const raw = value?.trim()
+  if (!raw) {
+    return fallback
+  }
+
+  return raw
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+    .map(entry => (entry.startsWith('/c/') ? entry : `/c/${entry.replace(/^\/+/, '')}`))
+}
+
 export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
   const shopeeSchedulerEnabled = parseBoolean(process.env.SHOPEE_SCHEDULER_ENABLED, false)
   return {
     bhxCrawlEnabled: parseBoolean(process.env.BHX_CRAWL_ENABLED, false),
     bhxCrawlCron: process.env.BHX_CRAWL_CRON?.trim() || DEFAULT_BHX_CRAWL_CRON,
     bhxDryRun: parseBoolean(process.env.BHX_SCHEDULE_DRY_RUN, false),
-    bhxEnabledRegions: (process.env.BHX_ENABLED_REGIONS ?? 'HCM')
-      .split(',')
-      .map(value => value.trim().toUpperCase())
-      .filter(Boolean),
+    bhxEnabledRegions: parseCsvUppercase(process.env.BHX_ENABLED_REGIONS, ['HCM']),
+    coopCrawlEnabled: parseBoolean(process.env.COOP_CRAWL_ENABLED, false),
+    coopCrawlCron: process.env.COOP_CRAWL_CRON?.trim() || DEFAULT_COOP_CRAWL_CRON,
+    coopDryRun: parseBoolean(process.env.COOP_SCHEDULE_DRY_RUN, false),
+    coopEnabledRegions: parseCsvUppercase(process.env.COOP_ENABLED_REGIONS, ['HCM', 'HNI', 'DNG']),
+    coopEnabledCategories: parseCsvCategorySlugs(process.env.COOP_ENABLED_CATEGORIES, [
+      '/c/rau-cu',
+      '/c/trai-cay',
+      '/c/thit',
+      '/c/thuy-hai-san',
+    ]),
+    coopMaxPagesPerCategory: parsePositiveInteger(process.env.COOP_MAX_PAGES_PER_CATEGORY, 2) || 2,
     shopeeRefreshEnabled: parseBoolean(process.env.SHOPEE_SESSION_REFRESH_ENABLED, shopeeSchedulerEnabled),
     shopeeRefreshCron: process.env.SHOPEE_REFRESH_CRON?.trim() || DEFAULT_SHOPEE_REFRESH_CRON,
     shopeeCrawlEnabled: parseBoolean(process.env.SHOPEE_CRAWL_ENABLED, shopeeSchedulerEnabled),
@@ -110,7 +152,7 @@ function shouldSkipShopeeCrawlForCooldown(metadata: Awaited<ReturnType<typeof re
 async function syncCrawlerResult(
   jobName: string,
   dryRun: boolean,
-  result: Awaited<ReturnType<typeof crawlBhx> | ReturnType<typeof crawlCustoms> | ReturnType<typeof crawlShopee>>,
+  result: CrawlerResult,
 ) {
   const source = result.sources[0]
   console.log(`[${jobName}] success=${source?.success ?? false} items=${result.items.length}`)
@@ -181,6 +223,19 @@ export async function runBhxCrawlJob(trigger = 'manual') {
   })
 }
 
+export async function runCoopCrawlJob(trigger = 'manual') {
+  const config = getCrawlerScheduleConfig()
+  await runExclusive('coop-crawl', async () => {
+    console.log(`[Co.op Crawl] started (${trigger})`)
+    const result = await crawlCoop({
+      regionCodes: config.coopEnabledRegions,
+      categorySlugs: config.coopEnabledCategories,
+      maxPagesPerCategory: config.coopMaxPagesPerCategory,
+    })
+    await syncCrawlerResult('Co.op Crawl', config.coopDryRun, result)
+  })
+}
+
 export async function runCustomsCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('customs-crawl', async () => {
@@ -214,6 +269,12 @@ export function registerCrawlerSchedules() {
     registerSchedule('bhx-crawl', config.bhxCrawlCron, () => runBhxCrawlJob(`cron:${config.bhxCrawlCron}`))
   } else {
     console.log('[Crawler Scheduler] BHX crawl schedule is disabled')
+  }
+
+  if (config.coopCrawlEnabled) {
+    registerSchedule('coop-crawl', config.coopCrawlCron, () => runCoopCrawlJob(`cron:${config.coopCrawlCron}`))
+  } else {
+    console.log('[Crawler Scheduler] Co.op crawl schedule is disabled')
   }
 
   if (config.shopeeRefreshEnabled) {

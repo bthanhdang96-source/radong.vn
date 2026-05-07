@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { ensureFreshShopeeSession, getShopeeSessionMetadataPath, getShopeeStorageStatePath } from '../services/crawlers/shopeeSession.js'
 
 function getArgValue(name: string) {

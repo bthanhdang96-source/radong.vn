@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { getCrawlerScheduleConfig } from '../services/crawlerScheduler.js'
 import { readShopeeSessionMetadata } from '../services/crawlers/shopeeSession.js'
 import { getSupabaseRuntimeStatus } from '../services/supabaseClient.js'

@@ -6,6 +6,8 @@ export type SourceId =
   | 'banggianongsan'
   | 'vietfood'
   | 'giaca_nsvl'
+  | 'bhx'
+  | 'coop'
   | 'shopee'
   | 'customs'
   | 'fallback';
@@ -63,6 +65,42 @@ export interface VnPricesResponse {
   errors: string[];
 }
 
+export interface PriceChainRetailRegion {
+  provinceCode: string;
+  region: string;
+  avgPrice: number;
+  vsNationalAvgPct: number | null;
+  dataPoints: number;
+}
+
+export interface PriceChainItem {
+  commodity: string;
+  commodityName: string;
+  category: string;
+  unit: string;
+  farmGateVnd: number | null;
+  wholesaleVnd: number | null;
+  retailVnd: number | null;
+  exportVnd: number | null;
+  exportUsd: number | null;
+  worldUsdKg: number | null;
+  worldExchange: string | null;
+  retailVsFarmgatePct: number | null;
+  exportVsFarmgatePct: number | null;
+  trend7dPct: number | null;
+  updatedAt: string;
+  retailRegions: PriceChainRetailRegion[];
+}
+
+export interface VnPriceChainResponse {
+  success: boolean;
+  status: 'live' | 'fallback';
+  lastUpdated: string;
+  sources: PriceSourceStatus[];
+  errors: string[];
+  data: PriceChainItem[];
+}
+
 export const CATEGORY_LABELS: Record<string, string> = {
   'Luong thuc': 'Lương thực',
   'Cay cong nghiep': 'Cây công nghiệp',
@@ -77,6 +115,8 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   banggianongsan: 'banggianongsan.com',
   vietfood: 'vietfood.org.vn',
   giaca_nsvl: 'giacansvl.vn',
+  bhx: 'Bach Hoa Xanh',
+  coop: 'Co.op Online',
   shopee: 'Shopee',
   customs: 'customs.gov.vn',
   fallback: 'Fallback',

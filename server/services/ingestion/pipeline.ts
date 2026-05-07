@@ -59,6 +59,24 @@ export type NormalizedObservation = {
   raw_payload: Record<string, unknown>
 }
 
+type LegacyNormalizedObservationInsert = {
+  recorded_at: string
+  commodity_id: number
+  commodity_slug: string
+  variety: string | null
+  quality_grade: string | null
+  province_code: string | null
+  market_type: PriceType
+  price_vnd: number | null
+  unit: string
+  price_usd: number | null
+  source: string
+  source_url: string | null
+  confidence: number
+  flags: string[]
+  raw_payload: Record<string, unknown>
+}
+
 type NormalizationResult =
   | {
       value: NormalizedObservation
@@ -75,6 +93,72 @@ type NormalizationResult =
     }
 
 export const PRICE_BOUNDS = BASE_PRICE_BOUNDS
+
+function isMissingDedupeKeyColumnError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return (code === '42703' || code === 'PGRST204') && message.includes('dedupe_key')
+}
+
+function isLegacyPriceObservationFingerprintError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    message.length === 0 ||
+    message.includes('dedupe_key') ||
+    message.includes('source_name')
+  )
+}
+
+function isIngestionErrorSchemaMismatch(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return (code === 'PGRST204' || code === '42703' || code === '42P01') && message.includes('ingestion_errors')
+}
+
+function isMedianRpcSignatureMismatch(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return code === 'PGRST202' && message.includes('get_recent_median')
+}
+
+function toLegacyObservationInsert(record: NormalizedObservation): LegacyNormalizedObservationInsert {
+  return {
+    recorded_at: record.recorded_at,
+    commodity_id: record.commodity_id,
+    commodity_slug: record.commodity_slug,
+    variety: record.variety,
+    quality_grade: record.quality_grade,
+    province_code: record.province_code,
+    market_type: record.price_type,
+    price_vnd: record.price_vnd,
+    unit: record.unit,
+    price_usd: record.price_usd,
+    source: record.source_name,
+    source_url: record.source_url,
+    confidence: record.confidence,
+    flags: record.flags,
+    raw_payload: record.raw_payload,
+  }
+}
 
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
@@ -283,6 +367,15 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
     .gte('recorded_at', windowStart.toISOString())
     .lte('recorded_at', windowEnd.toISOString())
   if (error) {
+    if (isLegacyPriceObservationFingerprintError(error)) {
+      return {
+        passed: true,
+        flag: 'dedupe_key_unavailable',
+        confidencePenalty: 0.05,
+        note: 'Remote Supabase schema is missing modern duplicate-check columns; duplicate pre-check skipped',
+      }
+    }
+
     throw error
   }
 
@@ -302,12 +395,22 @@ async function checkDuplicate(record: NormalizedObservation, db: SupabaseClient)
 }
 
 async function checkSpike(record: NormalizedObservation, db: SupabaseClient): Promise<ValidationResult> {
-  const { data, error } = await db.rpc('get_recent_median', {
+  let { data, error } = await db.rpc('get_recent_median', {
     p_commodity_id: record.commodity_id,
     p_province_code: record.province_code,
     p_price_type: record.price_type,
     p_days: 7,
   })
+
+  if (error && isMedianRpcSignatureMismatch(error)) {
+    const retry = await db.rpc('get_recent_median', {
+      p_commodity_id: record.commodity_id,
+      p_province_code: record.province_code,
+      p_days: 7,
+    })
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     throw error
@@ -375,7 +478,7 @@ export async function recordIngestionError(
     },
   })
 
-  if (error) {
+  if (error && !isIngestionErrorSchemaMismatch(error)) {
     throw error
   }
 }
@@ -431,7 +534,20 @@ export async function processIngestionMessage(
     validationNotes,
   }
 
-  const { error } = await db.from('price_observations').insert(clean)
+  let { error } = await db.from('price_observations').insert(clean)
+  if (error) {
+    const retry = await db.from('price_observations').insert(toLegacyObservationInsert(clean))
+    if (!retry.error) {
+      return { inserted: true, errorType: null }
+    }
+
+    if (isMissingDedupeKeyColumnError(error) && !retry.error) {
+      return { inserted: true, errorType: null }
+    }
+
+    error = retry.error ?? error
+  }
+
   if (error) {
     throw error
   }

@@ -14,6 +14,22 @@ type SourceSyncResult = {
   skippedDuplicateCount: number
 }
 
+function isMissingDedupeKeyColumnError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    message.length === 0 ||
+    message.includes('dedupe_key') ||
+    message.includes('source_name')
+  )
+}
+
 function toDayData(result: CrawlerResult): CrawledDayData {
   const timestamp = result.sources[0]?.fetchedAt ?? result.items[0]?.timestamp ?? new Date().toISOString()
   return {
@@ -33,7 +49,7 @@ async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to persist source snapshots')
   }
 
-  const rows = sourceSnapshots.map(source => ({
+  const modernRows = sourceSnapshots.map(source => ({
     source_name: source.id,
     source_url: source.latestArticleUrl ?? source.url,
     raw_json: {
@@ -43,7 +59,22 @@ async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
     },
   }))
 
-  const { error } = await client.from('raw_crawl_logs').insert(rows)
+  let { error } = await client.from('raw_crawl_logs').insert(modernRows)
+  if (error) {
+    const legacyRows = sourceSnapshots.map(source => ({
+      source: source.id,
+      source_url: source.latestArticleUrl ?? source.url,
+      crawled_at: source.fetchedAt,
+      raw_json: {
+        snapshot: source,
+        coverage: source.coverage,
+        syncedAt: new Date().toISOString(),
+      },
+    }))
+    const retry = await client.from('raw_crawl_logs').insert(legacyRows)
+    error = retry.error
+  }
+
   if (error) {
     throw error
   }
@@ -114,6 +145,10 @@ async function filterExistingItems(dayData: CrawledDayData) {
       .in('dedupe_key', dedupeKeys)
 
     if (error) {
+      if (isMissingDedupeKeyColumnError(error)) {
+        return { items: dayData.items, skippedDuplicateCount: 0 }
+      }
+
       throw error
     }
 

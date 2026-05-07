@@ -56,9 +56,11 @@ export async function captureBhxCategoryProducts(
   const page = await browser.newPage({
     userAgent: BHX_USER_AGENT,
   })
+  const routePattern = '**/gw/Category/V2/GetCate?*'
+  let responsePromise: Promise<import('playwright').Response> | null = null
 
   try {
-    await page.route('**/gw/Category/V2/GetCate?*', async route => {
+    await page.route(routePattern, async route => {
       const headers = route.request().headers()
       await route.continue({
         url: rewriteCategoryRequestUrl(route.request().url(), region, categoryUrl, pageSize),
@@ -70,7 +72,7 @@ export async function captureBhxCategoryProducts(
       })
     })
 
-    const responsePromise = page.waitForResponse(
+    responsePromise = page.waitForResponse(
       response => response.url().includes('/gw/Category/V2/GetCate?') && response.status() === 200,
       { timeout: BHX_CATEGORY_TIMEOUT_MS },
     )
@@ -92,6 +94,10 @@ export async function captureBhxCategoryProducts(
       requestUrl: response.url(),
     }
   } finally {
-    await page.close()
+    void responsePromise?.catch(() => undefined)
+    await page.unroute(routePattern).catch(() => undefined)
+    if (!page.isClosed()) {
+      await page.close().catch(() => undefined)
+    }
   }
 }

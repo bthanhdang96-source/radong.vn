@@ -1,0 +1,241 @@
+.pct {
+  max-width: 1400px;
+  margin: 0 auto 32px;
+  padding: 0 24px;
+}
+
+.pct__controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pct__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pct__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pct__tab--active {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-up-bg);
+}
+
+.pct__tab-count {
+  font-size: 0.75rem;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.pct__error {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-down-border);
+  background: var(--color-down-bg);
+  color: var(--color-down);
+  font-size: 0.85rem;
+}
+
+.pct__table-shell {
+  overflow-x: auto;
+  border-radius: 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 18px 40px rgba(8, 15, 30, 0.08);
+}
+
+.pct__table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.pct__table th,
+.pct__table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pct__table th {
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--color-surface) 85%, black 15%);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  z-index: 1;
+}
+
+.pct__commodity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.pct__commodity--expandable {
+  cursor: pointer;
+}
+
+.pct__commodity-name {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pct__commodity-meta,
+.pct__subtle {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.pct__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pct__delta--up {
+  color: var(--color-up);
+}
+
+.pct__delta--down {
+  color: var(--color-down);
+}
+
+.pct__delta--neutral {
+  color: var(--color-text-muted);
+}
+
+.pct__details-row td {
+  padding: 0;
+  background: color-mix(in srgb, var(--color-surface) 82%, black 18%);
+}
+
+.pct__details {
+  padding: 18px 20px;
+}
+
+.pct__details-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.pct__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pct__detail-card {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pct__detail-top,
+.pct__detail-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.pct__detail-price {
+  margin: 10px 0 8px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pct__empty {
+  padding: 48px 18px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.pct__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.pct__skeleton-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pct__skeleton-pill,
+.pct__skeleton-row {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  background-size: 200% 100%;
+  animation: pct-shimmer 1.25s linear infinite;
+}
+
+.pct__skeleton-pill {
+  width: 120px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.pct__skeleton-table {
+  display: grid;
+  gap: 10px;
+}
+
+.pct__skeleton-row {
+  height: 62px;
+  border-radius: 18px;
+}
+
+@keyframes pct-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .pct {
+    padding: 0 16px;
+  }
+
+  .pct__footer,
+  .pct__details-header {
+    flex-direction: column;
+  }
+}

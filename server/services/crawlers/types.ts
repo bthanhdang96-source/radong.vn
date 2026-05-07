@@ -7,6 +7,7 @@ export type SourceId =
   | 'vietfood'
   | 'giaca_nsvl'
   | 'bhx'
+  | 'coop'
   | 'shopee'
   | 'customs'
   | 'fallback';

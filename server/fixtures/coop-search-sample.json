@@ -1,0 +1,152 @@
+{
+  "regions": [
+    {
+      "code": "HCM",
+      "regionName": "TP. Ho Chi Minh",
+      "terminalId": 26595,
+      "terminalCode": "155_sgc",
+      "terminalName": "Co.opmart Nguyen Dinh Chieu",
+      "provinceCode": "79",
+      "fullAddress": "168 Nguyen Dinh Chieu, Phuong Vo Thi Sau, Quan 3, Thanh pho Ho Chi Minh",
+      "categories": {
+        "/c/rau-cu": [
+          {
+            "sku": "250100546",
+            "productId": 599938,
+            "name": "Bap cai trang Co.op Select kg - TNX",
+            "canonical": "bap-cai-trang-coop-select-kg-tnx--s250100546",
+            "uomName": "Kg",
+            "latestPrice": "16900",
+            "supplierRetailPrice": "16900"
+          },
+          {
+            "sku": "250100551",
+            "productId": 599943,
+            "name": "Khoai lang mat Co.op Select tui kg - TNX",
+            "canonical": "khoai-lang-mat-coop-select-tui-kg-tnx--s250100551",
+            "uomName": "Kg",
+            "latestPrice": "39900",
+            "supplierRetailPrice": "39900"
+          }
+        ],
+        "/c/trai-cay": [
+          {
+            "sku": "250201001",
+            "productId": 601001,
+            "name": "Cam sanh tui 1kg",
+            "canonical": "cam-sanh-tui-1kg--s250201001",
+            "uomName": "Tui",
+            "latestPrice": "35900",
+            "supplierRetailPrice": "35900"
+          },
+          {
+            "sku": "250201002",
+            "productId": 601002,
+            "name": "Chuoi cau tui 500g",
+            "canonical": "chuoi-cau-tui-500g--s250201002",
+            "uomName": "Tui",
+            "latestPrice": "18900",
+            "supplierRetailPrice": "18900"
+          }
+        ],
+        "/c/thit": [
+          {
+            "sku": "250301001",
+            "productId": 602001,
+            "name": "Thit heo xay khay 500g",
+            "canonical": "thit-heo-xay-khay-500g--s250301001",
+            "uomName": "Khay",
+            "latestPrice": "64900",
+            "supplierRetailPrice": "64900"
+          }
+        ],
+        "/c/thuy-hai-san": [
+          {
+            "sku": "250401001",
+            "productId": 603001,
+            "name": "Ca tra phi le khay 500g",
+            "canonical": "ca-tra-phi-le-khay-500g--s250401001",
+            "uomName": "Khay",
+            "latestPrice": "45900",
+            "supplierRetailPrice": "45900"
+          },
+          {
+            "sku": "250401002",
+            "productId": 603002,
+            "name": "Tom the khay 500g",
+            "canonical": "tom-the-khay-500g--s250401002",
+            "uomName": "Khay",
+            "latestPrice": "129900",
+            "supplierRetailPrice": "129900"
+          }
+        ]
+      }
+    },
+    {
+      "code": "HNI",
+      "regionName": "Ha Noi",
+      "terminalId": 26532,
+      "terminalCode": "555_sgc",
+      "terminalName": "Co.opmart Sca Long Bien",
+      "provinceCode": "01",
+      "fullAddress": "Pho Chu Huy Man, Phuong Phuc Loi, Quan Long Bien, Ha Noi",
+      "categories": {
+        "/c/rau-cu": [
+          {
+            "sku": "250100546",
+            "productId": 599938,
+            "name": "Bap cai trang Co.op Select kg - TNX",
+            "canonical": "bap-cai-trang-coop-select-kg-tnx--s250100546",
+            "uomName": "Kg",
+            "latestPrice": "18900",
+            "supplierRetailPrice": "18900"
+          }
+        ],
+        "/c/trai-cay": [
+          {
+            "sku": "250201001",
+            "productId": 601001,
+            "name": "Cam sanh tui 1kg",
+            "canonical": "cam-sanh-tui-1kg--s250201001",
+            "uomName": "Tui",
+            "latestPrice": "38900",
+            "supplierRetailPrice": "38900"
+          }
+        ]
+      }
+    },
+    {
+      "code": "DNG",
+      "regionName": "Da Nang",
+      "terminalId": 26579,
+      "terminalCode": "547_sgc",
+      "terminalName": "Co.opmart Son Tra",
+      "provinceCode": "48",
+      "fullAddress": "6 Nguyen Huu Tho, Quan Hai Chau, Thanh pho Da Nang",
+      "categories": {
+        "/c/rau-cu": [
+          {
+            "sku": "250100551",
+            "productId": 599943,
+            "name": "Khoai lang mat Co.op Select tui kg - TNX",
+            "canonical": "khoai-lang-mat-coop-select-tui-kg-tnx--s250100551",
+            "uomName": "Kg",
+            "latestPrice": "42900",
+            "supplierRetailPrice": "42900"
+          }
+        ],
+        "/c/thuy-hai-san": [
+          {
+            "sku": "250401001",
+            "productId": 603001,
+            "name": "Ca tra phi le khay 500g",
+            "canonical": "ca-tra-phi-le-khay-500g--s250401001",
+            "uomName": "Khay",
+            "latestPrice": "48900",
+            "supplierRetailPrice": "48900"
+          }
+        ]
+      }
+    }
+  ]
+}

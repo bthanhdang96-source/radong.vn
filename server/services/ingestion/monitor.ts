@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../../env.js'
 import { getSupabaseAdminClient } from '../supabaseClient.js'
 import { ERROR_PRICE_STREAM, RAW_PRICE_STREAM, getQueueDepth } from './queue.js'
 

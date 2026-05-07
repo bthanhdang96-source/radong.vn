@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { crawlCustoms } from '../services/crawlers/customsCrawler.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'

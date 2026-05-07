@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { createClient } from '@supabase/supabase-js'
 
 function firstDefined(...values: Array<string | undefined>) {

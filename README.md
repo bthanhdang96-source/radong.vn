@@ -40,15 +40,19 @@ Required environment variables:
 - `SHOPEE_SCHEDULER_ENABLED=true|false` as a coarse switch for both Shopee recurring jobs
 - `SHOPEE_SESSION_REFRESH_ENABLED=true|false` and `SHOPEE_CRAWL_ENABLED=true|false` to control the two Shopee jobs independently
 - `SHOPEE_REFRESH_CRON`, `SHOPEE_CRAWL_CRON`, `SHOPEE_SCHEDULE_DRY_RUN`, `SHOPEE_BLOCK_COOLDOWN_MINUTES` to tune Shopee scheduler behavior
+- `BHX_CRAWL_ENABLED`, `BHX_CRAWL_CRON`, `BHX_SCHEDULE_DRY_RUN`, `BHX_ENABLED_REGIONS` to tune the BHX retail crawler
+- `COOP_CRAWL_ENABLED`, `COOP_CRAWL_CRON`, `COOP_SCHEDULE_DRY_RUN`, `COOP_ENABLED_REGIONS`, `COOP_ENABLED_CATEGORIES`, `COOP_MAX_PAGES_PER_CATEGORY` to tune the Co.op retail crawler
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
 
 Runtime behavior:
 
+- `server/env.ts` loads the repo root `.env` first, then applies `server/.env` as an optional override. This keeps `npm --prefix server run ...` aligned with the main workspace config.
 - If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase and reads curated views.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 - Customs crawler is intentionally separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:customs`.
+- Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
 
@@ -67,6 +71,16 @@ Quick local verification for the customs aggregate crawler:
 - To force manual mode from env, set `CUSTOMS_REPORT_DISCOVERY_MODE=manual` and `CUSTOMS_REPORT_URL=<customs-pdf-url>`.
 - To verify idempotency, run the same customs command twice and confirm the second run inserts `0` new rows or leaves the customs count unchanged.
 - Metadata such as discovery mode, parser backend, report code, and enabled slug allowlist are stored in `raw_crawl_logs.raw_json.snapshot.metadata`.
+
+Quick local verification for the Co.op retail crawler:
+
+- Use the bundled fixture for deterministic parser verification:
+  `npm --prefix server run crawler:coop -- --fixture=server/fixtures/coop-search-sample.json --dry-run`
+- Run the live multi-region crawl without syncing:
+  `npm --prefix server run crawler:coop -- --dry-run --regions=HCM,HNI,DNG`
+- Narrow scope when debugging:
+  `npm --prefix server run crawler:coop -- --dry-run --region=HCM --category=rau-cu --max-pages=1`
+- The live path resolves a region seed address to a terminal dynamically before calling the Teko discovery API, so pricing is terminal-aware by design.
 
 Quick local verification for the Shopee crawler:
 
@@ -88,7 +102,7 @@ Quick local verification for the Shopee crawler:
 Quick local verification for the dedicated crawler scheduler:
 
 - Start the API server and confirm `/api/health` reports `crawlers.schedule` and `crawlers.shopeeSession`.
-- For a safe smoke test, set `SHOPEE_SCHEDULER_ENABLED=true`, `SHOPEE_SCHEDULE_DRY_RUN=true`, and `CUSTOMS_SCHEDULER_ENABLED=true`, `CUSTOMS_SCHEDULE_DRY_RUN=true`.
+- For a safe smoke test, set `COOP_CRAWL_ENABLED=true`, `COOP_SCHEDULE_DRY_RUN=true`, `SHOPEE_SCHEDULER_ENABLED=true`, `SHOPEE_SCHEDULE_DRY_RUN=true`, and `CUSTOMS_SCHEDULER_ENABLED=true`, `CUSTOMS_SCHEDULE_DRY_RUN=true`.
 - The scheduler keeps a simple in-memory lock so the same job does not overlap with itself if a previous run is still active.
 
 ## React + TypeScript + Vite

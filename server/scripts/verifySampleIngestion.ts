@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { getSupabaseAdminClient } from '../services/supabaseClient.js'
 
 type ScenarioName = 'valid' | 'duplicate' | 'stale' | 'spike' | 'granular'

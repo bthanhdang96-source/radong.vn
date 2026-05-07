@@ -1,3 +1,4 @@
+import './env.js';
 import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';

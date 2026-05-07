@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import type { CrawledPriceItem, SourceId } from '../services/crawlers/types.js'
 import { buildQueueMessage, enqueueMessage, isRedisQueueConfigured } from '../services/ingestion/queue.js'
 

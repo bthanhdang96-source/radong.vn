@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../env.js'
 import { access } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { getCrawlerScheduleConfig } from '../services/crawlerScheduler.js'
@@ -44,6 +44,9 @@ async function main() {
   const shopeeSession = await readShopeeSessionMetadata()
   const storageStatePath = getShopeeStorageStatePath()
   const metadataPath = getShopeeSessionMetadataPath()
+  const shopeeEnabled = schedule.shopeeRefreshEnabled || schedule.shopeeCrawlEnabled
+  const hasShopeeMetadata = await pathExists(metadataPath)
+  const hasShopeeStorageState = await pathExists(storageStatePath)
 
   const checks: CheckResult[] = [
     {
@@ -56,6 +59,17 @@ async function main() {
       ok: !schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0,
       detail: schedule.bhxCrawlEnabled
         ? `enabled with cron ${schedule.bhxCrawlCron} across regions ${schedule.bhxEnabledRegions.join(',')}`
+        : 'disabled; safe default until retail rollout',
+    },
+    {
+      name: 'coop_scheduler_flags',
+      ok:
+        !schedule.coopCrawlEnabled ||
+        (schedule.coopEnabledRegions.length > 0 &&
+          schedule.coopEnabledCategories.length > 0 &&
+          schedule.coopMaxPagesPerCategory > 0),
+      detail: schedule.coopCrawlEnabled
+        ? `enabled with cron ${schedule.coopCrawlCron} across regions ${schedule.coopEnabledRegions.join(',')} categories ${schedule.coopEnabledCategories.join(',')} maxPages=${schedule.coopMaxPagesPerCategory}`
         : 'disabled; safe default until retail rollout',
     },
     {
@@ -72,17 +86,21 @@ async function main() {
     },
     {
       name: 'shopee_session_metadata',
-      ok: await pathExists(metadataPath),
-      detail: (await pathExists(metadataPath))
-        ? `${metadataPath} (${shopeeSession.status})`
-        : `Missing metadata file at ${metadataPath}`,
+      ok: !shopeeEnabled || hasShopeeMetadata,
+      detail: !shopeeEnabled
+        ? 'skipped; Shopee schedulers are disabled'
+        : hasShopeeMetadata
+          ? `${metadataPath} (${shopeeSession.status})`
+          : `Missing metadata file at ${metadataPath}`,
     },
     {
       name: 'shopee_storage_state',
-      ok: await pathExists(storageStatePath),
-      detail: (await pathExists(storageStatePath))
-        ? `Storage state present at ${storageStatePath}`
-        : `Storage state missing at ${storageStatePath}`,
+      ok: !shopeeEnabled || hasShopeeStorageState,
+      detail: !shopeeEnabled
+        ? 'skipped; Shopee schedulers are disabled'
+        : hasShopeeStorageState
+          ? `Storage state present at ${storageStatePath}`
+          : `Storage state missing at ${storageStatePath}`,
     },
     await checkPlaywrightBrowser(),
   ]

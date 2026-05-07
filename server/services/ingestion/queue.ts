@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../../env.js'
 import { createClient } from 'redis'
 import type { CrawledDayData, CrawledPriceItem, SourceSnapshot } from '../crawlers/types.js'
 import type { IngestionQueueMessage } from './pipeline.js'

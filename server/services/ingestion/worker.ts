@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../../env.js'
 import { setTimeout as delay } from 'node:timers/promises'
 import { getSupabaseAdminClient } from '../supabaseClient.js'
 import { deleteQueuedMessage, readQueuedMessages } from './queue.js'
