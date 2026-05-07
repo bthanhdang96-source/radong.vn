@@ -2,6 +2,8 @@ export type SourceId =
   | 'nongnghiep'
   | 'vietnambiz'
   | 'congthuong'
+  | 'khuyennong_tphcm'
+  | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
   | 'vietfood'
@@ -111,6 +113,8 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   nongnghiep: 'nongnghiepmoitruong.vn',
   vietnambiz: 'vietnambiz.vn',
   congthuong: 'congthuong.vn',
+  khuyennong_tphcm: 'khuyennongtphcm.vn',
+  dongnai_sct_daugiay: 'sct.dongnai.gov.vn',
   vpsaspice: 'vpsa.org.vn',
   banggianongsan: 'banggianongsan.com',
   vietfood: 'vietfood.org.vn',

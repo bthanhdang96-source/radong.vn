@@ -7,6 +7,8 @@
     "crawler:bhx": "tsx scripts/runBhxCrawler.ts",
     "crawler:coop": "tsx scripts/runCoopCrawler.ts",
     "crawler:customs": "tsx scripts/runCustomsCrawler.ts",
+    "crawler:dongnai-daugiay": "tsx scripts/runDongnaiDauGiayCrawler.ts",
+    "crawler:khuyennong-tphcm": "tsx scripts/runKhuyennongTphcmCrawler.ts",
     "crawler:preflight": "tsx scripts/crawlerPreflight.ts",
     "crawler:shopee": "tsx scripts/runShopeeCrawler.ts",
     "crawler:shopee:refresh-session": "tsx scripts/refreshShopeeSession.ts",

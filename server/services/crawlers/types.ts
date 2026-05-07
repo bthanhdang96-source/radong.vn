@@ -2,6 +2,8 @@ export type SourceId =
   | 'nongnghiep'
   | 'vietnambiz'
   | 'congthuong'
+  | 'khuyennong_tphcm'
+  | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
   | 'vietfood'

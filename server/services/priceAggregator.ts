@@ -1,7 +1,9 @@
 import { appendHistory, getCached, getCacheEntry, getHistory, listHistoryDates, setCache } from './cacheService.js';
 import { crawlBanggianongsan } from './crawlers/banggianongsanCrawler.js';
 import { crawlCongthuong } from './crawlers/congthuongCrawler.js';
+import { crawlDongnaiDauGiay } from './crawlers/dongnaiDauGiayCrawler.js';
 import { crawlGiacaNsvl } from './crawlers/giacaNsvlCrawler.js';
+import { crawlKhuyennongTphcm } from './crawlers/khuyennongTphcmCrawler.js';
 import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
 import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
 import { crawlVietfood } from './crawlers/vietfoodCrawler.js';
@@ -155,10 +157,12 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];
 
-  const [nongnghiep, vietnambiz, congthuong, vpsaspice, banggianongsan, vietfood, giacaNsvl] = await Promise.all([
+  const [nongnghiep, vietnambiz, congthuong, khuyennongTphcm, dongnaiDauGiay, vpsaspice, banggianongsan, vietfood, giacaNsvl] = await Promise.all([
     crawlNongnghiep(),
     crawlVietnambiz(),
     crawlCongthuong(),
+    crawlKhuyennongTphcm(),
+    crawlDongnaiDauGiay(),
     crawlVpsaspice(),
     crawlBanggianongsan(),
     crawlVietfood(),
@@ -168,6 +172,8 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...nongnghiep.items,
     ...vietnambiz.items,
     ...congthuong.items,
+    ...khuyennongTphcm.items,
+    ...dongnaiDauGiay.items,
     ...vpsaspice.items,
     ...banggianongsan.items,
     ...vietfood.items,
@@ -177,6 +183,8 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...nongnghiep.sources,
     ...vietnambiz.sources,
     ...congthuong.sources,
+    ...khuyennongTphcm.sources,
+    ...dongnaiDauGiay.sources,
     ...vpsaspice.sources,
     ...banggianongsan.sources,
     ...vietfood.sources,

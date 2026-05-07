@@ -19,7 +19,7 @@ export const BASE_PRICE_BOUNDS: Record<string, Bounds> = {
   'buoi-nam-roi': { min: 10_000, max: 80_000 },
   'ca-chua': { min: 12_000, max: 35_000 },
   'hanh-tay': { min: 15_000, max: 35_000 },
-  toi: { min: 45_000, max: 100_000 },
+  toi: { min: 30_000, max: 100_000 },
   'khoai-tay': { min: 12_000, max: 28_000 },
   'bap-cai': { min: 8_000, max: 25_000 },
   'rau-muong': { min: 7_000, max: 18_000 },
