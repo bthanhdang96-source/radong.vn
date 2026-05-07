@@ -12,7 +12,6 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   nongnghiep: 100,
   vietnambiz: 95,
   congthuong: 90,
-  khuyennong_tphcm: 92,
   dongnai_sct_daugiay: 89,
   vietfood: 88,
   vpsaspice: 84,
