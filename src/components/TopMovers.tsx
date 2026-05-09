@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { FALLBACK_VN_PRICES, type CommoditySummary } from '../data/vnPriceTypes';
+import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat';
 import './TopMovers.css';
 
 function SparkBars({ item }: { item: CommoditySummary }) {
@@ -49,7 +50,7 @@ function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
       </div>
       <div className="mover-card__body">
         <div className="mover-card__price-block">
-          <span className="mover-card__price">{item.priceAvg.toLocaleString('vi-VN')}</span>
+          <span className="mover-card__price">{formatVnPrice(item.priceAvg)}</span>
           <span className="mover-card__unit">{item.unit.replace('VND/', '')}</span>
         </div>
         <SparkBars item={item} />
@@ -60,8 +61,7 @@ function MoverCard({ item, rank }: { item: CommoditySummary; rank: number }) {
           {safeChangePct.toFixed(2)}%
         </span>
         <span className="mover-card__abs">
-          {sign}
-          {safeChange.toLocaleString('vi-VN')} VND
+          {formatSignedVnPrice(safeChange)} VND
         </span>
       </div>
     </article>

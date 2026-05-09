@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { FALLBACK_VN_PRICES, type CommoditySummary } from '../data/vnPriceTypes';
+import { formatVnPrice } from '../utils/vnPriceFormat';
 import './TickerBar.css';
 
 function TickerChip({ item }: { item: CommoditySummary }) {
@@ -13,7 +14,7 @@ function TickerChip({ item }: { item: CommoditySummary }) {
         {item.commodityName}
       </span>
       <span className="ticker-chip__price">
-        {item.priceAvg.toLocaleString('vi-VN')}
+        {formatVnPrice(item.priceAvg)}
         <span className="ticker-chip__unit"> {item.unit.replace('VND/', '')}</span>
       </span>
       <span className="ticker-chip__change">

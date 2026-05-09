@@ -1,4 +1,5 @@
 import { type NongSanItem } from '../data/nongSanData';
+import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat';
 import './DetailModal.css';
 
 interface DetailModalProps {
@@ -29,11 +30,11 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
           <div className="modal-price-card">
             <h3>Giá hiện tại</h3>
             <div className="modal-price__value">
-              {item.giaCurrent.toLocaleString('vi-VN')}
+              {formatVnPrice(item.giaCurrent)}
               <span className="modal-price__unit">{item.donVi}</span>
             </div>
             <div className={`modal-price__change ${isUp ? 'modal-price__change--up' : 'modal-price__change--down'}`}>
-              {sign}{item.thayDoi.toLocaleString('vi-VN')} ({sign}{item.thayDoiPct.toFixed(2)}%)
+              {formatSignedVnPrice(item.thayDoi)} ({sign}{item.thayDoiPct.toFixed(2)}%)
             </div>
           </div>
 
@@ -54,15 +55,15 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
             <tbody>
               <tr>
                 <td>Hôm qua</td>
-                <td className="modal-table__num">{item.giaHom_qua.toLocaleString('vi-VN')}</td>
+                <td className="modal-table__num">{formatVnPrice(item.giaHom_qua)}</td>
               </tr>
               <tr>
                 <td>Tuần trước</td>
-                <td className="modal-table__num">{item.giaTuanTruoc.toLocaleString('vi-VN')}</td>
+                <td className="modal-table__num">{formatVnPrice(item.giaTuanTruoc)}</td>
               </tr>
               <tr>
                 <td>Tháng trước</td>
-                <td className="modal-table__num">{item.giaThangtruoc.toLocaleString('vi-VN')}</td>
+                <td className="modal-table__num">{formatVnPrice(item.giaThangtruoc)}</td>
               </tr>
             </tbody>
           </table>
@@ -83,8 +84,8 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
             />
           </div>
           <div className="modal-range__values">
-            <span>{item.low52w.toLocaleString('vi-VN')}</span>
-            <span>{item.high52w.toLocaleString('vi-VN')}</span>
+            <span>{formatVnPrice(item.low52w)}</span>
+            <span>{formatVnPrice(item.high52w)}</span>
           </div>
         </div>
       </div>

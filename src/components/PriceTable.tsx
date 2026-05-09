@@ -5,6 +5,7 @@ import {
   SOURCE_LABELS,
   type CommoditySummary,
 } from '../data/vnPriceTypes';
+import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat';
 import './PriceTable.css';
 
 type SortKey = 'commodityName' | 'priceAvg' | 'change' | 'changePct';
@@ -46,7 +47,7 @@ function RegionChange({ change }: { change: number | null }) {
     return <>--</>;
   }
 
-  return <>{change >= 0 ? '+' : ''}{change.toLocaleString('vi-VN')}</>;
+  return <>{formatSignedVnPrice(change)}</>;
 }
 
 export default function PriceTable({
@@ -173,21 +174,20 @@ export default function PriceTable({
                       </td>
                       <td className="pt-td pt-td--price">
                         <div className="pt-price-container">
-                          <strong>{item.priceAvg.toLocaleString('vi-VN')}</strong>
+                          <strong>{formatVnPrice(item.priceAvg)}</strong>
                           <span>{item.unit.replace('VND/', '')}</span>
                         </div>
                       </td>
                       <td className={`pt-td ${isUp ? 'pt-change--up' : 'pt-change--down'}`}>
-                        {item.change >= 0 ? '+' : ''}
-                        {item.change.toLocaleString('vi-VN')}
+                        {formatSignedVnPrice(item.change)}
                       </td>
                       <td className="pt-td">
                         <ChangeBadge change={item.change} changePct={item.changePct} />
                       </td>
                       <td className="pt-td">
                         <div className="pt-spread">
-                          <span>{item.priceLow.toLocaleString('vi-VN')}</span>
-                          <strong>{item.priceHigh.toLocaleString('vi-VN')}</strong>
+                          <span>{formatVnPrice(item.priceLow)}</span>
+                          <strong>{formatVnPrice(item.priceHigh)}</strong>
                         </div>
                       </td>
                       <td className="pt-td pt-td--range">
@@ -219,7 +219,7 @@ export default function PriceTable({
                                 {item.regions.map((region, index) => (
                                   <tr key={`${item.commodity}-${region.region}-${region.source}-${index}`} className={region.hasConflict ? 'pt-subrow--conflict' : ''}>
                                     <td>{region.region}</td>
-                                    <td>{region.price.toLocaleString('vi-VN')}</td>
+                                    <td>{formatVnPrice(region.price)}</td>
                                     <td><RegionChange change={region.change} /></td>
                                     <td>
                                       <span className="pt-source-badge">{SOURCE_LABELS[region.source]}</span>
@@ -265,17 +265,17 @@ export default function PriceTable({
                 <div className="pt-mobile-card__metrics">
                   <div className="pt-mobile-card__metric">
                     <span className="pt-mobile-card__label">Giá trung bình</span>
-                    <strong>{item.priceAvg.toLocaleString('vi-VN')}</strong>
+                    <strong>{formatVnPrice(item.priceAvg)}</strong>
                     <small>{item.unit}</small>
                   </div>
                   <div className="pt-mobile-card__metric">
                     <span className="pt-mobile-card__label">Biến động</span>
-                    <strong>{item.change >= 0 ? '+' : ''}{item.change.toLocaleString('vi-VN')}</strong>
+                    <strong>{formatSignedVnPrice(item.change)}</strong>
                     <ChangeBadge change={item.change} changePct={item.changePct} />
                   </div>
                   <div className="pt-mobile-card__metric">
                     <span className="pt-mobile-card__label">Mức giá</span>
-                    <strong>{item.priceLow.toLocaleString('vi-VN')} - {item.priceHigh.toLocaleString('vi-VN')}</strong>
+                    <strong>{formatVnPrice(item.priceLow)} - {formatVnPrice(item.priceHigh)}</strong>
                     <small>{item.regions.length} khu vực / loại</small>
                   </div>
                   <div className="pt-mobile-card__metric pt-mobile-card__metric--range">
@@ -304,7 +304,7 @@ export default function PriceTable({
                           <span>{SOURCE_LABELS[region.source]}</span>
                         </div>
                         <div className="pt-mobile-region__price">
-                          <strong>{region.price.toLocaleString('vi-VN')}</strong>
+                          <strong>{formatVnPrice(region.price)}</strong>
                           <span><RegionChange change={region.change} /></span>
                         </div>
                       </div>
