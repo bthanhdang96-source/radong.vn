@@ -4,7 +4,7 @@ import { discoverFromHtml } from './discovery/htmlDiscovery.js'
 import { discoverFromRss } from './discovery/rssDiscovery.js'
 import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
 import { extractNewsArticle } from './extract/articleExtractor.js'
-import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache } from './liveCache.js'
+import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache, rememberLiveNewsArticles } from './liveCache.js'
 import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import type {
@@ -600,6 +600,10 @@ export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCr
       status,
       null,
     )
+
+    if (result.items.length > 0) {
+      rememberLiveNewsArticles(result.items)
+    }
 
     result.run.startedAt = startedAt
     return result

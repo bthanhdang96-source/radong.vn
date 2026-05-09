@@ -21,7 +21,7 @@ function getEnabledSourceKeys(): NewsSourceKey[] {
 
 export function getNewsSchedulerConfig() {
   return {
-    enabled: process.env.NEWS_CRAWL_ENABLED === 'true',
+    enabled: process.env.NEWS_CRAWL_ENABLED !== 'false',
     cron: process.env.NEWS_CRAWL_CRON ?? '0 */6 * * *',
     sourceKeys: getEnabledSourceKeys(),
   }
