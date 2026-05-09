@@ -73,8 +73,6 @@ function ArticleCard({ article }: { article: NewsListItem }) {
       </Link>
       <div className="news-index__stream-body">
         <div className="news-index__meta-row">
-          <span className="news-index__source">{article.sourceLabel}</span>
-          <span className="news-index__dot" />
           <time>{formatDate(article.publishedAt)}</time>
         </div>
         <Link className="news-index__stream-title" to={`/tin-tuc/${article.slug}`}>
@@ -239,8 +237,6 @@ export default function NewsIndexPage() {
             <div className="news-index__hero-overlay" />
             <div className="news-index__hero-content">
               <div className="news-index__meta-row">
-                <span className="news-index__source">{hero.sourceLabel}</span>
-                <span className="news-index__dot" />
                 <time>{formatDate(hero.publishedAt)}</time>
               </div>
               <h2>{hero.title}</h2>
@@ -314,8 +310,6 @@ export default function NewsIndexPage() {
               />
               <div className="news-index__featured-body">
                 <div className="news-index__meta-row">
-                  <span className="news-index__source">{article.sourceLabel}</span>
-                  <span className="news-index__dot" />
                   <time>{formatDate(article.publishedAt)}</time>
                 </div>
                 <h3>{article.title}</h3>

@@ -106,7 +106,7 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     priority: 'P1',
     phase: 2,
     accessState: 'public_ok',
-    active: true,
+    active: false,
     fullTextCapable: true,
     browserRequired: false,
     rateLimitMs: P1_RATE_LIMIT_MS,
@@ -200,4 +200,12 @@ export function getNewsSourceConfig(sourceKey: NewsSourceKey) {
 
 export function listNewsSourceConfigs() {
   return NEWS_SOURCE_KEYS.map(sourceKey => NEWS_SOURCE_REGISTRY[sourceKey])
+}
+
+export function isNewsSourceVisible(sourceKey: NewsSourceKey) {
+  return NEWS_SOURCE_REGISTRY[sourceKey].active
+}
+
+export function listVisibleNewsSourceConfigs() {
+  return listNewsSourceConfigs().filter(source => isNewsSourceVisible(source.key))
 }

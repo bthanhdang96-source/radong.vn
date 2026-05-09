@@ -1,5 +1,5 @@
 import { makeFingerprint, makeSlug, toPlainExcerpt } from './common.js'
-import { listNewsSourceConfigs } from './sourceRegistry.js'
+import { listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import type { NewsArticleRecord, NewsSourceKey, NewsSourceRecord } from './types.js'
 
 const NOW = new Date()
@@ -9,7 +9,7 @@ function offsetHours(hours: number) {
 }
 
 function toSourceRecord(): NewsSourceRecord[] {
-  return listNewsSourceConfigs().map(source => ({
+  return listVisibleNewsSourceConfigs().map(source => ({
     key: source.key,
     label: source.label,
     baseUrl: source.baseUrl,

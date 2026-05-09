@@ -4,14 +4,16 @@ import type { NewsArticleRecord, NewsSourceKey } from './types.js'
 
 const LIVE_CACHE_KEY = 'news-live-articles'
 const LIVE_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+const LIVE_CACHE_TARGET_COUNT = 40
+const LIVE_CACHE_DEPTH_PER_SOURCE = 6
 const LIVE_SOURCE_KEYS: NewsSourceKey[] = [
   'vietnambiz',
   'congthuong',
   'nongnghiepmoitruong',
   'vpsaspice',
   'vietfood',
-  'khuyennongvn',
   'kinhtenongthon',
+  'vinacas',
   'coa',
 ]
 
@@ -48,7 +50,7 @@ export async function refreshLiveNewsArticlesCache(force = false): Promise<NewsA
         LIVE_SOURCE_KEYS.map(async sourceKey => {
           const source = getNewsSourceConfig(sourceKey)
           const result = await crawlNewsSource(sourceKey, {
-            maxArticlesPerRun: Math.min(source.phase <= 2 ? 2 : 1, source.maxArticlesPerRun),
+            maxArticlesPerRun: Math.min(LIVE_CACHE_DEPTH_PER_SOURCE, source.maxArticlesPerRun),
             persist: false,
           })
           return result.items
@@ -57,7 +59,7 @@ export async function refreshLiveNewsArticlesCache(force = false): Promise<NewsA
 
       const articles = dedupeArticles(results.flat())
         .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-        .slice(0, 18)
+        .slice(0, LIVE_CACHE_TARGET_COUNT)
 
       if (articles.length > 0) {
         setCache(LIVE_CACHE_KEY, articles, LIVE_CACHE_TTL_MS)

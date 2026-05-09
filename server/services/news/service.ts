@@ -5,7 +5,7 @@ import { discoverFromRss } from './discovery/rssDiscovery.js'
 import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
 import { extractNewsArticle } from './extract/articleExtractor.js'
 import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache } from './liveCache.js'
-import { getNewsSourceConfig, listNewsSourceConfigs } from './sourceRegistry.js'
+import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import type {
   NewsArticleRecord,
@@ -99,13 +99,17 @@ function toSourceRecord(config: NewsSourceConfig, row?: NewsSourceRow): NewsSour
     accessState: row?.access_state ?? config.accessState,
     latestDetectedAt: row?.latest_detected_at ?? config.latestDetectedAt ?? null,
     freshnessCheckedAt: row?.freshness_checked_at ?? config.freshnessCheckedAt ?? null,
-    active: row?.active ?? config.active,
+    active: config.active && (row?.active ?? true),
     fullTextCapable: row?.full_text_capable ?? config.fullTextCapable,
     browserRequired: row?.browser_required ?? config.browserRequired,
     rateLimitMs: row?.rate_limit_ms ?? config.rateLimitMs,
     maxArticlesPerRun: row?.max_articles_per_run ?? config.maxArticlesPerRun,
     topicTags: row?.topic_tags ?? config.topicTags,
   }
+}
+
+function isVisibleSourceRecord(source: Pick<NewsSourceRecord, 'key' | 'active'>) {
+  return source.active && isNewsSourceVisible(source.key)
 }
 
 function toArticleRecord(row: NewsArticleRow, sources: NewsSourceRecord[]): NewsArticleRecord {
@@ -215,7 +219,7 @@ async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
       return FALLBACK_NEWS_SOURCES
     }
 
-    return rows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row))
+    return rows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row)).filter(isVisibleSourceRecord)
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static sources:', error)
@@ -228,6 +232,7 @@ async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
 async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
   const runtime = getSupabaseRuntimeStatus()
   const sources = await loadSourceRecords()
+  const visibleSourceKeys = new Set(sources.map(source => source.key))
   if (!runtime.hasReadConfig) {
     return loadLiveOrFallbackArticles(sources)
   }
@@ -254,7 +259,7 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
       return loadLiveOrFallbackArticles(sources)
     }
 
-    return rows.map(row => toArticleRecord(row, sources))
+    return rows.map(row => toArticleRecord(row, sources)).filter(article => visibleSourceKeys.has(article.sourceKey))
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static articles:', error)
@@ -265,12 +270,13 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
 }
 
 async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
+  const visibleSourceKeys = new Set(sources.map(source => source.key))
   const cached = getCachedLiveNewsArticles()
   if (cached && cached.length > 0) {
     return cached.map(article => ({
       ...article,
       sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-    }))
+    })).filter(article => visibleSourceKeys.has(article.sourceKey))
   }
 
   try {
@@ -279,7 +285,7 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
       return liveArticles.map(article => ({
         ...article,
         sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-      }))
+      })).filter(article => visibleSourceKeys.has(article.sourceKey))
     }
   } catch (error) {
     console.error('[News] Failed to build live fallback cache:', error)
@@ -288,7 +294,7 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
   return FALLBACK_NEWS_ARTICLES.map(article => ({
     ...article,
     sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-  }))
+  })).filter(article => visibleSourceKeys.has(article.sourceKey))
 }
 
 function filterArticles(articles: NewsArticleRecord[], filters: NewsListFilters) {
@@ -604,7 +610,12 @@ export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCr
 }
 
 export async function crawlNewsSources(sourceKeys?: NewsSourceKey[]) {
-  const keys = sourceKeys && sourceKeys.length > 0 ? sourceKeys : listNewsSourceConfigs().filter(source => source.phase <= 2).map(source => source.key)
+  const keys =
+    sourceKeys && sourceKeys.length > 0
+      ? sourceKeys.filter(isNewsSourceVisible)
+      : listVisibleNewsSourceConfigs()
+          .filter(source => source.phase <= 2)
+          .map(source => source.key)
   const results: NewsCrawlResult[] = []
 
   for (const sourceKey of keys) {

@@ -31,7 +31,6 @@ function StoryRail({ title, items }: { title: string; items: NewsListItem[] }) {
         {items.map(item => (
           <Link key={item.slug} className="news-article__rail-item" to={`/tin-tuc/${item.slug}`}>
             <div className="news-article__rail-meta">
-              <span>{item.sourceLabel}</span>
               <time>{new Date(item.publishedAt).toLocaleDateString('vi-VN')}</time>
             </div>
             <strong>{item.title}</strong>
@@ -126,14 +125,15 @@ export default function NewsArticlePage() {
           <nav className="news-article__breadcrumb" aria-label="Breadcrumb">
             <Link to="/">Tin tuc</Link>
             <span>/</span>
-            <span>{article.sourceLabel}</span>
+            <span>Bai viet</span>
           </nav>
 
           <header className="news-article__header">
-            <div className="news-article__meta">
-              <span className="news-article__source">{article.sourceLabel}</span>
-              {article.category ? <span className="news-article__category">{article.category}</span> : null}
-            </div>
+            {article.category ? (
+              <div className="news-article__meta">
+                <span className="news-article__category">{article.category}</span>
+              </div>
+            ) : null}
             <h1>{article.title}</h1>
             <p className="news-article__excerpt">{article.excerpt}</p>
             <div className="news-article__byline">
@@ -164,6 +164,15 @@ export default function NewsArticlePage() {
               <p>{article.contentText}</p>
             </article>
           ) : null}
+
+          <footer className="news-article__source-note">
+            <p>
+              Nguon bai viet: <strong>{article.sourceLabel}</strong>
+            </p>
+            <a href={article.canonicalUrl} target="_blank" rel="noreferrer noopener">
+              Xem bai goc
+            </a>
+          </footer>
         </div>
 
         <aside className="news-article__aside">
