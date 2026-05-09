@@ -1,3 +1,4 @@
+import { isNewsFeedArticleVisible } from './articleClassification.js'
 import { FALLBACK_NEWS_ARTICLES, FALLBACK_NEWS_SOURCES } from './fallbackData.js'
 import { decodeCursor, encodeCursor, makeSlug, normalizeWhitespace, sleep } from './common.js'
 import { discoverFromHtml } from './discovery/htmlDiscovery.js'
@@ -151,6 +152,10 @@ function toListItem(article: NewsArticleRecord): NewsListItem {
   }
 }
 
+function isPublicNewsArticle(article: NewsArticleRecord) {
+  return article.status === 'published' && isNewsFeedArticleVisible(article)
+}
+
 async function ensureNewsSourcesSynced() {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -257,7 +262,9 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
       return loadLiveOrFallbackArticles(sources)
     }
 
-    return rows.map(row => toArticleRecord(row, sources)).filter(article => visibleSourceKeys.has(article.sourceKey))
+    return rows
+      .map(row => toArticleRecord(row, sources))
+      .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static articles:', error)
@@ -274,7 +281,7 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
     return cached.map(article => ({
       ...article,
       sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-    })).filter(article => visibleSourceKeys.has(article.sourceKey))
+    })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
   }
 
   try {
@@ -283,7 +290,7 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
       return liveArticles.map(article => ({
         ...article,
         sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-      })).filter(article => visibleSourceKeys.has(article.sourceKey))
+      })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
     }
   } catch (error) {
     console.error('[News] Failed to build live fallback cache:', error)
@@ -292,7 +299,7 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
   return FALLBACK_NEWS_ARTICLES.map(article => ({
     ...article,
     sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-  })).filter(article => visibleSourceKeys.has(article.sourceKey))
+  })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
 }
 
 function filterArticles(articles: NewsArticleRecord[], filters: NewsListFilters) {
@@ -325,7 +332,7 @@ function filterArticles(articles: NewsArticleRecord[], filters: NewsListFilters)
       }
     }
 
-    return article.status === 'published'
+    return isPublicNewsArticle(article)
   })
 }
 

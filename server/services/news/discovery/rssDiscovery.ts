@@ -32,39 +32,43 @@ export async function discoverFromRss(source: NewsSourceConfig): Promise<NewsDis
   const items: NewsDiscoveredItem[] = []
 
   for (const item of rawItems) {
-      const linkNode = item.link
-      const linkValue =
-        typeof linkNode === 'string'
-          ? linkNode
-          : linkNode && typeof linkNode === 'object' && 'href' in linkNode && typeof linkNode.href === 'string'
-            ? linkNode.href
-            : null
-      if (!linkValue) {
-        continue
-      }
+    const linkNode = item.link
+    const linkValue =
+      typeof linkNode === 'string'
+        ? linkNode
+        : linkNode && typeof linkNode === 'object' && 'href' in linkNode && typeof linkNode.href === 'string'
+          ? linkNode.href
+          : null
+    if (!linkValue) {
+      continue
+    }
 
-      const canonicalUrl = resolveUrl(source.baseUrl, linkValue)
-      items.push({
-        sourceKey: source.key,
-        canonicalUrl,
-        title: typeof item.title === 'string' ? stripHtml(item.title) : null,
-        excerpt:
-          typeof item.description === 'string'
-            ? stripHtml(item.description)
-            : typeof item.summary === 'string'
-              ? stripHtml(item.summary)
+    const categories = toArray(item.category)
+      .map(entry => (typeof entry === 'string' ? stripHtml(entry) : null))
+      .filter((entry): entry is string => Boolean(entry))
+    const canonicalUrl = resolveUrl(source.baseUrl, linkValue)
+    items.push({
+      sourceKey: source.key,
+      canonicalUrl,
+      title: typeof item.title === 'string' ? stripHtml(item.title) : null,
+      excerpt:
+        typeof item.description === 'string'
+          ? stripHtml(item.description)
+          : typeof item.summary === 'string'
+            ? stripHtml(item.summary)
+            : null,
+      category: categories[0] ?? null,
+      publishedAt: parseLooseDate(
+        typeof item.pubDate === 'string'
+          ? item.pubDate
+          : typeof item.published === 'string'
+            ? item.published
+            : typeof item.updated === 'string'
+              ? item.updated
               : null,
-        publishedAt: parseLooseDate(
-          typeof item.pubDate === 'string'
-            ? item.pubDate
-            : typeof item.published === 'string'
-              ? item.published
-              : typeof item.updated === 'string'
-                ? item.updated
-                : null,
-        ),
-        topicTags: source.topicTags,
-      })
+      ),
+      topicTags: [...new Set([...source.topicTags, ...categories])],
+    })
   }
 
   return items

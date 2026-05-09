@@ -1,6 +1,7 @@
 import { Readability } from '@mozilla/readability'
 import { load } from 'cheerio'
 import { JSDOM } from 'jsdom'
+import { classifyNewsArticle } from '../articleClassification.js'
 import { fetchText, makeFingerprint, makeSlug, normalizeWhitespace, parseLooseDate, stripHtml, toPlainExcerpt } from '../common.js'
 import type { NewsArticleRecord, NewsDiscoveredItem, NewsSourceConfig } from '../types.js'
 
@@ -107,6 +108,14 @@ export async function extractNewsArticle(source: NewsSourceConfig, discovered: N
       ].filter(Boolean),
     ),
   ]
+  const classification = classifyNewsArticle({
+    sourceKey: source.key,
+    title,
+    category,
+    canonicalUrl,
+    excerpt,
+    contentText,
+  })
 
   return {
     sourceKey: source.key,
@@ -120,11 +129,11 @@ export async function extractNewsArticle(source: NewsSourceConfig, discovered: N
     thumbnailUrl: thumbnailUrl ?? null,
     author,
     category,
-    topicTags,
+    topicTags: [...new Set([...topicTags, ...classification.topicTags])],
     publishedAt,
     fetchedAt,
     contentMode: contentHtml ? (sourceBodyHtml ? 'full_html' : 'readability_text') : 'metadata_only',
     fingerprint: makeFingerprint([canonicalUrl, title, publishedAt, contentText]),
-    status: 'published',
+    status: classification.status,
   }
 }
