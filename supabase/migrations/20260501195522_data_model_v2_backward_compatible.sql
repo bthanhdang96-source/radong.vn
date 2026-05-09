@@ -754,6 +754,8 @@ select distinct on (commodity_slug)
 from public.world_prices
 order by commodity_slug, recorded_at desc, id desc;
 
+create schema if not exists private;
+
 create or replace function private.refresh_curated_views()
 returns void
 language plpgsql

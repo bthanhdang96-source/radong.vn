@@ -168,8 +168,6 @@ async function ensureNewsSourcesSynced() {
         priority: source.priority,
         phase: source.phase,
         access_state: source.accessState,
-        latest_detected_at: source.latestDetectedAt ?? null,
-        freshness_checked_at: source.freshnessCheckedAt ?? new Date().toISOString(),
         active: source.active,
         full_text_capable: source.fullTextCapable,
         browser_required: source.browserRequired,
