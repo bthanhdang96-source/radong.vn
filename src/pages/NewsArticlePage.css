@@ -75,8 +75,9 @@
 }
 
 .news-article__header h1 {
-  font-size: clamp(2rem, 4vw, 4rem);
-  line-height: 0.98;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.1;
+  margin-top: 0.5rem;
 }
 
 .news-article__excerpt {
