@@ -91,6 +91,25 @@ function ArticleCard({ article }: { article: NewsListItem }) {
   )
 }
 
+function HeroRailCard({ article }: { article: NewsListItem }) {
+  return (
+    <Link className="news-index__hero-rail-card" to={`/tin-tuc/${article.slug}`}>
+      <div className="news-index__hero-rail-media">
+        <img
+          className="news-index__hero-rail-image"
+          src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
+          alt={article.title}
+          loading="lazy"
+          onError={handleImageError}
+        />
+      </div>
+      <div className="news-index__hero-rail-body">
+        <strong>{article.title}</strong>
+      </div>
+    </Link>
+  )
+}
+
 export default function NewsIndexPage() {
   const [items, setItems] = useState<NewsListItem[]>([])
   const [sources, setSources] = useState<NewsSource[]>([])
@@ -203,49 +222,48 @@ export default function NewsIndexPage() {
   return (
     <main className="news-index">
       <section className="news-index__hero-shell">
-        <div className="news-index__hero-copy">
-          <span className="news-index__eyebrow">Tin nông sản mới nhất</span>
-          <h1 className="news-index__headline">Trang tin nông nghiệp tổng hợp đầu tiên trên NongSanVN</h1>
-          <p className="news-index__summary">
-            Tập trung bài viết từ báo chí, hiệp hội và nguồn ngành để người dùng đọc tin, theo dõi thị trường và mở chi
-            tiết từng bài ngay trên web.
-          </p>
-          <div className="news-index__stats">
-            <div className="news-index__stat">
-              <strong>{sources.length}</strong>
-              <span>nguồn đang theo dõi</span>
-            </div>
-            <div className="news-index__stat">
-              <strong>{totalApprox}</strong>
-              <span>bài đang khả dụng</span>
-            </div>
-            <div className="news-index__stat">
-              <strong>{topics.length}</strong>
-              <span>cụm chủ đề</span>
+        <div className="news-index__hero-frame">
+          <div className="news-index__hero-topbar">
+            <span className="news-index__eyebrow">Tin nông sản mới nhất</span>
+            <div className="news-index__hero-stats" aria-label="Tổng quan nguồn tin">
+              <span>{sources.length} nguồn</span>
+              <span>{totalApprox} bài</span>
+              <span>{topics.length} chủ đề</span>
             </div>
           </div>
-        </div>
 
-        {hero ? (
-          <Link className="news-index__hero-story" to={`/tin-tuc/${hero.slug}`}>
-            <img
-              className="news-index__hero-image"
-              src={hero.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-              alt={hero.title}
-              onError={handleImageError}
-            />
-            <div className="news-index__hero-overlay" />
-            <div className="news-index__hero-content">
-              <div className="news-index__meta-row">
-                <time>{formatDate(hero.publishedAt)}</time>
+          {hero ? (
+            <Link className="news-index__hero-lead" to={`/tin-tuc/${hero.slug}`}>
+              <div className="news-index__hero-lead-media">
+                <img
+                  className="news-index__hero-image"
+                  src={hero.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
+                  alt={hero.title}
+                  onError={handleImageError}
+                />
               </div>
-              <h2>{hero.title}</h2>
-              <p>{hero.excerpt}</p>
+              <div className="news-index__hero-lead-body">
+                <div className="news-index__meta-row">
+                  <span className="news-index__source">{hero.sourceLabel}</span>
+                  <span className="news-index__dot" />
+                  <time>{formatDate(hero.publishedAt)}</time>
+                </div>
+                <h1 className="news-index__hero-title">{hero.title}</h1>
+                <p className="news-index__hero-excerpt">{hero.excerpt}</p>
+              </div>
+            </Link>
+          ) : (
+            <div className="news-index__hero-placeholder">Đang tải bài viết nổi bật...</div>
+          )}
+
+          {featured.length > 0 ? (
+            <div className="news-index__hero-rail" aria-label="Bài viết nổi bật khác">
+              {featured.map(article => (
+                <HeroRailCard key={article.slug} article={article} />
+              ))}
             </div>
-          </Link>
-        ) : (
-          <div className="news-index__hero-placeholder">Đang tải bài viết nổi bật...</div>
-        )}
+          ) : null}
+        </div>
       </section>
 
       <section className="news-index__filters">
@@ -296,29 +314,6 @@ export default function NewsIndexPage() {
           Áp dụng
         </button>
       </section>
-
-      {featured.length > 0 ? (
-        <section className="news-index__featured-grid">
-          {featured.map(article => (
-            <Link key={article.slug} className="news-index__featured-card" to={`/tin-tuc/${article.slug}`}>
-              <img
-                className="news-index__featured-image"
-                src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-                alt={article.title}
-                loading="lazy"
-                onError={handleImageError}
-              />
-              <div className="news-index__featured-body">
-                <div className="news-index__meta-row">
-                  <time>{formatDate(article.publishedAt)}</time>
-                </div>
-                <h3>{article.title}</h3>
-                <p>{article.excerpt}</p>
-              </div>
-            </Link>
-          ))}
-        </section>
-      ) : null}
 
       <section className="news-index__stream">
         <div className="news-index__section-head">
