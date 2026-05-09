@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import type { NewsDetailResponse, NewsListItem } from '../data/newsTypes'
 import './NewsArticlePage.css'
+
+const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('vi-VN', {
@@ -39,6 +41,16 @@ function StoryRail({ title, items }: { title: string; items: NewsListItem[] }) {
       </div>
     </section>
   )
+}
+
+function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
+  const target = event.currentTarget
+  if (target.dataset.fallbackApplied === 'true') {
+    return
+  }
+
+  target.dataset.fallbackApplied = 'true'
+  target.src = FALLBACK_NEWS_IMAGE
 }
 
 export default function NewsArticlePage() {
@@ -139,8 +151,9 @@ export default function NewsArticlePage() {
 
           <div className="news-article__hero">
             <img
-              src={article.thumbnailUrl ?? 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1400&q=80'}
+              src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
               alt={article.title}
+              onError={handleImageError}
             />
           </div>
 

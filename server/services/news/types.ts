@@ -175,3 +175,8 @@ export interface NewsCrawlResult {
   run: NewsCrawlRunRecord
   items: NewsArticleRecord[]
 }
+
+export interface NewsCrawlOptions {
+  maxArticlesPerRun?: number
+  persist?: boolean
+}

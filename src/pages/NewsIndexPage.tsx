@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { NewsListItem, NewsListResponse, NewsSource } from '../data/newsTypes'
 import './NewsIndexPage.css'
+
+const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
 
 type TopicResponse = {
   success: boolean
@@ -47,15 +49,26 @@ function buildNewsUrl(filters: FilterState, cursor?: string | null) {
   return `/api/news/articles?${params.toString()}`
 }
 
+function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
+  const target = event.currentTarget
+  if (target.dataset.fallbackApplied === 'true') {
+    return
+  }
+
+  target.dataset.fallbackApplied = 'true'
+  target.src = FALLBACK_NEWS_IMAGE
+}
+
 function ArticleCard({ article }: { article: NewsListItem }) {
   return (
     <article className="news-index__stream-card">
       <Link className="news-index__stream-image-link" to={`/tin-tuc/${article.slug}`}>
         <img
           className="news-index__stream-image"
-          src={article.thumbnailUrl ?? 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=900&q=80'}
+          src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
           alt={article.title}
           loading="lazy"
+          onError={handleImageError}
         />
       </Link>
       <div className="news-index__stream-body">
@@ -219,8 +232,9 @@ export default function NewsIndexPage() {
           <Link className="news-index__hero-story" to={`/tin-tuc/${hero.slug}`}>
             <img
               className="news-index__hero-image"
-              src={hero.thumbnailUrl ?? 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1400&q=80'}
+              src={hero.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
               alt={hero.title}
+              onError={handleImageError}
             />
             <div className="news-index__hero-overlay" />
             <div className="news-index__hero-content">
@@ -293,9 +307,10 @@ export default function NewsIndexPage() {
             <Link key={article.slug} className="news-index__featured-card" to={`/tin-tuc/${article.slug}`}>
               <img
                 className="news-index__featured-image"
-                src={article.thumbnailUrl ?? 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=900&q=80'}
+                src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
                 alt={article.title}
                 loading="lazy"
+                onError={handleImageError}
               />
               <div className="news-index__featured-body">
                 <div className="news-index__meta-row">

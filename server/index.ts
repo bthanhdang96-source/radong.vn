@@ -5,6 +5,7 @@ import express from 'express';
 import apiRouter from './routes/index.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
+import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
 import { getNewsHealth } from './services/news/service.js';
 import { getSupabaseRuntimeStatus } from './services/supabaseClient.js';
@@ -53,6 +54,9 @@ app.listen(PORT, () => {
   console.log(`NongSanVN API Server listening on http://localhost:${PORT}`);
   registerCrawlerSchedules();
   registerNewsScheduler();
+  void refreshLiveNewsArticlesCache().catch((error) => {
+    console.error('[News] Live cache warmup failed:', error);
+  });
 });
 
 cron.schedule(VN_PRICE_CRON, async () => {

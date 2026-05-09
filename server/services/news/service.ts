@@ -4,11 +4,13 @@ import { discoverFromHtml } from './discovery/htmlDiscovery.js'
 import { discoverFromRss } from './discovery/rssDiscovery.js'
 import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
 import { extractNewsArticle } from './extract/articleExtractor.js'
+import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache } from './liveCache.js'
 import { getNewsSourceConfig, listNewsSourceConfigs } from './sourceRegistry.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import type {
   NewsArticleRecord,
   NewsCrawlResult,
+  NewsCrawlOptions,
   NewsCrawlRunRecord,
   NewsDetailResponse,
   NewsDiscoveredItem,
@@ -227,10 +229,7 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
   const runtime = getSupabaseRuntimeStatus()
   const sources = await loadSourceRecords()
   if (!runtime.hasReadConfig) {
-    return FALLBACK_NEWS_ARTICLES.map(article => ({
-      ...article,
-      sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-    }))
+    return loadLiveOrFallbackArticles(sources)
   }
 
   try {
@@ -252,7 +251,7 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
 
     const rows = (data ?? []) as NewsArticleRow[]
     if (rows.length === 0) {
-      return FALLBACK_NEWS_ARTICLES
+      return loadLiveOrFallbackArticles(sources)
     }
 
     return rows.map(row => toArticleRecord(row, sources))
@@ -261,8 +260,35 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
       console.error('[News] Falling back to static articles:', error)
     }
 
-    return FALLBACK_NEWS_ARTICLES
+    return loadLiveOrFallbackArticles(sources)
   }
+}
+
+async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
+  const cached = getCachedLiveNewsArticles()
+  if (cached && cached.length > 0) {
+    return cached.map(article => ({
+      ...article,
+      sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+    }))
+  }
+
+  try {
+    const liveArticles = await refreshLiveNewsArticlesCache()
+    if (liveArticles.length > 0) {
+      return liveArticles.map(article => ({
+        ...article,
+        sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+      }))
+    }
+  } catch (error) {
+    console.error('[News] Failed to build live fallback cache:', error)
+  }
+
+  return FALLBACK_NEWS_ARTICLES.map(article => ({
+    ...article,
+    sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+  }))
 }
 
 function filterArticles(articles: NewsArticleRecord[], filters: NewsListFilters) {
@@ -520,8 +546,11 @@ async function persistCrawlResult(
   }
 }
 
-export async function crawlNewsSource(sourceKey: NewsSourceKey): Promise<NewsCrawlResult> {
-  const source = getNewsSourceConfig(sourceKey)
+export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCrawlOptions): Promise<NewsCrawlResult> {
+  const source = {
+    ...getNewsSourceConfig(sourceKey),
+    maxArticlesPerRun: options?.maxArticlesPerRun ?? getNewsSourceConfig(sourceKey).maxArticlesPerRun,
+  }
   const startedAt = new Date().toISOString()
 
   try {
@@ -540,6 +569,24 @@ export async function crawlNewsSource(sourceKey: NewsSourceKey): Promise<NewsCra
     }
 
     const status = articles.length === discoveredItems.length ? 'success' : articles.length > 0 ? 'partial' : 'failed'
+    if (options?.persist === false) {
+      return {
+        source: toSourceRecord(source),
+        run: {
+          sourceKey: source.key,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          discoverCount: discoveredItems.length,
+          insertedCount: articles.length,
+          updatedCount: 0,
+          failedCount: Math.max(0, discoveredItems.length - articles.length),
+          status,
+          error: null,
+        },
+        items: articles.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
+      }
+    }
+
     const result = await persistCrawlResult(
       source,
       discoveredItems,

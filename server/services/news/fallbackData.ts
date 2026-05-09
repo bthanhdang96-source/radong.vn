@@ -63,7 +63,7 @@ const FALLBACK_ARTICLE_SEEDS: Array<{
     topicTags: ['gao', 'xuat-khau', 'thi-truong'],
     canonicalUrl: 'https://congthuong.vn/xuat-khau-gao-giu-nhip-doanh-nghiep-tang-du-tru-nguyen-lieu-999999.html',
     publishedAt: offsetHours(9),
-    thumbnailUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31b?auto=format&fit=crop&w=1200&q=80',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
     excerpt:
       'Một số doanh nghiệp gạo tăng tốc gom hàng cho các đơn giao gần, trong bối cảnh giá chào bán vẫn duy trì mức cạnh tranh.',
     contentHtml:
@@ -91,7 +91,7 @@ const FALLBACK_ARTICLE_SEEDS: Array<{
     topicTags: ['ho-tieu', 'gia-vi', 'xuat-khau'],
     canonicalUrl: 'https://vpsaspice.org/ho-tieu-viet-nam-huong-loi-tu-don-hang-gia-vi-cuoi-quy/',
     publishedAt: offsetHours(18),
-    thumbnailUrl: 'https://images.unsplash.com/photo-1515548217836-7c8666b4d26f?auto=format&fit=crop&w=1200&q=80',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1459183885421-5cc683b8dbba?auto=format&fit=crop&w=1200&q=80',
     excerpt:
       'Các lô hàng giao ngắn hạn cải thiện thanh khoản thị trường hồ tiêu nội địa trong bối cảnh nguồn cung không quá dư thừa.',
     contentHtml:
