@@ -15,6 +15,7 @@ import type {
   VnPricesResponse,
 } from './crawlers/types.js';
 import { buildFallbackDayData } from './fallbackVnPrices.js';
+import { normalizeDisplayRegion, VN_COMMODITY_META } from './marketDataMappings.js';
 import {
   buildCanonicalRegionSelections,
   buildSourcePriorityLookup,
@@ -60,11 +61,17 @@ function buildSummaries(
 
   return [...groups.entries()]
     .map(([commodity, commodityItems]) => {
+      const meta = VN_COMMODITY_META[commodity] ?? {
+        commodityName: commodityItems[0].commodityName,
+        category: commodityItems[0].category,
+        unit: commodityItems[0].unit,
+      };
+
       const regionSelections = pickSummaryRegionSelections(
         buildCanonicalRegionSelections(
           commodityItems.map((item) =>
             createRankedRegionCandidate({
-              region: item.region,
+              region: normalizeDisplayRegion(item.region),
               price: item.price,
               change: item.change,
               changePct: item.changePct,
@@ -92,9 +99,9 @@ function buildSummaries(
 
       return {
         commodity,
-        commodityName: commodityItems[0].commodityName,
-        category: commodityItems[0].category,
-        unit: commodityItems[0].unit,
+        commodityName: meta.commodityName,
+        category: meta.category,
+        unit: meta.unit,
         priceHigh: Math.max(...prices),
         priceLow: Math.min(...prices),
         priceAvg: avg,
@@ -235,7 +242,11 @@ export async function getVnPrices(forceRefresh = false): Promise<VnPricesRespons
 
   const fallback = buildFallbackDayData();
   appendHistory(fallback.date, fallback);
-  const response = toResponse(fallback, 'fallback', live.errors.length > 0 ? live.errors : ['Using bundled fallback data']);
+  const response = toResponse(
+    fallback,
+    'fallback',
+    live.errors.length > 0 ? live.errors : ['Đang sử dụng dữ liệu dự phòng tích hợp'],
+  );
   setCache(CACHE_KEY, response, 15 * 60 * 1000);
   return response;
 }

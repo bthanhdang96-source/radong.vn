@@ -36,7 +36,6 @@ export default function WorldSummaryCards({ data, exchangeRate }: Props) {
 
   return (
     <section className="world-summary" aria-label="World market summary">
-      {/* Card 1: Total tracked */}
       <div className="world-summary__card" style={{ '--card-index': 0 } as React.CSSProperties}>
         <div className="world-summary__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -55,7 +54,6 @@ export default function WorldSummaryCards({ data, exchangeRate }: Props) {
         </div>
       </div>
 
-      {/* Card 2: Top Gainer */}
       <div className="world-summary__card world-summary__card--up" style={{ '--card-index': 1 } as React.CSSProperties}>
         <div className="world-summary__icon world-summary__icon--up">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -73,7 +71,6 @@ export default function WorldSummaryCards({ data, exchangeRate }: Props) {
         </div>
       </div>
 
-      {/* Card 3: Top Loser */}
       <div className="world-summary__card world-summary__card--down" style={{ '--card-index': 2 } as React.CSSProperties}>
         <div className="world-summary__icon world-summary__icon--down">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -91,7 +88,6 @@ export default function WorldSummaryCards({ data, exchangeRate }: Props) {
         </div>
       </div>
 
-      {/* Card 4: Exchange Rate */}
       <div className="world-summary__card" style={{ '--card-index': 3 } as React.CSSProperties}>
         <div className="world-summary__icon world-summary__icon--rate">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

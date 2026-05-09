@@ -32,12 +32,10 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
   const filteredData = useMemo(() => {
     let result = data;
 
-    // Category filter
     if (activeCategory !== 'Tất cả') {
       result = result.filter((item) => item.category === activeCategory);
     }
 
-    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -48,7 +46,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
       );
     }
 
-    // Sort
     result = [...result].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
@@ -75,12 +72,11 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
     if (sortKey !== key) return <span className="wpt-sort-icon wpt-sort-icon--inactive">&#8597;</span>;
     return (
       <span className="wpt-sort-icon">
-        {sortDir === 'asc' ? '\u25B2' : '\u25BC'}
+        {sortDir === 'asc' ? '▲' : '▼'}
       </span>
     );
   };
 
-  // 52W range bar
   const renderRangeBar = (item: WorldCommodityItem) => {
     const range = item.high52w - item.low52w;
     if (range <= 0) return null;
@@ -99,7 +95,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
     );
   };
 
-  // Loading skeleton
   if (loading) {
     return (
       <section className="wpt" aria-label="Đang tải giá thế giới">
@@ -119,7 +114,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
 
   return (
     <section className="wpt" aria-label="Bảng giá nông sản thế giới">
-      {/* Category tabs */}
       <div className="wpt__controls">
         <div className="wpt__tabs" role="tablist">
           {categories.map((cat) => {
@@ -142,7 +136,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
           })}
         </div>
 
-        {/* Search */}
         <div className="wpt__search">
           <svg className="wpt__search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />
@@ -164,7 +157,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
         </div>
       </div>
 
-      {/* Table */}
       <div className="wpt__table-wrapper">
         <table className="wpt__table">
           <thead>
@@ -177,7 +169,7 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                 Giá (USD) {renderSortIcon('priceCurrent')}
               </th>
               <th className="wpt__th wpt__th--price-vnd" onClick={() => handleSort('priceVndKg')}>
-                VND/kg qđ {renderSortIcon('priceVndKg')}
+                VND/kg quy đổi {renderSortIcon('priceVndKg')}
               </th>
               <th className="wpt__th wpt__th--change" onClick={() => handleSort('changePct')}>
                 Thay đổi {renderSortIcon('changePct')}
@@ -212,7 +204,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                     className="wpt__row"
                     style={{ '--row-index': index } as CSSProperties}
                   >
-                    {/* Name */}
                     <td className="wpt__td wpt__td--name">
                       <div className="wpt__commodity">
                         <div className="wpt__commodity-info">
@@ -221,12 +212,10 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                       </div>
                     </td>
 
-                    {/* Exchange */}
                     <td className="wpt__td wpt__td--exchange">
                       <span className="wpt__exchange-badge">{item.exchange}</span>
                     </td>
 
-                    {/* Price USD */}
                     <td className="wpt__td wpt__td--price">
                       <div className="wpt__price-block">
                         <span className="wpt__price-main">{formatPrice(item.priceCurrent)}</span>
@@ -234,14 +223,12 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                       </div>
                     </td>
 
-                    {/* Price VND */}
                     <td className="wpt__td wpt__td--price-vnd">
                       <span className="wpt__price-vnd">
                         {priceVND !== null ? formatVND(priceVND) : '--'}
                       </span>
                     </td>
 
-                    {/* Change */}
                     <td className={`wpt__td wpt__td--change ${isUp ? 'wpt__td--up' : isDown ? 'wpt__td--down' : ''}`}>
                       <div className="wpt__change-block">
                         <span className="wpt__change-pct">
@@ -253,7 +240,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                       </div>
                     </td>
 
-                    {/* 52W Range */}
                     <td className="wpt__td wpt__td--range">
                       {renderRangeBar(item)}
                     </td>
@@ -265,7 +251,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
         </table>
       </div>
 
-      {/* Footer info */}
       <div className="wpt__footer">
         <span className="wpt__footer-count">
           Hiển thị {filteredData.length} / {data.length} mặt hàng
@@ -277,8 +262,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
     </section>
   );
 }
-
-// ─── Helpers ────────────────────────────────────────────
 
 function formatPrice(value: number): string {
   if (Math.abs(value) >= 1000) {
@@ -300,11 +283,6 @@ function formatVND(value: number): string {
   return value.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
 }
 
-/**
- * Convert USD price to VND based on unit.
- * Prices in "USD/tấn" are per metric ton,
- * "USD/kg" are per kilogram, etc.
- */
 function getReferenceVndKg(item: WorldCommodityItem, rate: number): number | null {
   if (typeof item.priceVndKg === 'number' && Number.isFinite(item.priceVndKg)) {
     return item.priceVndKg;

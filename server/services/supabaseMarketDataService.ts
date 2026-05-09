@@ -1,4 +1,4 @@
-import { getCategories, getWorldPrices as getLegacyWorldPrices, type WorldCommodityItem } from './worldBankService.js'
+﻿import { getCategories, getWorldPrices as getLegacyWorldPrices, type WorldCommodityItem } from './worldBankService.js'
 import {
   fetchLiveDayData,
   getVnPriceSourceStatus as getLegacyVnPriceSourceStatus,
@@ -756,7 +756,7 @@ function buildVnResponseFromRows(
     .map(([commoditySlug, rows]) => {
       const meta = VN_COMMODITY_META[commoditySlug] ?? {
         commodityName: rows[0].raw_payload?.commodityName ?? commoditySlug,
-        category: rows[0].raw_payload?.category ?? 'Khac',
+        category: rows[0].raw_payload?.category ?? 'Khác',
         unit: rows[0].raw_payload?.unit ?? 'VND/kg',
       }
       const regionSelections = pickSummaryRegionSelections(
@@ -886,7 +886,7 @@ function buildPriceChainResponse(
     .map(row => {
       const meta = VN_COMMODITY_META[row.commodity_slug] ?? {
         commodityName: row.commodity_slug,
-        category: 'Khac',
+        category: 'Khác',
         unit: 'VND/kg',
       }
       const trend = trendByCommodity.get(row.commodity_slug)
@@ -1013,7 +1013,7 @@ function buildPriceChainResponseFromObservationRows(
     .map(([commoditySlug, rows]) => {
       const meta = VN_COMMODITY_META[commoditySlug] ?? {
         commodityName: rows[0]?.raw_payload?.commodityName ?? commoditySlug,
-        category: rows[0]?.raw_payload?.category ?? 'Khac',
+        category: rows[0]?.raw_payload?.category ?? 'Khác',
         unit: rows[0]?.raw_payload?.unit ?? 'VND/kg',
       }
       const rowsByType = new Map<PriceType, LatestObservationRow[]>()
@@ -1509,3 +1509,4 @@ export async function getWorldPricesResponse(forceRefresh = false): Promise<Worl
     data,
   }
 }
+

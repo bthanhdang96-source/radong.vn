@@ -111,7 +111,7 @@ export default function NewsIndexPage() {
         const response = await fetch('/api/news/topics')
         const json: TopicResponse = await response.json()
         if (!response.ok || !json.success) {
-          throw new Error('Khong the tai danh sach chu de')
+          throw new Error('Không thể tải danh sách chủ đề')
         }
 
         if (active) {
@@ -140,7 +140,7 @@ export default function NewsIndexPage() {
         const response = await fetch(buildNewsUrl(filters))
         const json: NewsListResponse = await response.json()
         if (!response.ok || !json.success) {
-          throw new Error('Khong the tai danh sach tin tuc')
+          throw new Error('Không thể tải danh sách tin tức')
         }
 
         if (!active) {
@@ -158,7 +158,7 @@ export default function NewsIndexPage() {
         }
 
         setItems([])
-        setError(fetchError instanceof Error ? fetchError.message : 'Khong the tai danh sach tin tuc')
+        setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải danh sách tin tức')
       } finally {
         if (active) {
           setLoading(false)
@@ -183,14 +183,14 @@ export default function NewsIndexPage() {
       const response = await fetch(buildNewsUrl(filters, cursor))
       const json: NewsListResponse = await response.json()
       if (!response.ok || !json.success) {
-        throw new Error('Khong the tai them bai viet')
+        throw new Error('Không thể tải thêm bài viết')
       }
 
       setItems(current => [...current, ...json.items])
       setCursor(json.nextCursor)
       setTotalApprox(json.totalApprox)
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : 'Khong the tai them bai viet')
+      setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải thêm bài viết')
     } finally {
       setLoadingMore(false)
     }
@@ -204,24 +204,24 @@ export default function NewsIndexPage() {
     <main className="news-index">
       <section className="news-index__hero-shell">
         <div className="news-index__hero-copy">
-          <span className="news-index__eyebrow">Tin nong san moi nhat</span>
-          <h1 className="news-index__headline">Trang tin nong nghiep tong hop dau tien tren NongSanVN</h1>
+          <span className="news-index__eyebrow">Tin nông sản mới nhất</span>
+          <h1 className="news-index__headline">Trang tin nông nghiệp tổng hợp đầu tiên trên NongSanVN</h1>
           <p className="news-index__summary">
-            Tap trung bai viet tu bao chi, hiep hoi va nguon nganh de nguoi dung doc tin, theo doi thi truong va mo chi
-            tiet tung bai ngay tren web.
+            Tập trung bài viết từ báo chí, hiệp hội và nguồn ngành để người dùng đọc tin, theo dõi thị trường và mở chi
+            tiết từng bài ngay trên web.
           </p>
           <div className="news-index__stats">
             <div className="news-index__stat">
               <strong>{sources.length}</strong>
-              <span>nguon dang theo doi</span>
+              <span>nguồn đang theo dõi</span>
             </div>
             <div className="news-index__stat">
               <strong>{totalApprox}</strong>
-              <span>bai dang kha dung</span>
+              <span>bài đang khả dụng</span>
             </div>
             <div className="news-index__stat">
               <strong>{topics.length}</strong>
-              <span>cum chu de</span>
+              <span>cụm chủ đề</span>
             </div>
           </div>
         </div>
@@ -244,19 +244,19 @@ export default function NewsIndexPage() {
             </div>
           </Link>
         ) : (
-          <div className="news-index__hero-placeholder">Dang tai bai viet noi bat...</div>
+          <div className="news-index__hero-placeholder">Đang tải bài viết nổi bật...</div>
         )}
       </section>
 
       <section className="news-index__filters">
         <div className="news-index__filter-group">
-          <label htmlFor="news-source">Nguon</label>
+          <label htmlFor="news-source">Nguồn</label>
           <select
             id="news-source"
             value={draftFilters.source}
             onChange={event => setDraftFilters(current => ({ ...current, source: event.target.value }))}
           >
-            <option value="">Tat ca nguon</option>
+            <option value="">Tất cả nguồn</option>
             {sources.map(source => (
               <option key={source.key} value={source.key}>
                 {source.label}
@@ -266,13 +266,13 @@ export default function NewsIndexPage() {
         </div>
 
         <div className="news-index__filter-group">
-          <label htmlFor="news-topic">Chu de</label>
+          <label htmlFor="news-topic">Chủ đề</label>
           <select
             id="news-topic"
             value={draftFilters.topic}
             onChange={event => setDraftFilters(current => ({ ...current, topic: event.target.value }))}
           >
-            <option value="">Tat ca chu de</option>
+            <option value="">Tất cả chủ đề</option>
             {topics.map(topic => (
               <option key={topic} value={topic}>
                 {topic}
@@ -282,18 +282,18 @@ export default function NewsIndexPage() {
         </div>
 
         <div className="news-index__search-group">
-          <label htmlFor="news-query">Tim kiem</label>
+          <label htmlFor="news-query">Tìm kiếm</label>
           <input
             id="news-query"
             type="search"
-            placeholder="Tim theo tieu de, tom tat, chu de..."
+            placeholder="Tìm theo tiêu đề, tóm tắt, chủ đề..."
             value={draftFilters.q}
             onChange={event => setDraftFilters(current => ({ ...current, q: event.target.value }))}
           />
         </div>
 
         <button className="news-index__apply-button" type="button" onClick={() => setFilters(draftFilters)}>
-          Ap dung
+          Áp dụng
         </button>
       </section>
 
@@ -323,16 +323,16 @@ export default function NewsIndexPage() {
       <section className="news-index__stream">
         <div className="news-index__section-head">
           <div>
-            <span className="news-index__eyebrow">Dong tin</span>
-            <h2>Danh sach bai viet</h2>
+            <span className="news-index__eyebrow">Dòng tin</span>
+            <h2>Danh sách bài viết</h2>
           </div>
-          <p>{loading ? 'Dang nap...' : `Hien co ${items.length}/${totalApprox} bai dang duoc hien thi`}</p>
+          <p>{loading ? 'Đang nạp...' : `Hiện có ${items.length}/${totalApprox} bài đang được hiển thị`}</p>
         </div>
 
         {error ? <div className="news-index__error">{error}</div> : null}
 
         {loading ? (
-          <div className="news-index__empty">Dang tai tin tuc...</div>
+          <div className="news-index__empty">Đang tải tin tức...</div>
         ) : stream.length > 0 ? (
           <div className="news-index__stream-list">
             {stream.map(article => (
@@ -346,13 +346,13 @@ export default function NewsIndexPage() {
             ))}
           </div>
         ) : (
-          <div className="news-index__empty">Chua co bai viet phu hop voi bo loc hien tai.</div>
+          <div className="news-index__empty">Chưa có bài viết phù hợp với bộ lọc hiện tại.</div>
         )}
 
         {cursor ? (
           <div className="news-index__more">
             <button type="button" className="news-index__more-button" onClick={() => void handleLoadMore()} disabled={loadingMore}>
-              {loadingMore ? 'Dang tai them...' : 'Xem them bai viet'}
+              {loadingMore ? 'Đang tải thêm...' : 'Xem thêm bài viết'}
             </button>
           </div>
         ) : null}

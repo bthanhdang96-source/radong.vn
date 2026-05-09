@@ -103,9 +103,12 @@ export interface VnPriceChainResponse {
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  'Luong thuc': 'Lương thực',
-  'Cay cong nghiep': 'Cây công nghiệp',
-  'Chan nuoi': 'Chăn nuôi',
+  'Lương thực': 'Lương thực',
+  'Cây công nghiệp': 'Cây công nghiệp',
+  'Chăn nuôi': 'Chăn nuôi',
+  'Thủy sản': 'Thủy sản',
+  'Trái cây': 'Trái cây',
+  'Rau củ': 'Rau củ',
 };
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
@@ -117,14 +120,12 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   banggianongsan: 'banggianongsan.com',
   vietfood: 'vietfood.org.vn',
   giaca_nsvl: 'giacansvl.vn',
-  bhx: 'Bach Hoa Xanh',
+  bhx: 'Bách Hóa Xanh',
   coop: 'Co.op Online',
   shopee: 'Shopee',
   customs: 'customs.gov.vn',
-  fallback: 'Fallback',
+  fallback: 'Dự phòng',
 };
-
-
 
 export const FALLBACK_VN_PRICES: VnPricesResponse = {
   status: 'fallback',

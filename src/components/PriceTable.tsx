@@ -106,7 +106,7 @@ export default function PriceTable({
   return (
     <section id="bang-gia" className="price-table-section" aria-label="Bảng giá nông sản">
       <div className="pt-toolbar">
-        <div className="pt-tabs" role="tablist" aria-label="Loc theo danh muc">
+        <div className="pt-tabs" role="tablist" aria-label="Lọc theo danh mục">
           {categories.map((item) => (
             <button
               key={item}
@@ -135,30 +135,30 @@ export default function PriceTable({
       </div>
 
       <div className="pt-scroll-wrap">
-        <table className="pt-table" aria-label="Bang gia nong san Viet Nam">
+        <table className="pt-table" aria-label="Bảng giá nông sản Việt Nam">
           <thead>
             <tr>
-              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mat hang</th>
-              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Gia TB</th>
-              <th className="pt-th" onClick={() => toggleSort('change')}>Thay doi</th>
-              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay doi</th>
-              <th className="pt-th">Bien do vung</th>
-              <th className="pt-th">Dai 52 tuan</th>
-              <th className="pt-th">Khuyen nghi</th>
+              <th className="pt-th pt-th--name" onClick={() => toggleSort('commodityName')}>Mặt hàng</th>
+              <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Giá TB</th>
+              <th className="pt-th" onClick={() => toggleSort('change')}>Thay đổi</th>
+              <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay đổi</th>
+              <th className="pt-th">Biên độ vùng</th>
+              <th className="pt-th">Dải 52 tuần</th>
+              <th className="pt-th">Khuyến nghị</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="pt-empty">
-                  Khong co du lieu khop bo loc hien tai.
+                  Không có dữ liệu khớp bộ lọc hiện tại.
                 </td>
               </tr>
             ) : (
               rows.map((item) => {
                 const isExpanded = Boolean(expanded[item.commodity]);
                 const isUp = item.change >= 0;
-                const detailLabel = item.regions.length > 1 ? 'Khu vuc / loai' : 'Chi tiet';
+                const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết';
 
                 return (
                   <Fragment key={item.commodity}>

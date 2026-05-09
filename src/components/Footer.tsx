@@ -14,15 +14,15 @@ export default function Footer() {
               Nền tảng cập nhật giá nông sản trực tuyến tại Việt Nam. Dữ liệu được tổng hợp từ các sàn giao dịch và chợ đầu mối uy tín.
             </p>
           </div>
-          
+
           <div className="footer__links-group">
             <h3 className="footer__title">Dịch vụ</h3>
             <ul className="footer__links">
               <li><a href="#bang-gia">Bảng giá trực tuyến</a></li>
-              <li><a href="#api">API Dữ liệu</a></li>
+              <li><a href="#api">API dữ liệu</a></li>
             </ul>
           </div>
-          
+
           <div className="footer__links-group">
             <h3 className="footer__title">Hỗ trợ</h3>
             <ul className="footer__links">

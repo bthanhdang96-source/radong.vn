@@ -67,7 +67,7 @@ export default function NewsArticlePage() {
         const response = await fetch(`/api/news/articles/${slug}`)
         const json = (await response.json()) as NewsDetailResponse & { success?: boolean; error?: string }
         if (!response.ok || !json.success) {
-          throw new Error(json.error ?? 'Khong the tai chi tiet bai viet')
+          throw new Error(json.error ?? 'Không thể tải chi tiết bài viết')
         }
 
         if (!active) {
@@ -83,7 +83,7 @@ export default function NewsArticlePage() {
         }
 
         setPayload(null)
-        setError(fetchError instanceof Error ? fetchError.message : 'Khong the tai chi tiet bai viet')
+        setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải chi tiết bài viết')
       } finally {
         if (active) {
           setLoading(false)
@@ -101,15 +101,15 @@ export default function NewsArticlePage() {
   }, [slug])
 
   if (loading) {
-    return <main className="news-article news-article--state">Dang tai bai viet...</main>
+    return <main className="news-article news-article--state">Đang tải bài viết...</main>
   }
 
   if (error || !payload) {
     return (
       <main className="news-article news-article--state">
-        <p>{error ?? 'Khong tim thay bai viet'}</p>
+        <p>{error ?? 'Không tìm thấy bài viết'}</p>
         <Link to="/" className="news-article__back-link">
-          Quay lai trang tin tuc
+          Quay lại trang tin tức
         </Link>
       </main>
     )
@@ -123,9 +123,9 @@ export default function NewsArticlePage() {
       <div className="news-article__frame">
         <div className="news-article__main">
           <nav className="news-article__breadcrumb" aria-label="Breadcrumb">
-            <Link to="/">Tin tuc</Link>
+            <Link to="/">Tin tức</Link>
             <span>/</span>
-            <span>Bai viet</span>
+            <span>Bài viết</span>
           </nav>
 
           <header className="news-article__header">
@@ -137,7 +137,7 @@ export default function NewsArticlePage() {
             <h1>{article.title}</h1>
             <p className="news-article__excerpt">{article.excerpt}</p>
             <div className="news-article__byline">
-              <span>{article.author ?? 'Ban bien tap NongSanVN'}</span>
+              <span>{article.author ?? 'Ban biên tập NongSanVN'}</span>
               <time>{formatDate(article.publishedAt)}</time>
             </div>
             {article.topicTags.length > 0 ? (
@@ -167,17 +167,17 @@ export default function NewsArticlePage() {
 
           <footer className="news-article__source-note">
             <p>
-              Nguon bai viet: <strong>{article.sourceLabel}</strong>
+              Nguồn bài viết: <strong>{article.sourceLabel}</strong>
             </p>
             <a href={article.canonicalUrl} target="_blank" rel="noreferrer noopener">
-              Xem bai goc
+              Xem bài gốc
             </a>
           </footer>
         </div>
 
         <aside className="news-article__aside">
-          <StoryRail title="Bai lien quan" items={related} />
-          <StoryRail title="Moi nhat cung nguon" items={latestFromSource} />
+          <StoryRail title="Bài liên quan" items={related} />
+          <StoryRail title="Mới nhất cùng nguồn" items={latestFromSource} />
         </aside>
       </div>
     </main>

@@ -1,40 +1,6 @@
 import type { CrawledPriceItem, SourceSnapshot } from '../crawlers/types.js';
 import { buildObservationDedupeKey, getValidationBounds } from '../ingestion/observationRules.js';
-import { getProvinceCodeFromRegion, inferPriceType, normalizeExternalCommoditySlug } from '../marketDataMappings.js';
-
-const REGION_ALIASES: Record<string, string> = {
-  'dak lak': 'Dak Lak',
-  'dak nong': 'Dak Nong',
-  'gia lai': 'Gia Lai',
-  'lam dong': 'Lam Dong',
-  'ba ria - vung tau': 'Ba Ria - Vung Tau',
-  'binh phuoc': 'Binh Phuoc',
-  'dong nai': 'Dong Nai',
-  'mien bac': 'Mien Bac',
-  'mien trung - tay nguyen': 'Mien Trung - Tay Nguyen',
-  'mien nam': 'Mien Nam',
-  'tp hcm': 'TP. Ho Chi Minh',
-  'tp. ho chi minh': 'TP. Ho Chi Minh',
-  'dai thom 8': 'Dai Thom 8',
-  'soc thom': 'Soc Thom',
-  'om 18': 'OM 18',
-  'om 5451': 'OM 5451',
-  'om 380': 'OM 380',
-  'om 34': 'OM 34',
-  'ir 504': 'IR 504',
-  'ir 50404': 'IR 50404',
-  'cl 555': 'CL 555',
-  'tam thom 504': 'Tam thom 504',
-  'cam': 'Cam',
-  'lua tuoi om 18': 'Lua tuoi OM 18',
-  'lua tuoi dai thom 8': 'Lua tuoi Dai Thom 8',
-  'lua tuoi om 5451': 'Lua tuoi OM 5451',
-  'lua tuoi ir 50404': 'Lua tuoi IR 50404',
-  'lua tuoi om 34': 'Lua tuoi OM 34',
-  'nguyen lieu ir 504': 'Nguyen lieu IR 504',
-  'nguyen lieu cl 555': 'Nguyen lieu CL 555',
-  'tam 2': 'Tam 2',
-};
+import { getProvinceCodeFromRegion, inferPriceType, normalizeDisplayRegion, normalizeExternalCommoditySlug } from '../marketDataMappings.js';
 
 function normalizeForLookup(value: string): string {
   return value
@@ -63,7 +29,8 @@ function toTitleCase(value: string): string {
 
 function normalizeRegion(region: string): string {
   const normalized = normalizeForLookup(region);
-  return REGION_ALIASES[normalized] ?? toTitleCase(normalized);
+  const displayRegion = normalizeDisplayRegion(normalized);
+  return displayRegion === normalized ? toTitleCase(normalized) : displayRegion;
 }
 
 function cloneItem(item: CrawledPriceItem): CrawledPriceItem {

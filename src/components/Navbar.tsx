@@ -74,7 +74,7 @@ export default function Navbar() {
             </svg>
           </div>
           <div className="navbar__logo-text">
-            <span className="navbar__logo-main">NongSan</span>
+            <span className="navbar__logo-main">NôngSản</span>
             <span className="navbar__logo-sub">VN</span>
           </div>
         </Link>

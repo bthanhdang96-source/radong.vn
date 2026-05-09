@@ -29,7 +29,7 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
           <div className="modal-price-card">
             <h3>Giá hiện tại</h3>
             <div className="modal-price__value">
-              {item.giaCurrent.toLocaleString('vi-VN')} 
+              {item.giaCurrent.toLocaleString('vi-VN')}
               <span className="modal-price__unit">{item.donVi}</span>
             </div>
             <div className={`modal-price__change ${isUp ? 'modal-price__change--up' : 'modal-price__change--down'}`}>
@@ -67,25 +67,26 @@ export default function DetailModal({ item, onClose }: DetailModalProps) {
             </tbody>
           </table>
         </div>
-        
+
         <div className="modal-range">
           <div className="modal-range__label">
             <span>Đáy 52 tuần</span>
             <span>Đỉnh 52 tuần</span>
           </div>
           <div className="modal-range__track">
-            {/* Simple visual bar for range */}
-            <div className="modal-range__fill" style={{ 
-              left: '0%', 
-              width: `${Math.min(100, Math.max(0, ((item.giaCurrent - item.low52w) / (item.high52w - item.low52w)) * 100))}%` 
-            }} />
+            <div
+              className="modal-range__fill"
+              style={{
+                left: '0%',
+                width: `${Math.min(100, Math.max(0, ((item.giaCurrent - item.low52w) / (item.high52w - item.low52w)) * 100))}%`,
+              }}
+            />
           </div>
           <div className="modal-range__values">
             <span>{item.low52w.toLocaleString('vi-VN')}</span>
             <span>{item.high52w.toLocaleString('vi-VN')}</span>
           </div>
         </div>
-
       </div>
     </div>
   );
