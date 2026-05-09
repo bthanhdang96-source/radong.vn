@@ -3,11 +3,19 @@ import { Link, useLocation } from 'react-router-dom'
 import './Navbar.css'
 
 const NAV_LINKS = [
-  { label: 'Bảng giá', to: '/' },
-  { label: 'Chuỗi giá', to: '/chuoi-gia' },
-  { label: 'Thế giới', to: '/thegioi' },
-  { label: 'Tin tức', to: '/#tin-tuc' },
+  { label: 'Tin tức', to: '/', matches: ['/', '/tin-tuc/'] },
+  { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia'] },
+  { label: 'Chuỗi giá', to: '/chuoi-gia', matches: ['/chuoi-gia'] },
+  { label: 'Thế giới', to: '/thegioi', matches: ['/thegioi'] },
 ]
+
+function isLinkActive(pathname: string, link: (typeof NAV_LINKS)[number]) {
+  if (link.to === '/') {
+    return pathname === '/' || pathname.startsWith('/tin-tuc/')
+  }
+
+  return link.matches.some(match => pathname.startsWith(match))
+}
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -17,8 +25,8 @@ export default function Navbar() {
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme')
-    if (saved) {
-      return saved as 'light' | 'dark'
+    if (saved === 'light' || saved === 'dark') {
+      return saved
     }
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -73,16 +81,9 @@ export default function Navbar() {
 
         <nav className="navbar__nav">
           {NAV_LINKS.map(link => {
-            const isActive =
-              (link.to !== '/' && location.pathname.startsWith(link.to)) ||
-              (link.to === '/' && location.pathname === '/')
-
+            const isActive = isLinkActive(location.pathname, link)
             return (
-              <Link
-                key={link.label}
-                to={link.to}
-                className={`navbar__link${isActive ? ' navbar__link--active' : ''}`}
-              >
+              <Link key={link.label} to={link.to} className={`navbar__link${isActive ? ' navbar__link--active' : ''}`}>
                 {link.label}
               </Link>
             )
@@ -114,11 +115,7 @@ export default function Navbar() {
               </svg>
             )}
           </button>
-          <button
-            className="navbar__hamburger"
-            onClick={() => setMenuOpen(current => !current)}
-            aria-label="Mở menu"
-          >
+          <button className="navbar__hamburger" onClick={() => setMenuOpen(current => !current)} aria-label="Mở menu">
             <span />
             <span />
             <span />
@@ -129,10 +126,7 @@ export default function Navbar() {
       {menuOpen ? (
         <div className="navbar__mobile-menu">
           {NAV_LINKS.map(link => {
-            const isActive =
-              (link.to !== '/' && location.pathname.startsWith(link.to)) ||
-              (link.to === '/' && location.pathname === '/')
-
+            const isActive = isLinkActive(location.pathname, link)
             return (
               <Link
                 key={link.label}

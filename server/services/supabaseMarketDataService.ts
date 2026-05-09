@@ -436,7 +436,7 @@ async function getDailySummaryRows(priceTypes: PriceType[]) {
   const start = new Date()
   start.setDate(start.getDate() - 365)
 
-  let { data, error } = await client
+  const { data, error } = await client
     .from('daily_price_summary')
     .select('date, commodity_slug, province_code, price_type, avg_price_vnd, min_price_vnd, max_price_vnd, observation_count, sources')
     .gte('date', start.toISOString())
@@ -490,7 +490,7 @@ async function getCommodityTrendRows(priceTypes: PriceType[]) {
   }
 
   const preferredPriceType = priceTypes.includes('wholesale') ? 'wholesale' : priceTypes[0]
-  let { data, error } = await client
+  const { data, error } = await client
     .from('commodity_trends')
     .select('commodity_slug, price_type, avg_7d, avg_30d, trend_7d_pct, trend_30d_pct, updated_at')
     .eq('price_type', preferredPriceType)
@@ -523,7 +523,7 @@ async function getAllCommodityTrendRows() {
     return null
   }
 
-  let { data, error } = await client
+  const { data, error } = await client
     .from('commodity_trends')
     .select('commodity_slug, price_type, avg_7d, avg_30d, trend_7d_pct, trend_30d_pct, updated_at')
 
@@ -575,7 +575,7 @@ async function getRetailRegionalPriceRows() {
     return null
   }
 
-  let { data, error } = await client
+  const { data, error } = await client
     .from('regional_price_map')
     .select('commodity_slug, price_type, province_code, avg_price, vs_national_avg_pct, data_points, latest_record')
     .eq('price_type', 'retail')

@@ -1,0 +1,51 @@
+import cron from 'node-cron'
+import { crawlNewsSources } from './service.js'
+import { NEWS_SOURCE_KEYS } from './sourceRegistry.js'
+import type { NewsSourceKey } from './types.js'
+
+let registered = false
+
+function getEnabledSourceKeys(): NewsSourceKey[] {
+  const raw = process.env.NEWS_ENABLED_SOURCES?.trim()
+  if (!raw) {
+    return NEWS_SOURCE_KEYS.filter(sourceKey => ['vietnambiz', 'congthuong', 'nongnghiepmoitruong', 'vpsaspice', 'vietfood'].includes(sourceKey))
+  }
+
+  const requested = raw
+    .split(',')
+    .map(value => value.trim())
+    .filter((value): value is NewsSourceKey => NEWS_SOURCE_KEYS.includes(value as NewsSourceKey))
+
+  return requested.length > 0 ? requested : NEWS_SOURCE_KEYS
+}
+
+export function getNewsSchedulerConfig() {
+  return {
+    enabled: process.env.NEWS_CRAWL_ENABLED === 'true',
+    cron: process.env.NEWS_CRAWL_CRON ?? '0 */6 * * *',
+    sourceKeys: getEnabledSourceKeys(),
+  }
+}
+
+export function registerNewsScheduler() {
+  if (registered) {
+    return
+  }
+
+  const config = getNewsSchedulerConfig()
+  if (!config.enabled) {
+    return
+  }
+
+  cron.schedule(config.cron, async () => {
+    try {
+      console.log(`[News] Scheduled crawl started (${config.cron})`)
+      await crawlNewsSources(config.sourceKeys)
+      console.log('[News] Scheduled crawl completed')
+    } catch (error) {
+      console.error('[News] Scheduled crawl failed:', error)
+    }
+  })
+
+  registered = true
+}

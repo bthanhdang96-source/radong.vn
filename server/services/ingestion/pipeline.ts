@@ -95,16 +95,6 @@ type NormalizationResult =
 
 export const PRICE_BOUNDS = BASE_PRICE_BOUNDS
 
-function isMissingDedupeKeyColumnError(error: unknown) {
-  if (!error || typeof error !== 'object') {
-    return false
-  }
-
-  const code = 'code' in error ? error.code : null
-  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
-  return (code === '42703' || code === 'PGRST204') && message.includes('dedupe_key')
-}
-
 function isLegacyPriceObservationFingerprintError(error: unknown) {
   if (!error || typeof error !== 'object') {
     return false

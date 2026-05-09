@@ -5,6 +5,8 @@ import express from 'express';
 import apiRouter from './routes/index.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
+import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
+import { getNewsHealth } from './services/news/service.js';
 import { getSupabaseRuntimeStatus } from './services/supabaseClient.js';
 import { getVnPrices } from './services/supabaseMarketDataService.js';
 
@@ -29,14 +31,17 @@ app.use('/api', apiRouter);
 
 app.get('/api/health', async (_req, res) => {
   const shopeeSession = await readShopeeSessionMetadata()
+  const news = await getNewsHealth()
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     supabase: getSupabaseRuntimeStatus(),
     crawlers: {
       schedule: getCrawlerScheduleConfig(),
+      newsSchedule: getNewsSchedulerConfig(),
       shopeeSession,
     },
+    news,
   });
 });
 
@@ -47,6 +52,7 @@ app.use((_req, res) => {
 app.listen(PORT, () => {
   console.log(`NongSanVN API Server listening on http://localhost:${PORT}`);
   registerCrawlerSchedules();
+  registerNewsScheduler();
 });
 
 cron.schedule(VN_PRICE_CRON, async () => {
