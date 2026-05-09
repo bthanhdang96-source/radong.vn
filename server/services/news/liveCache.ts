@@ -5,6 +5,8 @@ import type { NewsArticleRecord, NewsSourceKey } from './types.js'
 const LIVE_CACHE_KEY = 'news-live-articles'
 const LIVE_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const LIVE_SOURCE_KEYS: NewsSourceKey[] = [
+  'vietnambiz',
+  'congthuong',
   'nongnghiepmoitruong',
   'vpsaspice',
   'vietfood',
