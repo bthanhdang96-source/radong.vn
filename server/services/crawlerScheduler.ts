@@ -90,11 +90,11 @@ function parseCsvCategorySlugs(value: string | undefined, fallback: string[]) {
 export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
   const shopeeSchedulerEnabled = parseBoolean(process.env.SHOPEE_SCHEDULER_ENABLED, false)
   return {
-    bhxCrawlEnabled: parseBoolean(process.env.BHX_CRAWL_ENABLED, false),
+    bhxCrawlEnabled: parseBoolean(process.env.BHX_CRAWL_ENABLED, true),
     bhxCrawlCron: process.env.BHX_CRAWL_CRON?.trim() || DEFAULT_BHX_CRAWL_CRON,
     bhxDryRun: parseBoolean(process.env.BHX_SCHEDULE_DRY_RUN, false),
     bhxEnabledRegions: parseCsvUppercase(process.env.BHX_ENABLED_REGIONS, ['HCM']),
-    coopCrawlEnabled: parseBoolean(process.env.COOP_CRAWL_ENABLED, false),
+    coopCrawlEnabled: parseBoolean(process.env.COOP_CRAWL_ENABLED, true),
     coopCrawlCron: process.env.COOP_CRAWL_CRON?.trim() || DEFAULT_COOP_CRAWL_CRON,
     coopDryRun: parseBoolean(process.env.COOP_SCHEDULE_DRY_RUN, false),
     coopEnabledRegions: parseCsvUppercase(process.env.COOP_ENABLED_REGIONS, ['HCM', 'HNI', 'DNG']),
@@ -114,7 +114,7 @@ export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
       process.env.SHOPEE_BLOCK_COOLDOWN_MINUTES,
       DEFAULT_SHOPEE_BLOCK_COOLDOWN_MINUTES,
     ),
-    customsEnabled: parseBoolean(process.env.CUSTOMS_SCHEDULER_ENABLED, false),
+    customsEnabled: parseBoolean(process.env.CUSTOMS_SCHEDULER_ENABLED, true),
     customsCron: process.env.CUSTOMS_CRAWL_CRON?.trim() || DEFAULT_CUSTOMS_CRON,
     customsDryRun: parseBoolean(process.env.CUSTOMS_SCHEDULE_DRY_RUN, false),
   }

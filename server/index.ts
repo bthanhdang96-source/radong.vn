@@ -9,11 +9,44 @@ import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
 import { getNewsHealth } from './services/news/service.js';
 import { getSupabaseRuntimeStatus } from './services/supabaseClient.js';
-import { getVnPrices } from './services/supabaseMarketDataService.js';
+import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDataService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const TZ = process.env.TZ ?? 'UTC';
 const VN_PRICE_CRON = process.env.VN_PRICE_CRON ?? '0 8,14 * * *';
+const WORLD_PRICE_CRAWL_ENABLED = parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true);
+const WORLD_PRICE_CRAWL_CRON = process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *';
+let worldPriceRefreshRunning = false;
+
+function parseBoolean(value: string | undefined, defaultValue: boolean) {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  return defaultValue;
+}
+
+function registerAppCron(jobName: string, cronExpression: string, handler: () => Promise<void>) {
+  if (!cron.validate(cronExpression)) {
+    console.error(`[App Scheduler] Invalid cron for ${jobName}: ${cronExpression}`);
+    return;
+  }
+
+  cron.schedule(cronExpression, () => {
+    void handler();
+  });
+  console.log(`[App Scheduler] Scheduled ${jobName} with cron "${cronExpression}" (TZ=${TZ})`);
+}
 
 app.use(
   cors({
@@ -40,6 +73,12 @@ app.get('/api/health', async (_req, res) => {
     crawlers: {
       schedule: getCrawlerScheduleConfig(),
       newsSchedule: getNewsSchedulerConfig(),
+      appSchedule: {
+        vnPricesCron: VN_PRICE_CRON,
+        worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
+        worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+        timezone: TZ,
+      },
       shopeeSession,
     },
     news,
@@ -59,7 +98,7 @@ app.listen(PORT, () => {
   });
 });
 
-cron.schedule(VN_PRICE_CRON, async () => {
+registerAppCron('vn-prices-refresh', VN_PRICE_CRON, async () => {
   try {
     console.log(`[VN Prices] Scheduled refresh started (${VN_PRICE_CRON})`);
     await getVnPrices(true);
@@ -68,3 +107,25 @@ cron.schedule(VN_PRICE_CRON, async () => {
     console.error('[VN Prices] Scheduled refresh failed:', error);
   }
 });
+
+if (WORLD_PRICE_CRAWL_ENABLED) {
+  registerAppCron('world-prices-refresh', WORLD_PRICE_CRAWL_CRON, async () => {
+    if (worldPriceRefreshRunning) {
+      console.log('[World Prices] Scheduled refresh skipped: previous run still in progress');
+      return;
+    }
+
+    worldPriceRefreshRunning = true;
+    try {
+      console.log(`[World Prices] Scheduled refresh started (${WORLD_PRICE_CRAWL_CRON})`);
+      await getWorldPricesResponse(true);
+      console.log('[World Prices] Scheduled refresh completed');
+    } catch (error) {
+      console.error('[World Prices] Scheduled refresh failed:', error);
+    } finally {
+      worldPriceRefreshRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] World price refresh schedule is disabled');
+}
