@@ -4,6 +4,7 @@ import SummaryCards from '../components/SummaryCards';
 import TopMovers from '../components/TopMovers';
 import PriceTable from '../components/PriceTable';
 import { FALLBACK_VN_PRICES, type VnPricesResponse } from '../data/vnPriceTypes';
+import { buildApiUrl } from '../lib/api';
 import './HomeDashboard.css';
 
 export default function HomeDashboard() {
@@ -27,7 +28,7 @@ export default function HomeDashboard() {
     async function load() {
       setLoading(true);
       try {
-        const response = await fetch('/api/vn-prices');
+        const response = await fetch(buildApiUrl('/api/vn-prices'));
         const json = await response.json();
         if (!response.ok || !json.success) {
           throw new Error(json.error ?? 'Failed to fetch VN prices');
@@ -66,7 +67,7 @@ export default function HomeDashboard() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      const response = await fetch('/api/vn-prices/refresh');
+      const response = await fetch(buildApiUrl('/api/vn-prices/refresh'));
       const json = await response.json();
       if (!response.ok || !json.success) {
         throw new Error(json.error ?? 'Refresh failed');

@@ -17,6 +17,8 @@ const TZ = process.env.TZ ?? 'UTC';
 const VN_PRICE_CRON = process.env.VN_PRICE_CRON ?? '0 8,14 * * *';
 const WORLD_PRICE_CRAWL_ENABLED = parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true);
 const WORLD_PRICE_CRAWL_CRON = process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *';
+const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
+const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
 
 function parseBoolean(value: string | undefined, defaultValue: boolean) {
@@ -36,6 +38,19 @@ function parseBoolean(value: string | undefined, defaultValue: boolean) {
   return defaultValue;
 }
 
+function parseCsv(value: string | undefined, defaultValue: string[]) {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const items = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return items.length > 0 ? items : defaultValue;
+}
+
 function registerAppCron(jobName: string, cronExpression: string, handler: () => Promise<void>) {
   if (!cron.validate(cronExpression)) {
     console.error(`[App Scheduler] Invalid cron for ${jobName}: ${cronExpression}`);
@@ -50,7 +65,14 @@ function registerAppCron(jobName: string, cronExpression: string, handler: () =>
 
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin(origin, callback) {
+      if (!origin || CORS_ALLOWED_ORIGINS.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     credentials: true,
   }),
 );
@@ -77,6 +99,7 @@ app.get('/api/health', async (_req, res) => {
         vnPricesCron: VN_PRICE_CRON,
         worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
         worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+        corsAllowedOrigins: CORS_ALLOWED_ORIGINS,
         timezone: TZ,
       },
       shopeeSession,

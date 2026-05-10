@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import WorldSummaryCards from '../components/world/WorldSummaryCards'
 import WorldPriceTable from '../components/world/WorldPriceTable'
 import { DEFAULT_USD_VND_RATE, FALLBACK_WORLD_DATA, WORLD_CATEGORIES, type WorldCategory, type WorldCommodityItem, type WorldPricesResponse } from '../data/worldCommodityData'
+import { buildApiUrl } from '../lib/api'
 import './WorldPricesPage.css'
 
 export default function WorldPricesPage() {
@@ -18,7 +19,7 @@ export default function WorldPricesPage() {
     setError(null)
 
     try {
-      const response = await fetch(forceRefresh ? '/api/world-prices?refresh=1' : '/api/world-prices')
+      const response = await fetch(buildApiUrl(forceRefresh ? '/api/world-prices?refresh=1' : '/api/world-prices'))
 
       if (!response.ok) {
         throw new Error(`API responded with ${response.status}`)

@@ -1,6 +1,7 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { NewsListItem, NewsListResponse, NewsSource } from '../data/newsTypes'
+import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
@@ -46,7 +47,7 @@ function buildNewsUrl(filters: FilterState, cursor?: string | null) {
     params.set('cursor', cursor)
   }
 
-  return `/api/news/articles?${params.toString()}`
+  return buildApiUrl(`/api/news/articles?${params.toString()}`)
 }
 
 function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
@@ -127,7 +128,7 @@ export default function NewsIndexPage() {
 
     async function loadTopics() {
       try {
-        const response = await fetch('/api/news/topics')
+        const response = await fetch(buildApiUrl('/api/news/topics'))
         const json: TopicResponse = await response.json()
         if (!response.ok || !json.success) {
           throw new Error('Không thể tải danh sách chủ đề')

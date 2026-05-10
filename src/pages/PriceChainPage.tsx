@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import PriceChainSummaryCards from '../components/marketplace/PriceChainSummaryCards'
 import PriceChainTable from '../components/marketplace/PriceChainTable'
 import type { VnPriceChainResponse } from '../data/vnPriceTypes'
+import { buildApiUrl } from '../lib/api'
 import './PriceChainPage.css'
 
 const EMPTY_PRICE_CHAIN: VnPriceChainResponse = {
@@ -25,7 +26,7 @@ export default function PriceChainPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const response = await fetch('/api/vn-price-chain')
+      const response = await fetch(buildApiUrl('/api/vn-price-chain'))
       const json: VnPriceChainResponse = await response.json()
 
       if (!response.ok || !json.success) {
