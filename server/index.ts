@@ -19,6 +19,7 @@ const WORLD_PRICE_CRAWL_ENABLED = parseBoolean(process.env.WORLD_PRICE_CRAWL_ENA
 const WORLD_PRICE_CRAWL_CRON = process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *';
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
+const HEALTHCHECK_TIMEOUT_MS = Number(process.env.HEALTHCHECK_TIMEOUT_MS ?? '1500');
 let worldPriceRefreshRunning = false;
 
 function parseBoolean(value: string | undefined, defaultValue: boolean) {
@@ -63,6 +64,25 @@ function registerAppCron(jobName: string, cronExpression: string, handler: () =>
   console.log(`[App Scheduler] Scheduled ${jobName} with cron "${cronExpression}" (TZ=${TZ})`);
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallbackValue), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return fallbackValue;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 app.use(
   cors({
     origin(origin, callback) {
@@ -86,8 +106,36 @@ app.use((req, _res, next) => {
 app.use('/api', apiRouter);
 
 app.get('/api/health', async (_req, res) => {
-  const shopeeSession = await readShopeeSessionMetadata()
-  const news = await getNewsHealth()
+  const [shopeeSession, news] = await Promise.all([
+    withTimeout(
+      readShopeeSessionMetadata(),
+      HEALTHCHECK_TIMEOUT_MS,
+      {
+        statePath: 'unavailable',
+        refreshedAt: null,
+        expiresAt: null,
+        checkedAt: new Date().toISOString(),
+        headless: true,
+        status: 'missing' as const,
+        keyword: null,
+        sampleCount: 0,
+        responseStatus: null,
+        message: `Timed out after ${HEALTHCHECK_TIMEOUT_MS}ms`,
+      },
+    ),
+    withTimeout(
+      getNewsHealth(),
+      HEALTHCHECK_TIMEOUT_MS,
+      {
+        status: 'degraded' as const,
+        sourceCount: 0,
+        articleCount: 0,
+        runtime: getSupabaseRuntimeStatus(),
+        staleSources: [],
+      },
+    ),
+  ])
+
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
@@ -100,6 +148,7 @@ app.get('/api/health', async (_req, res) => {
         worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
         worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
         corsAllowedOrigins: CORS_ALLOWED_ORIGINS,
+        healthcheckTimeoutMs: HEALTHCHECK_TIMEOUT_MS,
         timezone: TZ,
       },
       shopeeSession,
