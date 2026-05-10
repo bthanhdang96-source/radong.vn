@@ -1,6 +1,7 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { NewsListItem, NewsListResponse, NewsSource } from '../data/newsTypes'
+import { FALLBACK_NEWS_ITEMS, FALLBACK_NEWS_SOURCES, FALLBACK_NEWS_TOPICS } from '../data/newsFallback'
 import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
@@ -186,12 +187,12 @@ function HeroRailCard({ article }: { article: NewsListItem }) {
 
 export default function NewsIndexPage() {
   const [cacheSnapshot] = useState<NewsIndexCache | null>(() => readNewsIndexCache())
-  const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? [])
-  const [sources, setSources] = useState<NewsSource[]>(() => cacheSnapshot?.sources ?? [])
-  const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? [])
+  const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? FALLBACK_NEWS_ITEMS)
+  const [sources, setSources] = useState<NewsSource[]>(() => cacheSnapshot?.sources ?? FALLBACK_NEWS_SOURCES)
+  const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? FALLBACK_NEWS_TOPICS)
   const [cursor, setCursor] = useState<string | null>(() => cacheSnapshot?.cursor ?? null)
-  const [totalApprox, setTotalApprox] = useState(() => cacheSnapshot?.totalApprox ?? 0)
-  const [loading, setLoading] = useState(() => (cacheSnapshot?.items.length ?? 0) === 0)
+  const [totalApprox, setTotalApprox] = useState(() => cacheSnapshot?.totalApprox ?? FALLBACK_NEWS_ITEMS.length)
+  const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
