@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { getCached, setCache } from './cacheService.js'
 
 export type WorldCategory =
@@ -53,6 +53,8 @@ type PinkSheetRow = {
   period: string
   values: Map<string, number>
 }
+
+type WorksheetCellValue = string | number | null
 
 const COMMODITY_MAPPINGS: PinkSheetMapping[] = [
   { id: 'coffee-robusta', name: 'Cà phê Robusta', nameEn: 'Robusta Coffee', symbol: 'RC', category: 'Cà phê & Ca cao', exchange: 'ICE London', unit: 'USD/kg', pinkSheetLabels: ['Coffee, Robusta'] },
@@ -174,11 +176,58 @@ function toNumericCell(value: unknown): number | null {
   return Number.isFinite(numeric) ? numeric : null
 }
 
-function parsePinkSheetRows(sheet: XLSX.WorkSheet) {
-  const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
-    header: 1,
-    defval: null,
-  })
+function toWorksheetCellValue(value: ExcelJS.CellValue | null | undefined): WorksheetCellValue {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (typeof value === 'number' || typeof value === 'string') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'object') {
+    if ('result' in value) {
+      return toWorksheetCellValue(value.result)
+    }
+
+    if ('text' in value && typeof value.text === 'string') {
+      return value.text
+    }
+
+    if ('richText' in value && Array.isArray(value.richText)) {
+      const text = value.richText
+        .map(entry => entry.text)
+        .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+        .join('')
+      return text || null
+    }
+  }
+
+  return null
+}
+
+function getWorksheetMatrix(sheet: ExcelJS.Worksheet) {
+  const matrix: WorksheetCellValue[][] = []
+
+  for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber)
+    const cells: WorksheetCellValue[] = []
+    for (let columnNumber = 1; columnNumber <= row.cellCount; columnNumber += 1) {
+      cells[columnNumber - 1] = toWorksheetCellValue(row.getCell(columnNumber).value)
+    }
+
+    matrix.push(cells)
+  }
+
+  return matrix
+}
+
+function parsePinkSheetRows(sheet: ExcelJS.Worksheet) {
+  const matrix = getWorksheetMatrix(sheet)
 
   const commodityRow = matrix[4] ?? []
   const dataRows = matrix.slice(6)
@@ -252,14 +301,16 @@ async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
       return null
     }
 
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheetName = workbook.SheetNames.find(
-      name => name.toLowerCase().includes('monthly') && name.toLowerCase().includes('price'),
-    ) ?? workbook.SheetNames[0]
+    const workbook = new ExcelJS.Workbook()
+    const workbookBuffer = Buffer.from(buffer) as any
+    await workbook.xlsx.load(workbookBuffer)
+    const sheet = workbook.worksheets.find(
+      worksheet =>
+        worksheet.name.toLowerCase().includes('monthly') && worksheet.name.toLowerCase().includes('price'),
+    ) ?? workbook.worksheets[0]
 
-    const sheet = workbook.Sheets[sheetName]
     if (!sheet) {
-      console.error('[WorldBank] Sheet not found:', sheetName)
+      console.error('[WorldBank] Sheet not found in workbook')
       return null
     }
 

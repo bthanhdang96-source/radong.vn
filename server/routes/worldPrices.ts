@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import { getWorldPricesResponse } from '../services/supabaseMarketDataService.js'
 import type { WorldCategory } from '../services/worldBankService.js'
 
@@ -6,9 +7,8 @@ const router = Router()
 
 router.get('/world-prices', async (_req, res) => {
   try {
-    const { category, q, refresh } = _req.query
-    const forceRefresh = refresh === '1' || refresh === 'true'
-    const payload = await getWorldPricesResponse(forceRefresh)
+    const { category, q } = _req.query
+    const payload = await getWorldPricesResponse(false)
     let data = payload.data
 
     if (category && category !== 'Tất cả') {
@@ -35,6 +35,19 @@ router.get('/world-prices', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch world commodity prices',
+    })
+  }
+})
+
+router.post('/admin/world-prices/refresh', requireAdminApiKey, async (_req, res) => {
+  try {
+    const payload = await getWorldPricesResponse(true)
+    res.json(payload)
+  } catch (error) {
+    console.error('[API] Error refreshing world prices:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to refresh world commodity prices',
     })
   }
 })

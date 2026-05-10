@@ -201,7 +201,6 @@ async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
   }
 
   try {
-    await ensureNewsSourcesSynced()
     const client = getSupabaseReadClient()
     if (!client) {
       return FALLBACK_NEWS_SOURCES
@@ -692,12 +691,12 @@ export async function getNewsTopics() {
 
 export async function getNewsRuns(sourceKey?: NewsSourceKey) {
   const runtime = getSupabaseRuntimeStatus()
-  if (!runtime.hasReadConfig) {
+  if (!runtime.hasAdminConfig) {
     return []
   }
 
   try {
-    const client = getSupabaseReadClient()
+    const client = getSupabaseAdminClient()
     if (!client) {
       return []
     }

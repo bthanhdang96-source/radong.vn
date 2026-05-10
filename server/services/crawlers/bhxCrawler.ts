@@ -76,6 +76,8 @@ export type CrawlBhxOptions = {
 
 const BHX_HOME_URL = 'https://www.bachhoaxanh.com/'
 const BHX_LOCATION_API_URL = 'https://api.bachhoaxanh.com/gw/LocationV3/GetFull'
+const BHX_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
 const BHX_CATEGORY_TARGETS: BhxCategoryTarget[] = [
   { categoryUrl: 'trai-cay-tuoi-ngon', label: 'Trai cay' },
   { categoryUrl: 'rau-sach', label: 'Rau la' },
@@ -133,7 +135,24 @@ function sleep(ms: number) {
   return new Promise(resolvePromise => setTimeout(resolvePromise, ms))
 }
 
+function getBhxApiCredentials() {
+  return {
+    bearerToken: process.env.BHX_API_BEARER_TOKEN?.trim() ?? '',
+    apiKey: process.env.BHX_API_X_API_KEY?.trim() ?? '',
+  }
+}
+
+export function hasBhxApiCredentials() {
+  const credentials = getBhxApiCredentials()
+  return credentials.bearerToken.length > 0 && credentials.apiKey.length > 0
+}
+
 async function fetchBhxLocations() {
+  const credentials = getBhxApiCredentials()
+  if (!credentials.bearerToken || !credentials.apiKey) {
+    throw new Error('BHX API credentials are not configured')
+  }
+
   let lastError: unknown
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
@@ -142,14 +161,14 @@ async function fetchBhxLocations() {
       const response = await fetch(BHX_LOCATION_API_URL, {
         headers: {
           accept: 'application/json, text/plain, */*',
-          authorization: 'Bearer 113A3D032F4058428206CB37D4D1C7C3',
+          authorization: `Bearer ${credentials.bearerToken}`,
           deviceid: randomUUID(),
           platform: 'webnew',
           reversehost: 'http://bhxapi.live',
           referer: BHX_HOME_URL,
           'referer-url': BHX_HOME_URL,
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
-          xapikey: 'bhx-api-core-2022',
+          'user-agent': BHX_USER_AGENT,
+          xapikey: credentials.apiKey,
           'customer-id': '',
         },
         signal: controller.signal,

@@ -2,13 +2,13 @@ import './env.js';
 import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';
+import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
 import { getNewsHealth } from './services/news/service.js';
-import { getSupabaseRuntimeStatus } from './services/supabaseClient.js';
 import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDataService.js';
 
 const app = express();
@@ -63,6 +63,28 @@ function registerAppCron(jobName: string, cronExpression: string, handler: () =>
   console.log(`[App Scheduler] Scheduled ${jobName} with cron "${cronExpression}" (TZ=${TZ})`);
 }
 
+function toHealthResponse() {
+  return {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    service: 'nongsanvn-api',
+    uptimeSeconds: Math.round(process.uptime()),
+  };
+}
+
+function sanitizeShopeeSession(metadata: Awaited<ReturnType<typeof readShopeeSessionMetadata>>) {
+  return {
+    status: metadata.status,
+    refreshedAt: metadata.refreshedAt,
+    expiresAt: metadata.expiresAt,
+    checkedAt: metadata.checkedAt,
+    headless: metadata.headless,
+    keyword: metadata.keyword,
+    sampleCount: metadata.sampleCount,
+    responseStatus: metadata.responseStatus,
+  };
+}
+
 app.use(
   cors({
     origin(origin, callback) {
@@ -86,38 +108,17 @@ app.use((req, _res, next) => {
 app.use('/api', apiRouter);
 
 app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    service: 'nongsanvn-api',
-    uptimeSeconds: Math.round(process.uptime()),
-    supabase: getSupabaseRuntimeStatus(),
-    crawlers: {
-      schedule: getCrawlerScheduleConfig(),
-      newsSchedule: getNewsSchedulerConfig(),
-      appSchedule: {
-        vnPricesCron: VN_PRICE_CRON,
-        worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
-        worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
-        corsAllowedOrigins: CORS_ALLOWED_ORIGINS,
-        timezone: TZ,
-      },
-    },
-  });
+  res.json(toHealthResponse());
 });
 
-app.get('/api/health/details', async (_req, res) => {
+app.get('/api/health/details', requireAdminApiKey, async (_req, res) => {
   const [shopeeSession, news] = await Promise.all([
     readShopeeSessionMetadata(),
     getNewsHealth(),
   ]);
 
   res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    service: 'nongsanvn-api',
-    uptimeSeconds: Math.round(process.uptime()),
-    supabase: getSupabaseRuntimeStatus(),
+    ...toHealthResponse(),
     crawlers: {
       schedule: getCrawlerScheduleConfig(),
       newsSchedule: getNewsSchedulerConfig(),
@@ -125,10 +126,9 @@ app.get('/api/health/details', async (_req, res) => {
         vnPricesCron: VN_PRICE_CRON,
         worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
         worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
-        corsAllowedOrigins: CORS_ALLOWED_ORIGINS,
         timezone: TZ,
       },
-      shopeeSession,
+      shopeeSession: sanitizeShopeeSession(shopeeSession),
     },
     news,
   });

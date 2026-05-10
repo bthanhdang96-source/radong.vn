@@ -1,9 +1,11 @@
 import { Router } from 'express'
+import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import { getVnPriceSourceStatus, getVnPrices, getVnPricesHistory } from '../services/supabaseMarketDataService.js'
 import type { PriceType } from '../services/marketDataMappings.js'
 
 const router = Router()
 const VALID_PRICE_TYPES = new Set(['farm_gate', 'wholesale', 'retail', 'export'])
+const HISTORY_DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
 let lastRefreshAt = 0
 const REFRESH_COOLDOWN_MS = 15 * 60 * 1000
@@ -21,6 +23,19 @@ function parsePriceTypes(value: unknown): PriceType[] | undefined {
   return parsed.length > 0 ? parsed : undefined
 }
 
+function parseHistoryDateKey(value: unknown) {
+  if (typeof value !== 'string' || !HISTORY_DATE_KEY_REGEX.test(value)) {
+    return null
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    return null
+  }
+
+  return value
+}
+
 router.get('/vn-prices', async (_req, res) => {
   try {
     const payload = await getVnPrices(false, {
@@ -33,7 +48,7 @@ router.get('/vn-prices', async (_req, res) => {
   }
 })
 
-router.get('/vn-prices/refresh', async (_req, res) => {
+router.post('/admin/vn-prices/refresh', requireAdminApiKey, async (_req, res) => {
   const now = Date.now()
   if (now - lastRefreshAt < REFRESH_COOLDOWN_MS) {
     res.status(429).json({
@@ -57,9 +72,9 @@ router.get('/vn-prices/refresh', async (_req, res) => {
 })
 
 router.get('/vn-prices/history', (_req, res) => {
-  const date = typeof _req.query.date === 'string' ? _req.query.date : ''
+  const date = parseHistoryDateKey(_req.query.date)
   if (!date) {
-    res.status(400).json({ success: false, error: 'Missing required date query' })
+    res.status(400).json({ success: false, error: 'Query "date" must use YYYY-MM-DD format' })
     return
   }
 

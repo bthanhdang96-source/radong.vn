@@ -2,6 +2,7 @@ import '../env.js'
 import { access } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { getCrawlerScheduleConfig } from '../services/crawlerScheduler.js'
+import { hasBhxApiCredentials } from '../services/crawlers/bhxCrawler.js'
 import { getShopeeSessionMetadataPath, getShopeeStorageStatePath, readShopeeSessionMetadata } from '../services/crawlers/shopeeSession.js'
 import { getSupabaseRuntimeStatus } from '../services/supabaseClient.js'
 
@@ -45,6 +46,8 @@ async function main() {
   const storageStatePath = getShopeeStorageStatePath()
   const metadataPath = getShopeeSessionMetadataPath()
   const shopeeEnabled = schedule.shopeeRefreshEnabled || schedule.shopeeCrawlEnabled
+  const bhxRequested = process.env.BHX_CRAWL_ENABLED?.trim().toLowerCase() !== 'false'
+  const bhxCredentialsConfigured = hasBhxApiCredentials()
   const hasShopeeMetadata = await pathExists(metadataPath)
   const hasShopeeStorageState = await pathExists(storageStatePath)
 
@@ -56,10 +59,14 @@ async function main() {
     },
     {
       name: 'bhx_scheduler_flags',
-      ok: !schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0,
+      ok:
+        !bhxRequested ||
+        ((!schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0) && bhxCredentialsConfigured),
       detail: schedule.bhxCrawlEnabled
         ? `enabled with cron ${schedule.bhxCrawlCron} across regions ${schedule.bhxEnabledRegions.join(',')}`
-        : 'disabled; safe default until retail rollout',
+        : bhxCredentialsConfigured
+          ? 'disabled; safe default until retail rollout'
+          : 'disabled because BHX_API_BEARER_TOKEN and BHX_API_X_API_KEY are not configured',
     },
     {
       name: 'coop_scheduler_flags',

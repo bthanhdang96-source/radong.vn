@@ -123,12 +123,14 @@ export default function SummaryCards({
       <Card
         label="Cập nhật lúc"
         value={formatTimestamp(lastUpdated)}
-        sub={refreshing ? 'Đang làm mới dữ liệu...' : 'Làm mới thủ công'}
+        sub={refreshing ? 'Đang làm mới dữ liệu...' : 'Tự động đồng bộ theo lịch'}
         variant="neutral"
       >
-        <button className="stat-card__button" onClick={onRefresh} disabled={!onRefresh || refreshing}>
-          {refreshing ? 'Đang tải' : 'Làm mới'}
-        </button>
+        {onRefresh ? (
+          <button className="stat-card__button" onClick={onRefresh} disabled={refreshing}>
+            {refreshing ? 'Đang tải' : 'Làm mới'}
+          </button>
+        ) : null}
       </Card>
     </section>
   );

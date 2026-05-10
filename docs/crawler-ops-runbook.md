@@ -15,6 +15,7 @@ The legacy domestic homepage refresh is intentionally separate and is not part o
 Minimum shared configuration:
 
 ```env
+ADMIN_API_KEY=...
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 REDIS_URL=redis://...
@@ -54,6 +55,16 @@ SHOPEE_PROXY_USERNAME=
 SHOPEE_PROXY_PASSWORD=
 ```
 
+BHX-specific:
+
+```env
+BHX_CRAWL_ENABLED=true
+BHX_CRAWL_CRON=15 6,14 * * *
+BHX_ENABLED_REGIONS=HCM
+BHX_API_BEARER_TOKEN=...
+BHX_API_X_API_KEY=...
+```
+
 ## One-time setup
 
 1. Install server dependencies:
@@ -78,6 +89,12 @@ npm --prefix server run crawler:preflight
 
 ```bash
 npm --prefix server run crawler:status
+```
+
+5. Check protected runtime health details:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_API_KEY" http://localhost:3001/api/health/details
 ```
 
 ## Recommended rollout order

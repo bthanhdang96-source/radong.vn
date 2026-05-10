@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import {
   crawlNewsSource,
   getNewsArticle,
@@ -78,7 +79,7 @@ router.get('/news/topics', async (_req, res) => {
   }
 })
 
-router.post('/admin/news/crawl/:sourceKey', async (req, res) => {
+router.post('/admin/news/crawl/:sourceKey', requireAdminApiKey, async (req, res) => {
   const sourceKey = req.params.sourceKey
   if (!NEWS_SOURCE_KEYS.includes(sourceKey as NewsSourceKey)) {
     res.status(400).json({ success: false, error: 'Unknown source key' })
@@ -96,7 +97,7 @@ router.post('/admin/news/crawl/:sourceKey', async (req, res) => {
   }
 })
 
-router.get('/admin/news/runs', async (req, res) => {
+router.get('/admin/news/runs', requireAdminApiKey, async (req, res) => {
   const sourceKey =
     typeof req.query.source === 'string' && NEWS_SOURCE_KEYS.includes(req.query.source as NewsSourceKey)
       ? (req.query.source as NewsSourceKey)
@@ -113,7 +114,7 @@ router.get('/admin/news/runs', async (req, res) => {
   }
 })
 
-router.get('/admin/news/health', async (_req, res) => {
+router.get('/admin/news/health', requireAdminApiKey, async (_req, res) => {
   try {
     const payload = await getNewsHealth()
     res.json({ success: true, ...payload })

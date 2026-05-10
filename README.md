@@ -19,6 +19,7 @@ This repo now uses Supabase CLI migrations under [supabase](./supabase).
 
 Required environment variables:
 
+- `ADMIN_API_KEY` to protect privileged API routes such as manual refresh and detailed health checks
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -41,13 +42,15 @@ Required environment variables:
 - `SHOPEE_SESSION_REFRESH_ENABLED=true|false` and `SHOPEE_CRAWL_ENABLED=true|false` to control the two Shopee jobs independently
 - `SHOPEE_REFRESH_CRON`, `SHOPEE_CRAWL_CRON`, `SHOPEE_SCHEDULE_DRY_RUN`, `SHOPEE_BLOCK_COOLDOWN_MINUTES` to tune Shopee scheduler behavior
 - `BHX_CRAWL_ENABLED`, `BHX_CRAWL_CRON`, `BHX_SCHEDULE_DRY_RUN`, `BHX_ENABLED_REGIONS` to tune the BHX retail crawler
+- `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` for the live BHX location/bootstrap requests
 - `COOP_CRAWL_ENABLED`, `COOP_CRAWL_CRON`, `COOP_SCHEDULE_DRY_RUN`, `COOP_ENABLED_REGIONS`, `COOP_ENABLED_CATEGORIES`, `COOP_MAX_PAGES_PER_CATEGORY` to tune the Co.op retail crawler
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
 
 Runtime behavior:
 
 - `server/env.ts` loads the repo root `.env` first, then applies `server/.env` as an optional override. This keeps `npm --prefix server run ...` aligned with the main workspace config.
-- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase and reads curated views.
+- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase.
+- Public API reads use `SUPABASE_PUBLISHABLE_KEY`; they no longer fall back to the service role key.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
@@ -77,6 +80,7 @@ Quick local verification for the BHX retail crawler:
 
 - Run the fixture parser smoke test:
   `npm --prefix server run crawler:bhx -- --fixture=server/fixtures/bhx-sample.json --dry-run`
+- Set `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` before any live BHX crawl.
 - Run the live multi-region crawl without syncing:
   `npm --prefix server run crawler:bhx -- --dry-run --regions=HCM,DNG,CTO,DNI,BNI`
 - The live path bootstraps a browser request context once, then reuses that authenticated request profile for `Category/V2/GetCate`, which is more stable than relying on repeated `page.goto` intercepts.
@@ -111,7 +115,8 @@ Quick local verification for the Shopee crawler:
 
 Quick local verification for the dedicated crawler scheduler:
 
-- Start the API server and confirm `/api/health` reports `crawlers.schedule` and `crawlers.shopeeSession`.
+- Start the API server and confirm `/api/health` returns `status: OK`.
+- For detailed scheduler diagnostics, call `/api/health/details` with `Authorization: Bearer $ADMIN_API_KEY`.
 - For a safe smoke test, set `COOP_CRAWL_ENABLED=true`, `COOP_SCHEDULE_DRY_RUN=true`, `SHOPEE_SCHEDULER_ENABLED=true`, `SHOPEE_SCHEDULE_DRY_RUN=true`, and `CUSTOMS_SCHEDULER_ENABLED=true`, `CUSTOMS_SCHEDULE_DRY_RUN=true`.
 - The scheduler keeps a simple in-memory lock so the same job does not overlap with itself if a previous run is still active.
 

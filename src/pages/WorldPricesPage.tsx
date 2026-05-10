@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import WorldSummaryCards from '../components/world/WorldSummaryCards'
 import WorldPriceTable from '../components/world/WorldPriceTable'
 import { DEFAULT_USD_VND_RATE, FALLBACK_WORLD_DATA, WORLD_CATEGORIES, type WorldCategory, type WorldCommodityItem, type WorldPricesResponse } from '../data/worldCommodityData'
@@ -14,12 +14,12 @@ export default function WorldPricesPage() {
   const [dataSource, setDataSource] = useState<'api' | 'fallback'>('fallback')
   const [lastUpdate, setLastUpdate] = useState<string>('')
 
-  const fetchData = useCallback(async (forceRefresh = false) => {
+  async function fetchData() {
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(buildApiUrl(forceRefresh ? '/api/world-prices?refresh=1' : '/api/world-prices'))
+      const response = await fetch(buildApiUrl('/api/world-prices'))
 
       if (!response.ok) {
         throw new Error(`API responded with ${response.status}`)
@@ -56,11 +56,11 @@ export default function WorldPricesPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
     void fetchData()
-  }, [fetchData])
+  }, [])
 
   return (
     <div className="world-page">
@@ -97,28 +97,7 @@ export default function WorldPricesPage() {
               </span>
               {lastUpdate ? <span className="world-page__update">Cập nhật: {lastUpdate}</span> : null}
             </div>
-            <button
-              className="world-page__refresh"
-              onClick={() => {
-                void fetchData(true)
-              }}
-              disabled={loading}
-              aria-label="Làm mới dữ liệu"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={loading ? 'world-page__refresh-spin' : ''}
-              >
-                <path d="M1 4v6h6" />
-                <path d="M23 20v-6h-6" />
-                <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
-              </svg>
-            </button>
+            <span className="world-page__update">Đồng bộ tự động từ máy chủ</span>
           </div>
         </div>
         <div className="world-page__hero-line" />

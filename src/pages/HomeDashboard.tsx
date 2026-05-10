@@ -10,7 +10,6 @@ import './HomeDashboard.css';
 export default function HomeDashboard() {
   const [payload, setPayload] = useState<VnPricesResponse>(FALLBACK_VN_PRICES);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function scrollToSelector(selector: string) {
@@ -64,31 +63,6 @@ export default function HomeDashboard() {
     };
   }, []);
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      const response = await fetch(buildApiUrl('/api/vn-prices/refresh'));
-      const json = await response.json();
-      if (!response.ok || !json.success) {
-        throw new Error(json.error ?? 'Refresh failed');
-      }
-
-      setPayload({
-        status: json.status,
-        fetchedAt: json.fetchedAt,
-        lastUpdated: json.lastUpdated,
-        data: json.data,
-        sources: json.sources,
-        errors: json.errors ?? [],
-      });
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refresh failed');
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   return (
     <div className="home-dashboard">
       <TickerBar items={payload.data} />
@@ -98,8 +72,6 @@ export default function HomeDashboard() {
         lastUpdated={payload.lastUpdated}
         status={payload.status}
         loading={loading}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
       />
       <TopMovers items={payload.data} />
       <PriceTable data={payload.data} loading={loading} error={error ?? payload.errors[0] ?? null} />
@@ -110,13 +82,8 @@ export default function HomeDashboard() {
         <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('#bang-gia')}>
           Bảng giá
         </button>
-        <button
-          className="home-dashboard__dock-button home-dashboard__dock-button--primary"
-          type="button"
-          onClick={() => void handleRefresh()}
-          disabled={refreshing}
-        >
-          {refreshing ? 'Đang tải' : 'Làm mới'}
+        <button className="home-dashboard__dock-button home-dashboard__dock-button--primary" type="button" disabled>
+          Tự động cập nhật
         </button>
       </div>
     </div>

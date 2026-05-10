@@ -45,7 +45,7 @@ export const supabaseAdminClient =
     : null
 
 export function getSupabaseReadClient() {
-  return supabaseAdminClient ?? supabaseReadClient
+  return supabaseReadClient
 }
 
 export function getSupabaseAdminClient() {

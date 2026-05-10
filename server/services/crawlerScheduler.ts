@@ -1,5 +1,5 @@
 import cron from 'node-cron'
-import { crawlBhx } from './crawlers/bhxCrawler.js'
+import { crawlBhx, hasBhxApiCredentials } from './crawlers/bhxCrawler.js'
 import { crawlCoop } from './crawlers/coopCrawler.js'
 import { crawlCustoms } from './crawlers/customsCrawler.js'
 import { crawlShopee } from './crawlers/shopeeCrawler.js'
@@ -89,8 +89,9 @@ function parseCsvCategorySlugs(value: string | undefined, fallback: string[]) {
 
 export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
   const shopeeSchedulerEnabled = parseBoolean(process.env.SHOPEE_SCHEDULER_ENABLED, false)
+  const bhxRequested = parseBoolean(process.env.BHX_CRAWL_ENABLED, true)
   return {
-    bhxCrawlEnabled: parseBoolean(process.env.BHX_CRAWL_ENABLED, true),
+    bhxCrawlEnabled: bhxRequested && hasBhxApiCredentials(),
     bhxCrawlCron: process.env.BHX_CRAWL_CRON?.trim() || DEFAULT_BHX_CRAWL_CRON,
     bhxDryRun: parseBoolean(process.env.BHX_SCHEDULE_DRY_RUN, false),
     bhxEnabledRegions: parseCsvUppercase(process.env.BHX_ENABLED_REGIONS, ['HCM']),
