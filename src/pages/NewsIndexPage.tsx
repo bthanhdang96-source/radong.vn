@@ -5,6 +5,8 @@ import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
+const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v1'
+const NEWS_INDEX_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 type TopicResponse = {
   success: boolean
@@ -15,6 +17,77 @@ type FilterState = {
   source: string
   topic: string
   q: string
+}
+
+type NewsIndexCache = {
+  savedAt: string
+  items: NewsListItem[]
+  sources: NewsSource[]
+  topics: string[]
+  cursor: string | null
+  totalApprox: number
+}
+
+const DEFAULT_FILTERS: FilterState = { source: '', topic: '', q: '' }
+
+function readNewsIndexCache() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(NEWS_INDEX_CACHE_KEY)
+    if (!raw) {
+      return null
+    }
+
+    const parsed = JSON.parse(raw) as Partial<NewsIndexCache>
+    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.sources) || !Array.isArray(parsed.topics) || typeof parsed.savedAt !== 'string') {
+      return null
+    }
+
+    const ageMs = Date.now() - new Date(parsed.savedAt).getTime()
+    if (!Number.isFinite(ageMs) || ageMs > NEWS_INDEX_CACHE_MAX_AGE_MS) {
+      return null
+    }
+
+    return {
+      savedAt: parsed.savedAt,
+      items: parsed.items,
+      sources: parsed.sources,
+      topics: parsed.topics,
+      cursor: typeof parsed.cursor === 'string' ? parsed.cursor : null,
+      totalApprox: typeof parsed.totalApprox === 'number' ? parsed.totalApprox : parsed.items.length,
+    } satisfies NewsIndexCache
+  } catch {
+    return null
+  }
+}
+
+function writeNewsIndexCache(update: Partial<NewsIndexCache>) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const current = readNewsIndexCache()
+    const next: NewsIndexCache = {
+      savedAt: new Date().toISOString(),
+      items: update.items ?? current?.items ?? [],
+      sources: update.sources ?? current?.sources ?? [],
+      topics: update.topics ?? current?.topics ?? [],
+      cursor: update.cursor ?? current?.cursor ?? null,
+      totalApprox: update.totalApprox ?? current?.totalApprox ?? 0,
+    }
+
+    window.localStorage.setItem(NEWS_INDEX_CACHE_KEY, JSON.stringify(next))
+  } catch {
+    // Best-effort client cache for faster repeat visits.
+  }
+}
+
+function isDefaultFilterState(filters: FilterState) {
+  return filters.source === DEFAULT_FILTERS.source && filters.topic === DEFAULT_FILTERS.topic && filters.q.trim() === DEFAULT_FILTERS.q
 }
 
 function formatDate(value: string) {
@@ -112,16 +185,17 @@ function HeroRailCard({ article }: { article: NewsListItem }) {
 }
 
 export default function NewsIndexPage() {
-  const [items, setItems] = useState<NewsListItem[]>([])
-  const [sources, setSources] = useState<NewsSource[]>([])
-  const [topics, setTopics] = useState<string[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [totalApprox, setTotalApprox] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [cacheSnapshot] = useState<NewsIndexCache | null>(() => readNewsIndexCache())
+  const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? [])
+  const [sources, setSources] = useState<NewsSource[]>(() => cacheSnapshot?.sources ?? [])
+  const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? [])
+  const [cursor, setCursor] = useState<string | null>(() => cacheSnapshot?.cursor ?? null)
+  const [totalApprox, setTotalApprox] = useState(() => cacheSnapshot?.totalApprox ?? 0)
+  const [loading, setLoading] = useState(() => (cacheSnapshot?.items.length ?? 0) === 0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [draftFilters, setDraftFilters] = useState<FilterState>({ source: '', topic: '', q: '' })
-  const [filters, setFilters] = useState<FilterState>({ source: '', topic: '', q: '' })
+  const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
 
   useEffect(() => {
     let active = true
@@ -136,6 +210,7 @@ export default function NewsIndexPage() {
 
         if (active) {
           setTopics(json.items)
+          writeNewsIndexCache({ topics: json.items })
         }
       } catch (fetchError) {
         if (active) {
@@ -155,7 +230,9 @@ export default function NewsIndexPage() {
     let active = true
 
     async function loadArticles() {
-      setLoading(true)
+      if (items.length === 0) {
+        setLoading(true)
+      }
       try {
         const response = await fetch(buildNewsUrl(filters))
         const json: NewsListResponse = await response.json()
@@ -172,12 +249,22 @@ export default function NewsIndexPage() {
         setCursor(json.nextCursor)
         setTotalApprox(json.totalApprox)
         setError(null)
+        if (isDefaultFilterState(filters)) {
+          writeNewsIndexCache({
+            items: json.items,
+            sources: json.sources,
+            cursor: json.nextCursor,
+            totalApprox: json.totalApprox,
+          })
+        }
       } catch (fetchError) {
         if (!active) {
           return
         }
 
-        setItems([])
+        if (items.length === 0) {
+          setItems([])
+        }
         setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải danh sách tin tức')
       } finally {
         if (active) {
