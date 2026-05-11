@@ -76,10 +76,6 @@ function isPromotionalNoiseText(value: string) {
   ].some(fragment => normalized.includes(fragment))
 }
 
-function isNumericOnlyText(value: string) {
-  return /^(\d+\s*)+$/.test(normalizeTextContent(value))
-}
-
 function isLikelyLinkList(list: Element) {
   const items = Array.from(list.querySelectorAll(':scope > li'))
   if (items.length < 3) {
@@ -92,46 +88,40 @@ function isLikelyLinkList(list: Element) {
   })
 }
 
-function isLikelyNoiseList(list: Element) {
-  const items = Array.from(list.querySelectorAll(':scope > li'))
-  if (items.length < 3) {
-    return false
-  }
-
-  return items.every(item => {
-    const text = normalizeTextContent(item.textContent)
-    return text.length > 0 && (text.length <= 48 || isNumericOnlyText(text))
-  })
-}
-
 function shouldTrimFromBlock(element: Element) {
   const text = normalizeTextContent(element.textContent)
   if (!text) {
     return false
   }
 
-  if (isPromotionalNoiseText(text)) {
+  if (isPromotionalNoiseText(text) && text.length <= 500) {
     return true
   }
 
-  if (isPhoneLikeText(text) && text.length <= 160) {
+  if (isPhoneLikeText(text) && text.length <= 120) {
     return true
   }
 
-  if (isNoiseHeadingText(text) && text.length <= 160) {
+  if (isNoiseHeadingText(text) && text.length <= 80) {
     return true
   }
 
-  const heading = element.querySelector('h1, h2, h3, h4, h5, h6, strong, b')
-  if (heading && isNoiseHeadingText(heading.textContent)) {
-    return true
-  }
-
-  if ((element.tagName === 'UL' || element.tagName === 'OL') && isLikelyNoiseList(element)) {
+  const heading = element.matches('h1, h2, h3, h4, h5, h6, strong, b')
+    ? element
+    : element.querySelector(':scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > strong, :scope > b')
+  if (heading && isNoiseHeadingText(heading.textContent) && normalizeTextContent(heading.textContent).length <= 80) {
     return true
   }
 
   return false
+}
+
+function getPrimaryContentContainer(root: Element) {
+  if (root.children.length === 1 && root.firstElementChild) {
+    return root.firstElementChild
+  }
+
+  return root
 }
 
 function trimTrailingNoise(container: Element) {
@@ -142,11 +132,6 @@ function trimTrailingNoise(container: Element) {
     for (const child of children.slice(trimIndex)) {
       child.remove()
     }
-    return
-  }
-
-  for (const child of children) {
-    trimTrailingNoise(child)
   }
 }
 
@@ -159,14 +144,15 @@ function stripArticleNoise(html: string) {
   const parser = new DOMParser()
   const document = parser.parseFromString(`<body>${sanitized}</body>`, 'text/html')
   const root = document.body
+  const contentContainer = getPrimaryContentContainer(root)
 
-  for (const list of Array.from(root.querySelectorAll('ul, ol'))) {
-    if (isLikelyLinkList(list) || isLikelyNoiseList(list)) {
+  for (const list of Array.from(contentContainer.querySelectorAll('ul, ol'))) {
+    if (isLikelyLinkList(list)) {
       list.remove()
     }
   }
 
-  for (const element of Array.from(root.querySelectorAll('a[href^="tel:"], p, li, div, section, aside'))) {
+  for (const element of Array.from(contentContainer.querySelectorAll('a[href^="tel:"], p, li, div, section, aside'))) {
     const text = normalizeTextContent(element.textContent)
     const isCompact = text.length > 0 && text.length <= 160
 
@@ -175,7 +161,7 @@ function stripArticleNoise(html: string) {
     }
   }
 
-  trimTrailingNoise(root)
+  trimTrailingNoise(contentContainer)
 
   for (const anchor of Array.from(root.querySelectorAll('a'))) {
     const text = normalizeTextContent(anchor.textContent)
