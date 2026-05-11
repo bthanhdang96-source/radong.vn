@@ -94,7 +94,13 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     rateLimitMs: P0_RATE_LIMIT_MS,
     maxArticlesPerRun: 30,
     articleUrlPattern: /^https:\/\/vietfood\.org\.vn\/.+$/i,
-    articleSelectors: ['.entry-content', '.td-post-content', 'article'],
+    articleSelectors: [
+      '.elementor-widget-theme-post-content .elementor-widget-container',
+      '.elementor-location-single .elementor-widget-theme-post-content .elementor-widget-container',
+      '.entry-content',
+      '.td-post-content',
+      'article',
+    ],
     topicTags: ['gao', 'lua-gao', 'thi-truong'],
   },
   khuyennongvn: {

@@ -4,7 +4,7 @@ import { decodeCursor, encodeCursor, makeSlug, normalizeWhitespace, sleep } from
 import { discoverFromHtml } from './discovery/htmlDiscovery.js'
 import { discoverFromRss } from './discovery/rssDiscovery.js'
 import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
-import { extractNewsArticle } from './extract/articleExtractor.js'
+import { extractNewsArticle, hasSuspiciousExtractedBody } from './extract/articleExtractor.js'
 import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache, rememberLiveNewsArticles } from './liveCache.js'
 import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
@@ -322,7 +322,10 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
 async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
   const visibleSourceKeys = new Set(sources.map(source => source.key))
   const cached = getCachedLiveNewsArticles()
-  if (cached && cached.length > 0) {
+  const hasSuspiciousCachedArticle =
+    cached?.some(article => hasSuspiciousExtractedBody(article.sourceKey, article.canonicalUrl, article.contentHtml)) ?? false
+
+  if (cached && cached.length > 0 && !hasSuspiciousCachedArticle) {
     return cached.map(article => ({
       ...article,
       sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,

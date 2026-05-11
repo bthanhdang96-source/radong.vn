@@ -3,7 +3,7 @@ import { load } from 'cheerio'
 import { JSDOM } from 'jsdom'
 import { classifyNewsArticle } from '../articleClassification.js'
 import { fetchText, makeFingerprint, makeSlug, normalizeWhitespace, parseLooseDate, stripHtml, toPlainExcerpt } from '../common.js'
-import type { NewsArticleRecord, NewsDiscoveredItem, NewsSourceConfig } from '../types.js'
+import type { NewsArticleRecord, NewsDiscoveredItem, NewsSourceConfig, NewsSourceKey } from '../types.js'
 
 function pickFirstText($: ReturnType<typeof load>, selectors: string[]) {
   for (const selector of selectors) {
@@ -34,15 +34,44 @@ function normalizeHtmlFragment(html: string) {
     .trim()
 }
 
+export function hasSuspiciousExtractedBody(sourceKey: NewsSourceKey, canonicalUrl: string, html: string | null) {
+  if (!html) {
+    return false
+  }
+
+  const text = stripHtml(html)
+  const $ = load(`<div>${html}</div>`)
+  const links = $('a[href]')
+    .map((_, element) => $(element).attr('href') ?? '')
+    .get()
+    .filter(Boolean)
+  const foreignLinks = [...new Set(links)].filter(link => !link.startsWith('#') && !link.startsWith(canonicalUrl))
+
+  if (sourceKey === 'vietfood') {
+    const hasTeaserCard =
+      $('.elementor-post__thumbnail__link, .elementor-post__title, .elementor-post__text').length > 0
+
+    if (hasTeaserCard && foreignLinks.length > 0 && text.length < 400) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export async function extractNewsArticle(source: NewsSourceConfig, discovered: NewsDiscoveredItem): Promise<NewsArticleRecord> {
   const fetchedAt = new Date().toISOString()
   const html = await fetchText(discovered.canonicalUrl)
   const $ = load(html)
 
-  const sourceBodyHtml =
+  const rawSourceBodyHtml =
     source.articleSelectors
       ?.map(selector => $(selector).first().html())
       .find((value): value is string => Boolean(value && normalizeWhitespace(value))) ?? null
+  const sourceBodyHtml =
+    rawSourceBodyHtml && !hasSuspiciousExtractedBody(source.key, discovered.canonicalUrl, rawSourceBodyHtml)
+      ? rawSourceBodyHtml
+      : null
 
   const readability = new Readability(new JSDOM(html, { url: discovered.canonicalUrl }).window.document).parse()
   const readabilityHtml = readability?.content ? normalizeHtmlFragment(readability.content) : null
