@@ -37,9 +37,47 @@ function normalizeTextContent(value: string | null | undefined) {
   return (value ?? '').replace(/\s+/g, ' ').trim()
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+  return normalizeTextContent(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 function isPhoneLikeText(value: string) {
-  const normalized = normalizeTextContent(value)
-  return /(hotline|đường dây nóng|dien thoai|điện thoại|phone|tel)/i.test(normalized) || /\b(?:\+?84|0)\d(?:[\s.\-]?\d){7,12}\b/.test(normalized)
+  const normalized = normalizeSearchText(value)
+  return /(hotline|duong day nong|dien thoai|phone|tel)/.test(normalized) || /\b(?:\+?84|0)\d(?:[\s.\-]?\d){7,12}\b/.test(value)
+}
+
+function isNoiseHeadingText(value: string) {
+  const normalized = normalizeSearchText(value)
+  return [
+    'xem them',
+    'doc nhieu nhat',
+    'binh luan moi nhat',
+    'tin lien quan',
+    'bai lien quan',
+    'co the ban quan tam',
+    'tags',
+    'tag',
+    'tu khoa',
+  ].some(label => normalized === label || normalized.startsWith(`${label} `))
+}
+
+function isPromotionalNoiseText(value: string) {
+  const normalized = normalizeSearchText(value)
+  return [
+    'ban dang doc bai viet',
+    'moi thong tin gop y',
+    'bao nong nghiep va moi truong',
+    'gmail.com',
+    'zalo',
+    'quan tam 0',
+  ].some(fragment => normalized.includes(fragment))
+}
+
+function isNumericOnlyText(value: string) {
+  return /^(\d+\s*)+$/.test(normalizeTextContent(value))
 }
 
 function isLikelyLinkList(list: Element) {
@@ -54,6 +92,64 @@ function isLikelyLinkList(list: Element) {
   })
 }
 
+function isLikelyNoiseList(list: Element) {
+  const items = Array.from(list.querySelectorAll(':scope > li'))
+  if (items.length < 3) {
+    return false
+  }
+
+  return items.every(item => {
+    const text = normalizeTextContent(item.textContent)
+    return text.length > 0 && (text.length <= 48 || isNumericOnlyText(text))
+  })
+}
+
+function shouldTrimFromBlock(element: Element) {
+  const text = normalizeTextContent(element.textContent)
+  if (!text) {
+    return false
+  }
+
+  if (isPromotionalNoiseText(text)) {
+    return true
+  }
+
+  if (isPhoneLikeText(text) && text.length <= 160) {
+    return true
+  }
+
+  if (isNoiseHeadingText(text) && text.length <= 160) {
+    return true
+  }
+
+  const heading = element.querySelector('h1, h2, h3, h4, h5, h6, strong, b')
+  if (heading && isNoiseHeadingText(heading.textContent)) {
+    return true
+  }
+
+  if ((element.tagName === 'UL' || element.tagName === 'OL') && isLikelyNoiseList(element)) {
+    return true
+  }
+
+  return false
+}
+
+function trimTrailingNoise(container: Element) {
+  const children = Array.from(container.children)
+  const trimIndex = children.findIndex(child => shouldTrimFromBlock(child))
+
+  if (trimIndex >= 0) {
+    for (const child of children.slice(trimIndex)) {
+      child.remove()
+    }
+    return
+  }
+
+  for (const child of children) {
+    trimTrailingNoise(child)
+  }
+}
+
 function stripArticleNoise(html: string) {
   const sanitized = DOMPurify.sanitize(html)
   if (typeof window === 'undefined') {
@@ -65,19 +161,21 @@ function stripArticleNoise(html: string) {
   const root = document.body
 
   for (const list of Array.from(root.querySelectorAll('ul, ol'))) {
-    if (isLikelyLinkList(list)) {
+    if (isLikelyLinkList(list) || isLikelyNoiseList(list)) {
       list.remove()
     }
   }
 
   for (const element of Array.from(root.querySelectorAll('a[href^="tel:"], p, li, div, section, aside'))) {
     const text = normalizeTextContent(element.textContent)
-    const isCompact = text.length > 0 && text.length <= 120
+    const isCompact = text.length > 0 && text.length <= 160
 
-    if (isCompact && isPhoneLikeText(text)) {
+    if (isCompact && (isPhoneLikeText(text) || isPromotionalNoiseText(text))) {
       element.remove()
     }
   }
+
+  trimTrailingNoise(root)
 
   for (const anchor of Array.from(root.querySelectorAll('a'))) {
     const text = normalizeTextContent(anchor.textContent)
@@ -104,7 +202,7 @@ function stripArticleNoiseFromText(value: string) {
   return value
     .split('\n')
     .map(line => line.trim())
-    .filter(line => line.length > 0 && !isPhoneLikeText(line))
+    .filter(line => line.length > 0 && !isPhoneLikeText(line) && !isPromotionalNoiseText(line) && !isNoiseHeadingText(line))
     .join('\n')
 }
 
