@@ -592,7 +592,7 @@ async function getRetailRegionalPriceRows() {
 }
 
 async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
-  const client = getSupabaseReadClient()
+  const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
   if (!client || (sourceIds && sourceIds.length === 0)) {
     return []
   }
