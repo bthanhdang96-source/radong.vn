@@ -19,7 +19,7 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     browserRequired: false,
     rateLimitMs: P0_RATE_LIMIT_MS,
     maxArticlesPerRun: 30,
-    articleUrlPattern: /^https:\/\/vietnambiz\.vn\/.+\.htm$/i,
+    articleUrlPattern: /^https:\/\/vietnambiz\.vn\/.+-\d{6,}\.htm$/i,
     listingSelectors: ['h3 a'],
     articleSelectors: ['.vnbiz-content', '.detail-content', 'article'],
     topicTags: ['thi-truong', 'nong-san', 'gia-ca'],

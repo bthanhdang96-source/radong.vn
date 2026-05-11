@@ -6,7 +6,7 @@ import { buildApiUrl } from '../lib/api'
 import './NewsArticlePage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const NEWS_ARTICLE_CACHE_PREFIX = 'news-article-cache:v1:'
+const NEWS_ARTICLE_CACHE_PREFIX = 'news-article-cache:v2:'
 const NEWS_ARTICLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 type NewsArticleLocationState = {

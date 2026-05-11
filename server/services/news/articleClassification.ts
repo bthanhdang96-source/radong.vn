@@ -30,6 +30,37 @@ function createDefaultClassification(): ArticleClassification {
   }
 }
 
+function createHiddenClassification(topicTags: string[]): ArticleClassification {
+  return {
+    status: 'archived',
+    hideFromNewsFeed: true,
+    topicTags,
+    kind: 'news',
+    priceDataTarget: null,
+  }
+}
+
+function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): ArticleClassification {
+  const title = foldText(input.title ?? '')
+  const excerpt = foldText(input.excerpt ?? '')
+  const canonicalUrl = foldText(input.canonicalUrl ?? '')
+  const contentText = foldText(input.contentText ?? '')
+
+  const isTopicHub =
+    excerpt.includes('chu de:') ||
+    excerpt.includes('tong hop bai viet') ||
+    title.startsWith('chu de ') ||
+    contentText.includes('trach nhiem ve thong tin') ||
+    contentText.includes('tong hop bai viet') ||
+    (!/-\d{6,}\.htm$/.test(canonicalUrl) && canonicalUrl.endsWith('.htm'))
+
+  if (isTopicHub) {
+    return createHiddenClassification(['vietnambiz-topic-hub'])
+  }
+
+  return createDefaultClassification()
+}
+
 export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClassification {
   const title = foldText(input.title ?? '')
   const category = foldText(input.category ?? '')
@@ -93,6 +124,10 @@ export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClas
 }
 
 export function classifyNewsArticle(input: ArticleLike): ArticleClassification {
+  if (input.sourceKey === 'vietnambiz') {
+    return classifyVietnamBizArticle(input)
+  }
+
   if (input.sourceKey === 'vietfood') {
     return classifyVietfoodArticle(input)
   }
