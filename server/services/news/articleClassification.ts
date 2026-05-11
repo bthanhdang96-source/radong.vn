@@ -61,6 +61,28 @@ function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): Artic
   return createDefaultClassification()
 }
 
+function classifyVpsaSpiceArticle(input: Omit<ArticleLike, 'sourceKey'>): ArticleClassification {
+  const title = foldText(input.title ?? '')
+  const excerpt = foldText(input.excerpt ?? '')
+  const canonicalUrl = foldText(input.canonicalUrl ?? '')
+  const contentText = foldText(input.contentText ?? '')
+
+  const isLoginOrMemberPage =
+    canonicalUrl.includes('/log-in') ||
+    canonicalUrl.includes('membership-registration') ||
+    title.startsWith('log-in ') ||
+    excerpt.includes('please enter your username and password') ||
+    contentText.includes('please enter your username and password') ||
+    contentText.includes("don't have a membership") ||
+    contentText.includes('membership registration')
+
+  if (isLoginOrMemberPage) {
+    return createHiddenClassification(['vpsa-login-required'])
+  }
+
+  return createDefaultClassification()
+}
+
 export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClassification {
   const title = foldText(input.title ?? '')
   const category = foldText(input.category ?? '')
@@ -126,6 +148,10 @@ export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClas
 export function classifyNewsArticle(input: ArticleLike): ArticleClassification {
   if (input.sourceKey === 'vietnambiz') {
     return classifyVietnamBizArticle(input)
+  }
+
+  if (input.sourceKey === 'vpsaspice') {
+    return classifyVpsaSpiceArticle(input)
   }
 
   if (input.sourceKey === 'vietfood') {
