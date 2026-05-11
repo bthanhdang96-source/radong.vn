@@ -6,7 +6,7 @@ import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v4'
+const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v5'
 const NEWS_INDEX_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 type TopicResponse = {

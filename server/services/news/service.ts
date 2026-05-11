@@ -160,6 +160,27 @@ function toArticleRecord(row: NewsArticleRow, sources: NewsSourceRecord[]): News
   }
 }
 
+function toArticleRowPayload(article: NewsArticleRecord) {
+  return {
+    source_key: article.sourceKey,
+    canonical_url: article.canonicalUrl,
+    slug: article.slug,
+    title: article.title,
+    excerpt: article.excerpt,
+    content_html: article.contentHtml,
+    content_text: article.contentText,
+    thumbnail_url: article.thumbnailUrl,
+    author: article.author,
+    category: article.category,
+    topic_tags: article.topicTags,
+    published_at: article.publishedAt,
+    fetched_at: article.fetchedAt,
+    content_mode: article.contentMode,
+    fingerprint: article.fingerprint,
+    status: article.status,
+  }
+}
+
 function toListItem(article: NewsArticleRecord): NewsListItem {
   return {
     slug: article.slug,
@@ -177,6 +198,72 @@ function toListItem(article: NewsArticleRecord): NewsListItem {
 
 function isPublicNewsArticle(article: NewsArticleRecord) {
   return article.status === 'published' && isNewsFeedArticleVisible(article)
+}
+
+async function repairSuspiciousStoredArticles(articles: NewsArticleRecord[], sources: NewsSourceRecord[]) {
+  const suspiciousArticles = articles.filter(article =>
+    hasSuspiciousExtractedBody(article.sourceKey, article.canonicalUrl, article.contentHtml),
+  )
+
+  if (suspiciousArticles.length === 0) {
+    return articles
+  }
+
+  const repairs: Array<NewsArticleRecord | null> = await Promise.all(
+    suspiciousArticles.map(async article => {
+      try {
+        const refreshed = await extractNewsArticle(getNewsSourceConfig(article.sourceKey), {
+          sourceKey: article.sourceKey,
+          canonicalUrl: article.canonicalUrl,
+          title: article.title,
+          excerpt: article.excerpt,
+          thumbnailUrl: article.thumbnailUrl,
+          author: article.author,
+          category: article.category,
+          publishedAt: article.publishedAt,
+          topicTags: article.topicTags,
+        })
+
+        if (hasSuspiciousExtractedBody(refreshed.sourceKey, refreshed.canonicalUrl, refreshed.contentHtml)) {
+          return null
+        }
+
+        return {
+          ...refreshed,
+          id: article.id,
+          slug: article.slug,
+          sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+        }
+      } catch (error) {
+        console.error(`[News] Failed to repair suspicious article ${article.canonicalUrl}:`, error)
+        return null
+      }
+    }),
+  )
+
+  const repairedArticles = repairs.filter((article): article is NewsArticleRecord => Boolean(article))
+  if (repairedArticles.length === 0) {
+    return articles
+  }
+
+  const client = getSupabaseAdminClient()
+  if (client) {
+    try {
+      const { error } = await client
+        .from('news_articles')
+        .upsert(repairedArticles.map(toArticleRowPayload), { onConflict: 'canonical_url' })
+
+      if (error && !isRelationMissing(error)) {
+        throw error
+      }
+    } catch (error) {
+      console.error('[News] Failed to persist repaired article bodies:', error)
+    }
+  }
+
+  rememberLiveNewsArticles(repairedArticles)
+  const repairedByUrl = new Map(repairedArticles.map(article => [article.canonicalUrl, article]))
+  return articles.map(article => repairedByUrl.get(article.canonicalUrl) ?? article)
 }
 
 async function ensureNewsSourcesSynced() {
@@ -306,8 +393,9 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
     const records = rows
       .map(row => toArticleRecord(row, sources))
       .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
-    articleRecordsCache = writeCachedValue(records)
-    return records
+    const repairedRecords = await repairSuspiciousStoredArticles(records, sources)
+    articleRecordsCache = writeCachedValue(repairedRecords)
+    return repairedRecords
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static articles:', error)
@@ -494,24 +582,7 @@ async function persistCrawlResult(
     const { data: articleRows, error: articleError } = await client
       .from('news_articles')
       .upsert(
-        normalizedArticles.map(article => ({
-          source_key: article.sourceKey,
-          canonical_url: article.canonicalUrl,
-          slug: article.slug,
-          title: article.title,
-          excerpt: article.excerpt,
-          content_html: article.contentHtml,
-          content_text: article.contentText,
-          thumbnail_url: article.thumbnailUrl,
-          author: article.author,
-          category: article.category,
-          topic_tags: article.topicTags,
-          published_at: article.publishedAt,
-          fetched_at: article.fetchedAt,
-          content_mode: article.contentMode,
-          fingerprint: article.fingerprint,
-          status: article.status,
-        })),
+        normalizedArticles.map(toArticleRowPayload),
         { onConflict: 'canonical_url' },
       )
       .select('*')
