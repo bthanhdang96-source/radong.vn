@@ -20,6 +20,10 @@ type FilterState = {
   q: string
 }
 
+type NewsArticleLocationState = {
+  articlePreview: NewsListItem
+}
+
 type NewsIndexCache = {
   savedAt: string
   items: NewsListItem[]
@@ -137,7 +141,11 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
 function ArticleCard({ article }: { article: NewsListItem }) {
   return (
     <article className="news-index__stream-card">
-      <Link className="news-index__stream-image-link" to={`/tin-tuc/${article.slug}`}>
+      <Link
+        className="news-index__stream-image-link"
+        to={`/tin-tuc/${article.slug}`}
+        state={{ articlePreview: article } satisfies NewsArticleLocationState}
+      >
         <img
           className="news-index__stream-image"
           src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
@@ -150,7 +158,11 @@ function ArticleCard({ article }: { article: NewsListItem }) {
         <div className="news-index__meta-row">
           <time>{formatDate(article.publishedAt)}</time>
         </div>
-        <Link className="news-index__stream-title" to={`/tin-tuc/${article.slug}`}>
+        <Link
+          className="news-index__stream-title"
+          to={`/tin-tuc/${article.slug}`}
+          state={{ articlePreview: article } satisfies NewsArticleLocationState}
+        >
           {article.title}
         </Link>
         <p className="news-index__stream-excerpt">{article.excerpt}</p>
@@ -168,7 +180,11 @@ function ArticleCard({ article }: { article: NewsListItem }) {
 
 function HeroRailCard({ article }: { article: NewsListItem }) {
   return (
-    <Link className="news-index__hero-rail-card" to={`/tin-tuc/${article.slug}`}>
+    <Link
+      className="news-index__hero-rail-card"
+      to={`/tin-tuc/${article.slug}`}
+      state={{ articlePreview: article } satisfies NewsArticleLocationState}
+    >
       <div className="news-index__hero-rail-media">
         <img
           className="news-index__hero-rail-image"
@@ -187,6 +203,7 @@ function HeroRailCard({ article }: { article: NewsListItem }) {
 
 export default function NewsIndexPage() {
   const [cacheSnapshot] = useState<NewsIndexCache | null>(() => readNewsIndexCache())
+  const hasCachedItems = (cacheSnapshot?.items.length ?? 0) > 0
   const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? FALLBACK_NEWS_ITEMS)
   const [sources, setSources] = useState<NewsSource[]>(() => cacheSnapshot?.sources ?? FALLBACK_NEWS_SOURCES)
   const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? FALLBACK_NEWS_TOPICS)
@@ -231,7 +248,7 @@ export default function NewsIndexPage() {
     let active = true
 
     async function loadArticles() {
-      if (items.length === 0) {
+      if (!hasCachedItems && isDefaultFilterState(filters)) {
         setLoading(true)
       }
       try {
@@ -263,7 +280,7 @@ export default function NewsIndexPage() {
           return
         }
 
-        if (items.length === 0) {
+        if (!hasCachedItems && isDefaultFilterState(filters)) {
           setItems([])
         }
         setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải danh sách tin tức')
@@ -279,7 +296,7 @@ export default function NewsIndexPage() {
     return () => {
       active = false
     }
-  }, [filters])
+  }, [filters, hasCachedItems])
 
   async function handleLoadMore() {
     if (!cursor) {
@@ -322,7 +339,11 @@ export default function NewsIndexPage() {
           </div>
 
           {hero ? (
-            <Link className="news-index__hero-lead" to={`/tin-tuc/${hero.slug}`}>
+            <Link
+              className="news-index__hero-lead"
+              to={`/tin-tuc/${hero.slug}`}
+              state={{ articlePreview: hero } satisfies NewsArticleLocationState}
+            >
               <div className="news-index__hero-lead-media">
                 <img
                   className="news-index__hero-image"

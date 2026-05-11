@@ -1,11 +1,26 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import type { NewsDetailResponse, NewsListItem } from '../data/newsTypes'
 import { buildApiUrl } from '../lib/api'
 import './NewsArticlePage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
+const NEWS_ARTICLE_CACHE_PREFIX = 'news-article-cache:v1:'
+const NEWS_ARTICLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
+
+type NewsArticleLocationState = {
+  articlePreview?: NewsListItem
+}
+
+type CachedNewsDetail = {
+  savedAt: string
+  payload: NewsDetailResponse
+}
+
+function isDetailedArticle(article: NewsListItem | NewsDetailResponse['article']): article is NewsDetailResponse['article'] {
+  return 'canonicalUrl' in article
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('vi-VN', {
@@ -16,6 +31,64 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function getNewsArticleCacheKey(slug: string) {
+  return `${NEWS_ARTICLE_CACHE_PREFIX}${slug}`
+}
+
+function readNewsArticleCache(slug: string) {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getNewsArticleCacheKey(slug))
+    if (!raw) {
+      return null
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CachedNewsDetail>
+    if (typeof parsed.savedAt !== 'string' || !parsed.payload?.article) {
+      return null
+    }
+
+    const ageMs = Date.now() - new Date(parsed.savedAt).getTime()
+    if (!Number.isFinite(ageMs) || ageMs > NEWS_ARTICLE_CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(getNewsArticleCacheKey(slug))
+      return null
+    }
+
+    return parsed.payload
+  } catch {
+    return null
+  }
+}
+
+function writeNewsArticleCache(slug: string, payload: NewsDetailResponse) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const cached: CachedNewsDetail = {
+      savedAt: new Date().toISOString(),
+      payload,
+    }
+
+    window.localStorage.setItem(getNewsArticleCacheKey(slug), JSON.stringify(cached))
+  } catch {
+    // Best-effort cache for repeat article visits.
+  }
+}
+
+function getArticlePreview(state: unknown, slug: string | undefined) {
+  if (!slug || !state || typeof state !== 'object' || !('articlePreview' in state)) {
+    return null
+  }
+
+  const preview = (state as NewsArticleLocationState).articlePreview
+  return preview?.slug === slug ? preview : null
 }
 
 function StoryRail({ title, items }: { title: string; items: NewsListItem[] }) {
@@ -30,7 +103,12 @@ function StoryRail({ title, items }: { title: string; items: NewsListItem[] }) {
       </div>
       <div className="news-article__rail-list">
         {items.map(item => (
-          <Link key={item.slug} className="news-article__rail-item" to={`/tin-tuc/${item.slug}`}>
+          <Link
+            key={item.slug}
+            className="news-article__rail-item"
+            to={`/tin-tuc/${item.slug}`}
+            state={{ articlePreview: item } satisfies NewsArticleLocationState}
+          >
             <div className="news-article__rail-meta">
               <time>{new Date(item.publishedAt).toLocaleDateString('vi-VN')}</time>
             </div>
@@ -55,57 +133,76 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
 
 export default function NewsArticlePage() {
   const { slug } = useParams()
-  const [payload, setPayload] = useState<NewsDetailResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const location = useLocation()
+  const initialCachedPayload = slug ? readNewsArticleCache(slug) : null
+  const initialPreview = getArticlePreview(location.state, slug) ?? initialCachedPayload?.article ?? null
+  const [payload, setPayload] = useState<NewsDetailResponse | null>(initialCachedPayload)
+  const [preview, setPreview] = useState<NewsListItem | null>(initialPreview)
+  const [loading, setLoading] = useState(!initialCachedPayload)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let active = true
+    if (!slug) {
+      setPayload(null)
+      setPreview(null)
+      setLoading(false)
+      setError('Không tìm thấy bài viết')
+      return
+    }
+
+    const cachedPayload = readNewsArticleCache(slug)
+    const routePreview = getArticlePreview(location.state, slug)
+    const currentSlug = slug
+    const controller = new AbortController()
+
+    setPayload(cachedPayload)
+    setPreview(routePreview ?? cachedPayload?.article ?? null)
+    setError(null)
+    setLoading(!cachedPayload)
+    window.scrollTo({ top: 0 })
 
     async function loadArticle() {
-      setLoading(true)
       try {
-        const response = await fetch(buildApiUrl(`/api/news/articles/${slug}`))
+        const response = await fetch(buildApiUrl(`/api/news/articles/${slug}`), { signal: controller.signal })
         const json = (await response.json()) as NewsDetailResponse & { success?: boolean; error?: string }
         if (!response.ok || !json.success) {
           throw new Error(json.error ?? 'Không thể tải chi tiết bài viết')
         }
 
-        if (!active) {
-          return
-        }
-
         setPayload(json)
+        setPreview(current => (current?.slug === json.article.slug ? current : json.article))
         setError(null)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        writeNewsArticleCache(currentSlug, json)
       } catch (fetchError) {
-        if (!active) {
+        if (controller.signal.aborted) {
           return
         }
 
-        setPayload(null)
+        if (!cachedPayload) {
+          setPayload(null)
+        }
         setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải chi tiết bài viết')
       } finally {
-        if (active) {
-          setLoading(false)
-        }
+        setLoading(false)
       }
     }
 
-    if (slug) {
-      void loadArticle()
-    }
+    void loadArticle()
 
     return () => {
-      active = false
+      controller.abort()
     }
-  }, [slug])
+  }, [slug, location.state])
 
-  if (loading) {
+  const currentPayload = payload?.article.slug === slug ? payload : null
+  const currentPreview = preview?.slug === slug ? preview : null
+  const article = currentPayload?.article ?? currentPreview
+
+  if (!article && loading) {
     return <main className="news-article news-article--state">Đang tải bài viết...</main>
   }
 
-  if (error || !payload) {
+  if (error && !article) {
     return (
       <main className="news-article news-article--state">
         <p>{error ?? 'Không tìm thấy bài viết'}</p>
@@ -116,8 +213,20 @@ export default function NewsArticlePage() {
     )
   }
 
-  const { article, related, latestFromSource } = payload
-  const sanitizedHtml = DOMPurify.sanitize(article.contentHtml ?? '')
+  if (!article) {
+    return (
+      <main className="news-article news-article--state">
+        <p>Không tìm thấy bài viết</p>
+        <Link to="/" className="news-article__back-link">
+          Quay lại trang tin tức
+        </Link>
+      </main>
+    )
+  }
+
+  const sanitizedHtml = currentPayload?.article.contentHtml ? DOMPurify.sanitize(currentPayload.article.contentHtml) : ''
+  const related = currentPayload?.related ?? []
+  const latestFromSource = currentPayload?.latestFromSource ?? []
 
   return (
     <main className="news-article">
@@ -138,7 +247,7 @@ export default function NewsArticlePage() {
             <h1>{article.title}</h1>
             <p className="news-article__excerpt">{article.excerpt}</p>
             <div className="news-article__byline">
-              <span>{article.author ?? 'Ban biên tập NongSanVN'}</span>
+              <span>{isDetailedArticle(article) ? (article.author ?? 'Ban biên tập NongSanVN') : 'Ban biên tập NongSanVN'}</span>
               <time>{formatDate(article.publishedAt)}</time>
             </div>
             {article.topicTags.length > 0 ? (
@@ -158,22 +267,40 @@ export default function NewsArticlePage() {
             />
           </div>
 
-          <article className="news-article__body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+          {currentPayload ? (
+            <>
+              <article className="news-article__body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
 
-          {!article.contentHtml && article.contentText ? (
-            <article className="news-article__body">
-              <p>{article.contentText}</p>
-            </article>
-          ) : null}
+              {!currentPayload.article.contentHtml && currentPayload.article.contentText ? (
+                <article className="news-article__body">
+                  <p>{currentPayload.article.contentText}</p>
+                </article>
+              ) : null}
+            </>
+          ) : (
+            <section className="news-article__loading-panel" aria-live="polite">
+              <p className="news-article__loading-copy">Đang tải nội dung đầy đủ của bài viết...</p>
+              <div className="news-article__loading-lines" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </section>
+          )}
 
           <footer className="news-article__source-note">
             <p>
               Nguồn bài viết: <strong>{article.sourceLabel}</strong>
             </p>
-            <a href={article.canonicalUrl} target="_blank" rel="noreferrer noopener">
-              Xem bài gốc
-            </a>
+            {isDetailedArticle(article) ? (
+              <a href={article.canonicalUrl} target="_blank" rel="noreferrer noopener">
+                Xem bài gốc
+              </a>
+            ) : null}
           </footer>
+
+          {error ? <div className="news-article__inline-error">{error}</div> : null}
         </div>
 
         <aside className="news-article__aside">

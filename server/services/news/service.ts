@@ -77,6 +77,29 @@ type NewsRunRow = {
 }
 
 let sourceSyncPromise: Promise<void> | null = null
+const READ_CACHE_TTL_MS = 60 * 1000
+let sourceRecordsCache: { value: NewsSourceRecord[]; expiresAt: number } | null = null
+let articleRecordsCache: { value: NewsArticleRecord[]; expiresAt: number } | null = null
+
+function readCachedValue<T>(cache: { value: T; expiresAt: number } | null) {
+  if (!cache || cache.expiresAt <= Date.now()) {
+    return null
+  }
+
+  return cache.value
+}
+
+function writeCachedValue<T>(value: T) {
+  return {
+    value,
+    expiresAt: Date.now() + READ_CACHE_TTL_MS,
+  }
+}
+
+function clearReadCaches() {
+  sourceRecordsCache = null
+  articleRecordsCache = null
+}
 
 function isRelationMissing(error: unknown) {
   if (!error || typeof error !== 'object') {
@@ -195,8 +218,14 @@ async function ensureNewsSourcesSynced() {
 }
 
 async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
+  const cached = readCachedValue(sourceRecordsCache)
+  if (cached) {
+    return cached
+  }
+
   const runtime = getSupabaseRuntimeStatus()
   if (!runtime.hasReadConfig) {
+    sourceRecordsCache = writeCachedValue(FALLBACK_NEWS_SOURCES)
     return FALLBACK_NEWS_SOURCES
   }
 
@@ -218,25 +247,36 @@ async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
 
     const rows = (data ?? []) as NewsSourceRow[]
     if (rows.length === 0) {
+      sourceRecordsCache = writeCachedValue(FALLBACK_NEWS_SOURCES)
       return FALLBACK_NEWS_SOURCES
     }
 
-    return rows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row)).filter(isVisibleSourceRecord)
+    const records = rows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row)).filter(isVisibleSourceRecord)
+    sourceRecordsCache = writeCachedValue(records)
+    return records
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static sources:', error)
     }
 
+    sourceRecordsCache = writeCachedValue(FALLBACK_NEWS_SOURCES)
     return FALLBACK_NEWS_SOURCES
   }
 }
 
 async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
+  const cached = readCachedValue(articleRecordsCache)
+  if (cached) {
+    return cached
+  }
+
   const runtime = getSupabaseRuntimeStatus()
   const sources = await loadSourceRecords()
   const visibleSourceKeys = new Set(sources.map(source => source.key))
   if (!runtime.hasReadConfig) {
-    return loadLiveOrFallbackArticles(sources)
+    const records = await loadLiveOrFallbackArticles(sources)
+    articleRecordsCache = writeCachedValue(records)
+    return records
   }
 
   try {
@@ -258,18 +298,24 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
 
     const rows = (data ?? []) as NewsArticleRow[]
     if (rows.length === 0) {
-      return loadLiveOrFallbackArticles(sources)
+      const records = await loadLiveOrFallbackArticles(sources)
+      articleRecordsCache = writeCachedValue(records)
+      return records
     }
 
-    return rows
+    const records = rows
       .map(row => toArticleRecord(row, sources))
       .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
+    articleRecordsCache = writeCachedValue(records)
+    return records
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static articles:', error)
     }
 
-    return loadLiveOrFallbackArticles(sources)
+    const records = await loadLiveOrFallbackArticles(sources)
+    articleRecordsCache = writeCachedValue(records)
+    return records
   }
 }
 
@@ -542,6 +588,8 @@ async function persistCrawlResult(
         ? (articleRows as NewsArticleRow[]).map(row => toArticleRecord(row, [sourceRecord]))
         : normalizedArticles
 
+    clearReadCaches()
+
     return {
       source: { ...sourceRecord, latestDetectedAt },
       run,
@@ -607,6 +655,7 @@ export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCr
 
     if (result.items.length > 0) {
       rememberLiveNewsArticles(result.items)
+      clearReadCaches()
     }
 
     result.run.startedAt = startedAt
