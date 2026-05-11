@@ -33,6 +33,81 @@ function formatDate(value: string) {
   })
 }
 
+function normalizeTextContent(value: string | null | undefined) {
+  return (value ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function isPhoneLikeText(value: string) {
+  const normalized = normalizeTextContent(value)
+  return /(hotline|đường dây nóng|dien thoai|điện thoại|phone|tel)/i.test(normalized) || /\b(?:\+?84|0)\d(?:[\s.\-]?\d){7,12}\b/.test(normalized)
+}
+
+function isLikelyLinkList(list: Element) {
+  const items = Array.from(list.querySelectorAll(':scope > li'))
+  if (items.length < 3) {
+    return false
+  }
+
+  return items.every(item => {
+    const text = normalizeTextContent(item.textContent)
+    return text.length > 0 && text.length <= 40 && !/[.!?:;]/.test(text) && item.querySelector('a')
+  })
+}
+
+function stripArticleNoise(html: string) {
+  const sanitized = DOMPurify.sanitize(html)
+  if (typeof window === 'undefined') {
+    return sanitized
+  }
+
+  const parser = new DOMParser()
+  const document = parser.parseFromString(`<body>${sanitized}</body>`, 'text/html')
+  const root = document.body
+
+  for (const list of Array.from(root.querySelectorAll('ul, ol'))) {
+    if (isLikelyLinkList(list)) {
+      list.remove()
+    }
+  }
+
+  for (const element of Array.from(root.querySelectorAll('a[href^="tel:"], p, li, div, section, aside'))) {
+    const text = normalizeTextContent(element.textContent)
+    const isCompact = text.length > 0 && text.length <= 120
+
+    if (isCompact && isPhoneLikeText(text)) {
+      element.remove()
+    }
+  }
+
+  for (const anchor of Array.from(root.querySelectorAll('a'))) {
+    const text = normalizeTextContent(anchor.textContent)
+    if (!text) {
+      anchor.remove()
+      continue
+    }
+
+    anchor.replaceWith(document.createTextNode(text))
+  }
+
+  for (const element of Array.from(root.querySelectorAll('*')).reverse()) {
+    const text = normalizeTextContent(element.textContent)
+    const hasMedia = Boolean(element.querySelector('img, video, iframe, table'))
+    if (!text && !hasMedia && element.children.length === 0) {
+      element.remove()
+    }
+  }
+
+  return root.innerHTML
+}
+
+function stripArticleNoiseFromText(value: string) {
+  return value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !isPhoneLikeText(line))
+    .join('\n')
+}
+
 function getNewsArticleCacheKey(slug: string) {
   return `${NEWS_ARTICLE_CACHE_PREFIX}${slug}`
 }
@@ -224,7 +299,8 @@ export default function NewsArticlePage() {
     )
   }
 
-  const sanitizedHtml = currentPayload?.article.contentHtml ? DOMPurify.sanitize(currentPayload.article.contentHtml) : ''
+  const sanitizedHtml = currentPayload?.article.contentHtml ? stripArticleNoise(currentPayload.article.contentHtml) : ''
+  const sanitizedText = currentPayload?.article.contentText ? stripArticleNoiseFromText(currentPayload.article.contentText) : ''
   const related = currentPayload?.related ?? []
   const latestFromSource = currentPayload?.latestFromSource ?? []
 
@@ -271,9 +347,9 @@ export default function NewsArticlePage() {
             <>
               <article className="news-article__body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
 
-              {!currentPayload.article.contentHtml && currentPayload.article.contentText ? (
+              {!currentPayload.article.contentHtml && sanitizedText ? (
                 <article className="news-article__body">
-                  <p>{currentPayload.article.contentText}</p>
+                  <p>{sanitizedText}</p>
                 </article>
               ) : null}
             </>
@@ -293,11 +369,6 @@ export default function NewsArticlePage() {
             <p>
               Nguồn bài viết: <strong>{article.sourceLabel}</strong>
             </p>
-            {isDetailedArticle(article) ? (
-              <a href={article.canonicalUrl} target="_blank" rel="noreferrer noopener">
-                Xem bài gốc
-              </a>
-            ) : null}
           </footer>
 
           {error ? <div className="news-article__inline-error">{error}</div> : null}
