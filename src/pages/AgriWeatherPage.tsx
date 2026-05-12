@@ -10,7 +10,10 @@ import { buildApiUrl } from '../lib/api'
 import './AgriWeatherPage.css'
 
 const LAST_LOCATION_STORAGE_KEY = 'agri-weather:last-location'
+const LAST_LOCATION_SOURCE_STORAGE_KEY = 'agri-weather:last-location-source'
+const LEGACY_DEFAULT_MIGRATION_STORAGE_KEY = 'agri-weather:default-migrated-v2'
 const DEFAULT_LOCATION_CODE = 'HCM'
+const LEGACY_DEFAULT_LOCATION_CODE = 'DLK'
 
 export default function AgriWeatherPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -63,10 +66,19 @@ export default function AgriWeatherPage() {
     const isValidLocation = (code: string | null) => !!code && locations.some(location => location.code === code)
     const urlCode = searchParams.get('location')
     const savedCode = localStorage.getItem(LAST_LOCATION_STORAGE_KEY)
+    const savedSource = localStorage.getItem(LAST_LOCATION_SOURCE_STORAGE_KEY)
+    const legacyDefaultMigrated = localStorage.getItem(LEGACY_DEFAULT_MIGRATION_STORAGE_KEY) === '1'
+    const shouldMigrateLegacyDefault =
+      !urlCode &&
+      !legacyDefaultMigrated &&
+      savedCode === LEGACY_DEFAULT_LOCATION_CODE &&
+      savedSource !== 'user'
+    const resolvedSavedCode = shouldMigrateLegacyDefault ? null : savedCode
+
     const nextCode = isValidLocation(urlCode)
       ? urlCode
-      : isValidLocation(savedCode)
-        ? savedCode
+      : isValidLocation(resolvedSavedCode)
+        ? resolvedSavedCode
         : isValidLocation(DEFAULT_LOCATION_CODE)
           ? DEFAULT_LOCATION_CODE
           : locations[0]?.code ?? null
@@ -83,8 +95,16 @@ export default function AgriWeatherPage() {
       setSearchParams({ location: nextCode }, { replace: true })
     }
 
+    if (shouldMigrateLegacyDefault) {
+      localStorage.setItem(LEGACY_DEFAULT_MIGRATION_STORAGE_KEY, '1')
+    }
+
     if (savedCode !== nextCode) {
       localStorage.setItem(LAST_LOCATION_STORAGE_KEY, nextCode)
+    }
+
+    if (!savedSource || savedCode !== nextCode || shouldMigrateLegacyDefault) {
+      localStorage.setItem(LAST_LOCATION_SOURCE_STORAGE_KEY, urlCode === nextCode ? 'url' : 'system')
     }
   }, [locations, searchParams, selectedLocationCode, setSearchParams])
 
@@ -140,6 +160,8 @@ export default function AgriWeatherPage() {
     setSelectedLocationCode(code)
     setSearchParams({ location: code }, { replace: false })
     localStorage.setItem(LAST_LOCATION_STORAGE_KEY, code)
+    localStorage.setItem(LAST_LOCATION_SOURCE_STORAGE_KEY, 'user')
+    localStorage.setItem(LEGACY_DEFAULT_MIGRATION_STORAGE_KEY, '1')
   }
 
   function handleRefresh() {
