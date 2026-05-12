@@ -4,14 +4,13 @@ import WeatherAdvisoryCards from '../components/weather/WeatherAdvisoryCards'
 import WeatherDailyOutlook from '../components/weather/WeatherDailyOutlook'
 import WeatherHourlyOutlook from '../components/weather/WeatherHourlyOutlook'
 import WeatherLocationPicker from '../components/weather/WeatherLocationPicker'
-import WeatherSourceComparison from '../components/weather/WeatherSourceComparison'
 import type { AgriWeatherPayload, WeatherLocationSummary } from '../data/agriWeatherTypes'
-import { CONDITION_LABELS, WEATHER_PROVIDER_META } from '../data/agriWeatherTypes'
+import { CONDITION_LABELS } from '../data/agriWeatherTypes'
 import { buildApiUrl } from '../lib/api'
 import './AgriWeatherPage.css'
 
 const LAST_LOCATION_STORAGE_KEY = 'agri-weather:last-location'
-const DEFAULT_LOCATION_CODE = 'DLK'
+const DEFAULT_LOCATION_CODE = 'HCM'
 
 export default function AgriWeatherPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -135,7 +134,6 @@ export default function AgriWeatherPage() {
     [locations, selectedLocationCode],
   )
 
-  const activeSourceCount = payload?.sourceStatus.filter(source => source.success).length ?? 0
   const lastUpdatedLabel = payload?.updatedAt ? new Date(payload.updatedAt).toLocaleString('vi-VN') : '--'
 
   function handleLocationChange(code: string) {
@@ -157,11 +155,11 @@ export default function AgriWeatherPage() {
     <div className="agri-weather-page">
       <header className="agri-weather-page__hero">
         <div className="agri-weather-page__hero-copy">
-          <span className="agri-weather-page__eyebrow">Thời tiết nông nghiệp đa nguồn</span>
+          <span className="agri-weather-page__eyebrow">Thời tiết nông nghiệp tổng hợp</span>
           <h1>Dự báo thời tiết phục vụ vận hành ngoài ruộng</h1>
           <p>
-            Tổng hợp từ Open-Meteo, MET.no và WeatherAPI để hỗ trợ theo dõi mưa, nhiệt, gió, UV và các cảnh báo
-            canh tác cơ bản theo từng địa phương.
+            Dữ liệu được tổng hợp tự động từ các nguồn khả dụng để hỗ trợ theo dõi mưa, nhiệt, gió, UV và các cảnh
+            báo canh tác cơ bản theo từng địa phương.
           </p>
         </div>
 
@@ -188,14 +186,14 @@ export default function AgriWeatherPage() {
       <section className="agri-weather-page__banner">
         <article className={`agri-weather-page__status agri-weather-page__status--${payload?.status ?? 'partial'}`}>
           <span className="agri-weather-page__status-label">
-            {activeSourceCount}/3 nguồn · {payload?.status ?? 'partial'}
+            {payload?.status === 'stale' ? 'Bản lưu gần nhất' : 'Dự báo tổng hợp'}
           </span>
           <strong>
             {payload?.status === 'stale'
-              ? 'Đang dùng cache cũ để giữ page khả dụng'
+              ? 'Dữ liệu đang hiển thị là bản lưu gần nhất để giữ page khả dụng.'
               : payload?.status === 'partial'
-                ? 'Có nguồn lỗi nhưng forecast tổng hợp vẫn khả dụng'
-                : 'Dữ liệu đồng bộ mới từ các nguồn thời tiết'}
+                ? 'Một phần nguồn đang gián đoạn nhưng forecast tổng hợp vẫn hoạt động bình thường.'
+                : 'Dữ liệu tổng hợp mới nhất đã sẵn sàng để theo dõi ngắn hạn.'}
           </strong>
         </article>
 
@@ -221,31 +219,23 @@ export default function AgriWeatherPage() {
           <WeatherAdvisoryCards advisories={payload.advisories} />
           <WeatherHourlyOutlook hours={payload.hourly72h} />
           <WeatherDailyOutlook days={payload.daily7d} />
-          <WeatherSourceComparison rows={payload.comparison} />
 
           <section className="weather-section">
             <div className="weather-section__heading">
               <div>
-                <span className="weather-section__eyebrow">Attribution</span>
-                <h2 className="weather-section__title">Nguồn dữ liệu và lưu ý sử dụng</h2>
+                <span className="weather-section__eyebrow">Lưu ý sử dụng</span>
+                <h2 className="weather-section__title">Forecast tổng hợp cho vận hành ngắn hạn</h2>
               </div>
             </div>
 
             <div className="agri-weather-page__attribution">
-              {payload.sourceStatus.map(source => (
-                <article key={source.provider} className={`agri-weather-page__source${source.success ? '' : ' agri-weather-page__source--error'}`}>
-                  <div>
-                    <strong>{WEATHER_PROVIDER_META[source.provider].label}</strong>
-                    <a href={WEATHER_PROVIDER_META[source.provider].sourceUrl} target="_blank" rel="noreferrer">
-                      tài liệu nguồn
-                    </a>
-                  </div>
-                  <span>{source.success ? `Horizon ${source.horizonDays} ngày` : source.error ?? 'Lỗi nguồn'}</span>
-                </article>
-              ))}
               <p className="agri-weather-page__disclaimer">
-                Dữ liệu dùng để tham khảo vận hành ngắn hạn. Không thay thế khuyến cáo chuyên môn chuyên sâu theo từng
-                cây trồng hoặc điều kiện vi khí hậu tại ruộng.
+                Dự báo được tổng hợp tự động từ các nguồn dữ liệu khả dụng. Khi một số nguồn gián đoạn, hệ thống vẫn
+                tiếp tục hiển thị forecast tổng hợp từ các nguồn còn lại.
+              </p>
+              <p className="agri-weather-page__disclaimer">
+                Dữ liệu dùng để tham khảo vận hành ngắn hạn, không thay thế đánh giá thực địa hoặc khuyến cáo chuyên
+                môn chuyên sâu theo từng cây trồng.
               </p>
             </div>
           </section>

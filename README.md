@@ -47,7 +47,7 @@ Required environment variables:
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
 - `WEATHERAPI_KEY` for the third agricultural weather provider on `/thoi-tiet-nong-nghiep`
 - `WEATHER_MET_USER_AGENT` for the MET.no weather adapter
-- `WEATHER_CACHE_TTL_MINUTES`, `WEATHER_PROVIDER_TIMEOUT_MS`, and `WEATHER_DEFAULT_LOCATION_CODE` to tune agricultural weather caching/defaults
+- `WEATHER_CACHE_TTL_MINUTES`, `WEATHER_PROVIDER_TIMEOUT_MS`, and `WEATHER_DEFAULT_LOCATION_CODE` to tune agricultural weather caching/defaults. The weather page falls back to `HCM` by default if neither the URL nor local storage specifies a location.
 - `WEATHER_OPEN_METEO_BASE_URL` and optional `WEATHER_OPEN_METEO_API_KEY` if production uses a customer/self-hosted Open-Meteo endpoint
 
 Runtime behavior:
@@ -64,6 +64,7 @@ Runtime behavior:
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
 - The agricultural weather page fetches through the server only, caches per `locationCode`, serves partial data when one provider is down, and falls back to stale cache when all providers fail temporarily.
+- User-facing numeric forecast values are arithmetic averages across the providers that are still available for a given hour or day. If only one provider is alive, its values pass through unchanged.
 
 Quick local verification for the ingestion pipeline:
 
@@ -130,8 +131,8 @@ Quick local verification for the agricultural weather page:
 - Set `WEATHERAPI_KEY` if you want all 3 providers; without it the page should still render in `partial` mode using Open-Meteo and MET.no.
 - Start the app with `npm run dev`.
 - Check location list: `GET /api/agri-weather/locations`.
-- Check one forecast payload: `GET /api/agri-weather?locationCode=DLK`.
-- Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=DLK` with `Authorization: Bearer $ADMIN_API_KEY`.
+- Check one forecast payload: `GET /api/agri-weather?locationCode=HCM`.
+- Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=HCM` with `Authorization: Bearer $ADMIN_API_KEY`.
 
 ## React + TypeScript + Vite
 

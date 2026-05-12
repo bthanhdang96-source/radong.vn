@@ -62,5 +62,5 @@ export function hasWeatherLocation(code: string | null | undefined) {
 }
 
 export function getDefaultWeatherLocation() {
-  return getWeatherLocation(process.env.WEATHER_DEFAULT_LOCATION_CODE ?? 'DLK') ?? getWeatherLocation('DLK') ?? listWeatherLocations()[0]
+  return getWeatherLocation(process.env.WEATHER_DEFAULT_LOCATION_CODE ?? 'HCM') ?? getWeatherLocation('HCM') ?? listWeatherLocations()[0]
 }

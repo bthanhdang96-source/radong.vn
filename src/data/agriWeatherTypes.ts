@@ -25,6 +25,7 @@ export interface WeatherLocationSummary {
 
 export interface WeatherCurrentSummary {
   time: string
+  // Numeric weather values shown in the UI are arithmetic averages across available providers.
   tempC: number | null
   humidityPct: number | null
   rainMm: number | null
@@ -110,6 +111,7 @@ export interface AgriWeatherPayload {
   hourly72h: ForecastHour[]
   daily7d: ForecastDay[]
   advisories: AgriAdvisory[]
+  // Retained for internal diagnostics and admin tooling, not rendered on the main weather page.
   sourceStatus: WeatherSourceStatus[]
   comparison: DailyComparisonRow[]
   providerErrors: string[]

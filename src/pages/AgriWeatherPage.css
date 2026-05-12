@@ -239,42 +239,63 @@
   color: rgb(211 227 236 / 0.76);
 }
 
-.weather-picker__control {
+.weather-picker {
   position: relative;
-  display: flex;
-  border: 1px solid rgb(255 255 255 / 0.14);
-  border-radius: 18px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.06);
 }
 
-.weather-picker__control--open {
+.weather-picker__trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.06);
+  color: white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.weather-picker__trigger:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.weather-picker__trigger--open {
   border-color: rgb(244 162 97 / 0.65);
   box-shadow: 0 0 0 4px rgb(244 162 97 / 0.12);
 }
 
-.weather-picker__input {
-  width: 100%;
-  border: 0;
-  padding: 14px 16px;
-  background: transparent;
-  color: white;
+.weather-picker__trigger-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.weather-picker__input::placeholder {
-  color: rgb(205 220 228 / 0.52);
+.weather-picker__trigger-copy strong,
+.weather-picker__trigger-copy span {
+  display: block;
 }
 
-.weather-picker__input:focus {
-  outline: none;
+.weather-picker__trigger-copy strong {
+  font-size: 1rem;
+}
+
+.weather-picker__trigger-copy span {
+  color: rgb(208 224 231 / 0.68);
+  font-size: 0.78rem;
 }
 
 .weather-picker__chevron {
-  border: 0;
-  padding: 0 16px;
-  background: transparent;
+  flex-shrink: 0;
   color: rgb(214 229 235 / 0.78);
-  cursor: pointer;
+}
+
+.weather-picker__trigger--open .weather-picker__chevron {
+  transform: rotate(180deg);
 }
 
 .weather-picker__chevron svg {
@@ -282,23 +303,43 @@
   height: 18px;
 }
 
-.weather-picker__hint {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-  font-size: 0.76rem;
-  color: rgb(208 224 231 / 0.68);
-}
-
 .weather-picker__menu {
-  position: relative;
-  z-index: 3;
-  max-height: 296px;
-  margin-top: 12px;
-  overflow: auto;
+  position: absolute;
+  z-index: 5;
+  inset: calc(100% + 12px) 0 auto;
   border-radius: 18px;
   background: rgb(7 24 38 / 0.98);
   border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: 0 24px 48px rgb(6 18 29 / 0.34);
+}
+
+.weather-picker__search {
+  padding: 14px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.weather-picker__search-input {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgb(255 255 255 / 0.06);
+  color: white;
+}
+
+.weather-picker__search-input::placeholder {
+  color: rgb(205 220 228 / 0.52);
+}
+
+.weather-picker__search-input:focus {
+  outline: none;
+  border-color: rgb(244 162 97 / 0.65);
+  box-shadow: 0 0 0 4px rgb(244 162 97 / 0.12);
+}
+
+.weather-picker__options {
+  max-height: 296px;
+  overflow: auto;
 }
 
 .weather-picker__option,
@@ -543,98 +584,19 @@
   color: var(--color-text-muted);
 }
 
-.weather-comparison {
+.agri-weather-page__attribution {
   display: grid;
-  gap: 8px;
-}
-
-.weather-comparison__header,
-.weather-comparison__row {
-  display: grid;
-  grid-template-columns: 140px repeat(4, minmax(180px, 1fr));
   gap: 10px;
 }
 
-.weather-comparison__header {
-  padding: 0 4px 10px;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.weather-comparison__row > * {
-  min-height: 92px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgb(21 80 112 / 0.05);
-}
-
-:root[data-theme="dark"] .weather-comparison__row > * {
-  background: rgb(255 255 255 / 0.04);
-}
-
-.weather-comparison__day {
-  display: flex;
-  align-items: center;
-  font-weight: 700;
-}
-
-.weather-comparison__cellstack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--color-text-muted);
-}
-
-.weather-comparison__cellstack strong {
-  color: var(--color-text);
-}
-
-.weather-comparison__muted {
-  color: var(--color-text-muted);
-}
-
-.agri-weather-page__attribution {
-  display: grid;
-  gap: 12px;
-}
-
-.agri-weather-page__source {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgb(19 126 109 / 0.06);
-}
-
-.agri-weather-page__source--error {
-  background: rgb(214 92 80 / 0.08);
-}
-
-.agri-weather-page__source div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.agri-weather-page__source span,
 .agri-weather-page__disclaimer {
   color: var(--color-text-muted);
-}
-
-.agri-weather-page__disclaimer {
-  padding-top: 8px;
 }
 
 @media (max-width: 1200px) {
   .agri-weather-page__hero,
   .agri-weather-page__banner,
-  .weather-daily,
-  .weather-comparison__header,
-  .weather-comparison__row {
+  .weather-daily {
     grid-template-columns: 1fr;
   }
 
@@ -659,6 +621,12 @@
   .agri-weather-page__hero-status {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .weather-picker__menu {
+    position: relative;
+    inset: auto;
+    margin-top: 12px;
   }
 
   .weather-hourly {

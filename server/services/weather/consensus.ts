@@ -9,10 +9,9 @@ import type {
   WeatherProviderId,
 } from './types.js'
 import {
+  averageNumbers,
   getAgreementLevel,
   getProviderPriority,
-  maxNumber,
-  medianNumbers,
   pickConsensusCondition,
   uniqueSorted,
 } from './utils.js'
@@ -41,12 +40,12 @@ export function buildHourlyConsensus(forecasts: WeatherProviderForecast[], limit
 
     return {
       time,
-      tempC: medianNumbers(providers.map(provider => provider.entry.tempC)),
-      humidityPct: medianNumbers(providers.map(provider => provider.entry.humidityPct)),
-      rainMm: medianNumbers(providers.map(provider => provider.entry.rainMm)),
-      rainProbabilityPct: maxNumber(providers.map(provider => provider.entry.rainProbabilityPct), 0),
-      windKph: medianNumbers(providers.map(provider => provider.entry.windKph)),
-      uv: medianNumbers(providers.map(provider => provider.entry.uv)),
+      tempC: averageNumbers(providers.map(provider => provider.entry.tempC)),
+      humidityPct: averageNumbers(providers.map(provider => provider.entry.humidityPct)),
+      rainMm: averageNumbers(providers.map(provider => provider.entry.rainMm)),
+      rainProbabilityPct: averageNumbers(providers.map(provider => provider.entry.rainProbabilityPct), 0),
+      windKph: averageNumbers(providers.map(provider => provider.entry.windKph)),
+      uv: averageNumbers(providers.map(provider => provider.entry.uv)),
       conditionKey: pickConsensusCondition(
         providers.map(provider => ({
           provider: provider.provider,
@@ -88,14 +87,14 @@ export function buildDailyConsensus(forecasts: WeatherProviderForecast[], limit 
 
     return {
       date,
-      tempMinC: medianNumbers(providers.map(provider => provider.entry.tempMinC)),
-      tempMaxC: medianNumbers(providers.map(provider => provider.entry.tempMaxC)),
-      humidityAvgPct: medianNumbers(providers.map(provider => provider.entry.humidityAvgPct)),
-      rainMm: medianNumbers(providers.map(provider => provider.entry.rainMm)),
-      rainProbabilityPct: maxNumber(providers.map(provider => provider.entry.rainProbabilityPct), 0),
-      windMaxKph: maxNumber(providers.map(provider => provider.entry.windMaxKph)),
-      uvMax: maxNumber(providers.map(provider => provider.entry.uvMax)),
-      et0Mm: medianNumbers(providers.map(provider => provider.entry.et0Mm)),
+      tempMinC: averageNumbers(providers.map(provider => provider.entry.tempMinC)),
+      tempMaxC: averageNumbers(providers.map(provider => provider.entry.tempMaxC)),
+      humidityAvgPct: averageNumbers(providers.map(provider => provider.entry.humidityAvgPct)),
+      rainMm: averageNumbers(providers.map(provider => provider.entry.rainMm)),
+      rainProbabilityPct: averageNumbers(providers.map(provider => provider.entry.rainProbabilityPct), 0),
+      windMaxKph: averageNumbers(providers.map(provider => provider.entry.windMaxKph)),
+      uvMax: averageNumbers(providers.map(provider => provider.entry.uvMax)),
+      et0Mm: averageNumbers(providers.map(provider => provider.entry.et0Mm)),
       providerCount: providers.length,
       agreement: getAgreementLevel(
         providers.map(provider => provider.entry.tempMaxC),
@@ -153,11 +152,11 @@ export function buildCurrentConsensus(
 
   return {
     time: currentProviders[0].current.time,
-    tempC: medianNumbers(currentProviders.map(provider => provider.current.tempC)),
-    humidityPct: medianNumbers(currentProviders.map(provider => provider.current.humidityPct)),
-    rainMm: medianNumbers(currentProviders.map(provider => provider.current.rainMm)),
-    windKph: medianNumbers(currentProviders.map(provider => provider.current.windKph)),
-    uv: medianNumbers(currentProviders.map(provider => provider.current.uv)),
+    tempC: averageNumbers(currentProviders.map(provider => provider.current.tempC)),
+    humidityPct: averageNumbers(currentProviders.map(provider => provider.current.humidityPct)),
+    rainMm: averageNumbers(currentProviders.map(provider => provider.current.rainMm)),
+    windKph: averageNumbers(currentProviders.map(provider => provider.current.windKph)),
+    uv: averageNumbers(currentProviders.map(provider => provider.current.uv)),
     conditionKey: pickConsensusCondition(
       currentProviders.map(provider => ({
         provider: provider.provider,

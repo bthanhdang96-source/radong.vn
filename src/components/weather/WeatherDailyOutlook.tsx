@@ -23,7 +23,7 @@ export default function WeatherDailyOutlook({ days }: WeatherDailyOutlookProps) 
                 <strong>{formatDayLabel(day.date)}</strong>
                 <span>{CONDITION_LABELS[day.conditionKey]}</span>
               </div>
-              <span className={`weather-daily__badge weather-daily__badge--${day.agreement}`}>{day.providerCount} nguồn</span>
+              <span className={`weather-daily__badge weather-daily__badge--${day.agreement}`}>{AGREEMENT_LABELS[day.agreement]}</span>
             </div>
             <div className="weather-daily__temps">
               <strong>{day.tempMaxC !== null ? `${day.tempMaxC.toFixed(1)}°` : '--'}</strong>
@@ -37,9 +37,6 @@ export default function WeatherDailyOutlook({ days }: WeatherDailyOutlookProps) 
               <span>UV max: {day.uvMax !== null ? day.uvMax.toFixed(1) : '--'}</span>
               <span>ET0: {day.et0Mm !== null ? `${day.et0Mm.toFixed(1)} mm` : '--'}</span>
             </div>
-            <small className={`weather-daily__agreement weather-daily__agreement--${day.agreement}`}>
-              {AGREEMENT_LABELS[day.agreement]}
-            </small>
           </article>
         ))}
       </div>

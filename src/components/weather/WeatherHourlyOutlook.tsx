@@ -11,7 +11,7 @@ export default function WeatherHourlyOutlook({ hours }: WeatherHourlyOutlookProp
       <div className="weather-section__heading">
         <div>
           <span className="weather-section__eyebrow">Khung 72 giờ đầu</span>
-          <h2 className="weather-section__title">Dự báo theo giờ từ nhiều nguồn</h2>
+          <h2 className="weather-section__title">Dự báo theo giờ tổng hợp</h2>
         </div>
       </div>
 
@@ -21,7 +21,7 @@ export default function WeatherHourlyOutlook({ hours }: WeatherHourlyOutlookProp
             <div className="weather-hourly__meta">
               <span>{formatHourLabel(hour.time)}</span>
               <span className={`weather-hourly__agreement weather-hourly__agreement--${hour.agreement}`}>
-                {hour.providerCount} nguồn · {AGREEMENT_LABELS[hour.agreement]}
+                {AGREEMENT_LABELS[hour.agreement]}
               </span>
             </div>
             <strong className="weather-hourly__temp">{hour.tempC !== null ? `${hour.tempC.toFixed(1)}°C` : '--'}</strong>
