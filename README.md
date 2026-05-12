@@ -45,6 +45,10 @@ Required environment variables:
 - `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` for the live BHX location/bootstrap requests
 - `COOP_CRAWL_ENABLED`, `COOP_CRAWL_CRON`, `COOP_SCHEDULE_DRY_RUN`, `COOP_ENABLED_REGIONS`, `COOP_ENABLED_CATEGORIES`, `COOP_MAX_PAGES_PER_CATEGORY` to tune the Co.op retail crawler
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
+- `WEATHERAPI_KEY` for the third agricultural weather provider on `/thoi-tiet-nong-nghiep`
+- `WEATHER_MET_USER_AGENT` for the MET.no weather adapter
+- `WEATHER_CACHE_TTL_MINUTES`, `WEATHER_PROVIDER_TIMEOUT_MS`, and `WEATHER_DEFAULT_LOCATION_CODE` to tune agricultural weather caching/defaults
+- `WEATHER_OPEN_METEO_BASE_URL` and optional `WEATHER_OPEN_METEO_API_KEY` if production uses a customer/self-hosted Open-Meteo endpoint
 
 Runtime behavior:
 
@@ -59,6 +63,7 @@ Runtime behavior:
 - Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
+- The agricultural weather page fetches through the server only, caches per `locationCode`, serves partial data when one provider is down, and falls back to stale cache when all providers fail temporarily.
 
 Quick local verification for the ingestion pipeline:
 
@@ -119,6 +124,14 @@ Quick local verification for the dedicated crawler scheduler:
 - For detailed scheduler diagnostics, call `/api/health/details` with `Authorization: Bearer $ADMIN_API_KEY`.
 - For a safe smoke test, set `COOP_CRAWL_ENABLED=true`, `COOP_SCHEDULE_DRY_RUN=true`, `SHOPEE_SCHEDULER_ENABLED=true`, `SHOPEE_SCHEDULE_DRY_RUN=true`, and `CUSTOMS_SCHEDULER_ENABLED=true`, `CUSTOMS_SCHEDULE_DRY_RUN=true`.
 - The scheduler keeps a simple in-memory lock so the same job does not overlap with itself if a previous run is still active.
+
+Quick local verification for the agricultural weather page:
+
+- Set `WEATHERAPI_KEY` if you want all 3 providers; without it the page should still render in `partial` mode using Open-Meteo and MET.no.
+- Start the app with `npm run dev`.
+- Check location list: `GET /api/agri-weather/locations`.
+- Check one forecast payload: `GET /api/agri-weather?locationCode=DLK`.
+- Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=DLK` with `Authorization: Bearer $ADMIN_API_KEY`.
 
 ## React + TypeScript + Vite
 

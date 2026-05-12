@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia'] },
   { label: 'Chuỗi giá', to: '/chuoi-gia', matches: ['/chuoi-gia'] },
   { label: 'Thế giới', to: '/thegioi', matches: ['/thegioi'] },
+  { label: 'Thời tiết', to: '/thoi-tiet-nong-nghiep', matches: ['/thoi-tiet-nong-nghiep'] },
 ]
 
 function isLinkActive(pathname: string, link: (typeof NAV_LINKS)[number]) {

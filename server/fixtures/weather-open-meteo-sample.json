@@ -1,0 +1,33 @@
+{
+  "current": {
+    "time": "2026-05-12T22:00",
+    "temperature_2m": 27.2,
+    "relative_humidity_2m": 68,
+    "precipitation": 0,
+    "wind_speed_10m": 5.5,
+    "uv_index": 0,
+    "weather_code": 3
+  },
+  "hourly": {
+    "time": ["2026-05-12T22:00", "2026-05-12T23:00", "2026-05-13T00:00"],
+    "temperature_2m": [27.2, 26.8, 26.4],
+    "relative_humidity_2m": [68, 70, 74],
+    "precipitation": [0, 0.1, 1.8],
+    "precipitation_probability": [5, 10, 72],
+    "wind_speed_10m": [5.5, 6.1, 7.2],
+    "uv_index": [0, 0, 0],
+    "et0_fao_evapotranspiration": [0.01, 0.01, 0.02],
+    "weather_code": [3, 3, 61]
+  },
+  "daily": {
+    "time": ["2026-05-12", "2026-05-13"],
+    "weather_code": [3, 61],
+    "temperature_2m_min": [24.2, 24.8],
+    "temperature_2m_max": [33.5, 32.1],
+    "precipitation_sum": [0.8, 18.4],
+    "precipitation_probability_max": [15, 85],
+    "wind_speed_10m_max": [11.4, 18.2],
+    "uv_index_max": [8.2, 6.1],
+    "et0_fao_evapotranspiration_sum": [5.8, 4.3]
+  }
+}

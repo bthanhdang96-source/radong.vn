@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import AgriWeatherPage from './pages/AgriWeatherPage'
 import HomeDashboard from './pages/HomeDashboard'
 import NewsArticlePage from './pages/NewsArticlePage'
 import NewsIndexPage from './pages/NewsIndexPage'
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/bang-gia" element={<HomeDashboard />} />
           <Route path="/chuoi-gia" element={<PriceChainPage />} />
           <Route path="/thegioi" element={<WorldPricesPage />} />
+          <Route path="/thoi-tiet-nong-nghiep" element={<AgriWeatherPage />} />
         </Routes>
       </div>
       <Footer />

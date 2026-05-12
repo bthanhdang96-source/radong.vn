@@ -1,0 +1,94 @@
+{
+  "properties": {
+    "timeseries": [
+      {
+        "time": "2026-05-12T15:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_temperature": 27.8,
+              "relative_humidity": 70,
+              "ultraviolet_index_clear_sky": 0,
+              "wind_speed": 1.5,
+              "fog_area_fraction": 0
+            }
+          },
+          "next_1_hours": {
+            "summary": {
+              "symbol_code": "cloudy"
+            },
+            "details": {
+              "precipitation_amount": 0
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-05-12T16:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_temperature": 27.1,
+              "relative_humidity": 72,
+              "ultraviolet_index_clear_sky": 0,
+              "wind_speed": 1.8,
+              "fog_area_fraction": 0
+            }
+          },
+          "next_1_hours": {
+            "summary": {
+              "symbol_code": "cloudy"
+            },
+            "details": {
+              "precipitation_amount": 0.2
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-05-12T17:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_temperature": 26.5,
+              "relative_humidity": 78,
+              "ultraviolet_index_clear_sky": 0,
+              "wind_speed": 2.4,
+              "fog_area_fraction": 0
+            }
+          },
+          "next_1_hours": {
+            "summary": {
+              "symbol_code": "lightrain"
+            },
+            "details": {
+              "precipitation_amount": 1.4
+            }
+          }
+        }
+      },
+      {
+        "time": "2026-05-13T06:00:00Z",
+        "data": {
+          "instant": {
+            "details": {
+              "air_temperature": 31.6,
+              "relative_humidity": 63,
+              "ultraviolet_index_clear_sky": 7.2,
+              "wind_speed": 3.3,
+              "fog_area_fraction": 0
+            }
+          },
+          "next_1_hours": {
+            "summary": {
+              "symbol_code": "partlycloudy_day"
+            },
+            "details": {
+              "precipitation_amount": 0
+            }
+          }
+        }
+      }
+    ]
+  }
+}

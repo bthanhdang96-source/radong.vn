@@ -302,7 +302,7 @@ async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
     }
 
     const workbook = new ExcelJS.Workbook()
-    const workbookBuffer = Buffer.from(buffer) as any
+    const workbookBuffer = Buffer.from(buffer) as unknown as Parameters<typeof workbook.xlsx.load>[0]
     await workbook.xlsx.load(workbookBuffer)
     const sheet = workbook.worksheets.find(
       worksheet =>

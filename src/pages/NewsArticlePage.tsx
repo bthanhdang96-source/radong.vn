@@ -46,7 +46,7 @@ function normalizeSearchText(value: string | null | undefined) {
 
 function isPhoneLikeText(value: string) {
   const normalized = normalizeSearchText(value)
-  return /(hotline|duong day nong|dien thoai|phone|tel)/.test(normalized) || /\b(?:\+?84|0)\d(?:[\s.\-]?\d){7,12}\b/.test(value)
+  return /(hotline|duong day nong|dien thoai|phone|tel)/.test(normalized) || /\b(?:\+?84|0)\d(?:[\s.-]?\d){7,12}\b/.test(value)
 }
 
 function isNoiseHeadingText(value: string) {

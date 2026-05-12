@@ -1,0 +1,99 @@
+{
+  "current": {
+    "last_updated": "2026-05-12 22:00",
+    "temp_c": 27,
+    "humidity": 71,
+    "precip_mm": 0,
+    "wind_kph": 6.3,
+    "uv": 0,
+    "condition": {
+      "text": "Cloudy"
+    }
+  },
+  "forecast": {
+    "forecastday": [
+      {
+        "date": "2026-05-12",
+        "day": {
+          "maxtemp_c": 33.1,
+          "mintemp_c": 24.5,
+          "avghumidity": 72,
+          "totalprecip_mm": 0.6,
+          "daily_chance_of_rain": 18,
+          "maxwind_kph": 13.2,
+          "uv": 8.1,
+          "condition": {
+            "text": "Cloudy"
+          }
+        },
+        "hour": [
+          {
+            "time": "2026-05-12 22:00",
+            "temp_c": 27,
+            "humidity": 71,
+            "precip_mm": 0,
+            "chance_of_rain": 10,
+            "wind_kph": 6.3,
+            "uv": 0,
+            "condition": {
+              "text": "Cloudy"
+            }
+          },
+          {
+            "time": "2026-05-12 23:00",
+            "temp_c": 26.7,
+            "humidity": 73,
+            "precip_mm": 0,
+            "chance_of_rain": 12,
+            "wind_kph": 6.5,
+            "uv": 0,
+            "condition": {
+              "text": "Cloudy"
+            }
+          }
+        ]
+      },
+      {
+        "date": "2026-05-13",
+        "day": {
+          "maxtemp_c": 31.8,
+          "mintemp_c": 25.1,
+          "avghumidity": 79,
+          "totalprecip_mm": 16.5,
+          "daily_chance_of_rain": 82,
+          "maxwind_kph": 18.5,
+          "uv": 6.2,
+          "condition": {
+            "text": "Moderate rain"
+          }
+        },
+        "hour": [
+          {
+            "time": "2026-05-13 00:00",
+            "temp_c": 26.2,
+            "humidity": 78,
+            "precip_mm": 1.9,
+            "chance_of_rain": 78,
+            "wind_kph": 8.4,
+            "uv": 0,
+            "condition": {
+              "text": "Moderate rain"
+            }
+          },
+          {
+            "time": "2026-05-13 01:00",
+            "temp_c": 25.9,
+            "humidity": 80,
+            "precip_mm": 2.4,
+            "chance_of_rain": 82,
+            "wind_kph": 9.2,
+            "uv": 0,
+            "condition": {
+              "text": "Moderate rain"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
