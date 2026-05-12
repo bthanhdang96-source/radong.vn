@@ -304,9 +304,9 @@
 }
 
 .weather-picker__menu {
-  position: absolute;
-  z-index: 5;
-  inset: calc(100% + 12px) 0 auto;
+  position: relative;
+  z-index: 2;
+  margin-top: 12px;
   border-radius: 18px;
   background: rgb(7 24 38 / 0.98);
   border: 1px solid rgb(255 255 255 / 0.12);
@@ -621,12 +621,6 @@
   .agri-weather-page__hero-status {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .weather-picker__menu {
-    position: relative;
-    inset: auto;
-    margin-top: 12px;
   }
 
   .weather-hourly {
