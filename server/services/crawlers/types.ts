@@ -68,6 +68,13 @@ export interface RegionPrice {
   conflictPct: number | null;
 }
 
+export type TrendDirection = 'Tăng' | 'Giảm' | 'Trung tính';
+
+export interface CommoditySparkPoint {
+  date: string;
+  priceAvg: number;
+}
+
 export interface CommoditySummary {
   commodity: string;
   commodityName: string;
@@ -83,6 +90,9 @@ export interface CommoditySummary {
   regions: RegionPrice[];
   sources: SourceId[];
   recommendation: 'Mua' | 'Bán' | 'Giữ';
+  trend7dPct: number | null;
+  trendDirection: TrendDirection;
+  sparkline30d: CommoditySparkPoint[];
   lastUpdated: string;
 }
 

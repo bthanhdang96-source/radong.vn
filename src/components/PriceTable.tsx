@@ -4,31 +4,59 @@ import {
   FALLBACK_VN_PRICES,
   SOURCE_LABELS,
   type CommoditySummary,
+  type TrendDirection,
 } from '../data/vnPriceTypes';
+import { buildSparklinePath, getSparklineLastPoint, getTrendDirection } from '../utils/priceTrend';
 import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat';
 import './PriceTable.css';
 
 type SortKey = 'commodityName' | 'priceAvg' | 'change' | 'changePct';
 type SortDir = 'asc' | 'desc';
 
-function RangeBar({ low, high, current }: { low: number; high: number; current: number }) {
-  const safeHigh = high <= low ? low + 1 : high;
-  const pct = Math.min(100, Math.max(0, ((current - low) / (safeHigh - low)) * 100));
+const SPARKLINE_WIDTH = 160;
+const SPARKLINE_HEIGHT = 30;
 
-  return (
-    <div className="range-bar">
-      <span className="range-bar__low">{Math.round(low / 1000)}k</span>
-      <div className="range-bar__track">
-        <div className="range-bar__fill" style={{ width: `${pct}%` }} />
-        <div className="range-bar__dot" style={{ left: `${pct}%` }} />
-      </div>
-      <span className="range-bar__high">{Math.round(high / 1000)}k</span>
-    </div>
-  );
+function getTrendVariant(direction: TrendDirection) {
+  if (direction === 'Tăng') {
+    return 'up';
+  }
+
+  if (direction === 'Giảm') {
+    return 'down';
+  }
+
+  return 'neutral';
 }
 
-function RecommendationBadge({ value }: { value: CommoditySummary['recommendation'] }) {
-  return <span className={`badge badge--${value.toLowerCase()}`}>{value}</span>;
+function TrendBadge({ value }: { value: TrendDirection }) {
+  const variant = getTrendVariant(value);
+  return <span className={`badge badge--${variant}`}>{value}</span>;
+}
+
+function Sparkline({
+  points,
+  trendDirection,
+}: {
+  points: CommoditySummary['sparkline30d'];
+  trendDirection: TrendDirection;
+}) {
+  const direction = trendDirection || getTrendDirection(null);
+  const variant = points.length < 2 ? 'neutral' : getTrendVariant(direction);
+  const path = buildSparklinePath(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT);
+  const lastPoint = getSparklineLastPoint(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT);
+
+  return (
+    <div className={`pt-sparkline pt-sparkline--${variant}`} aria-hidden="true">
+      <svg
+        className="pt-sparkline__svg"
+        viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+        preserveAspectRatio="none"
+      >
+        <path className="pt-sparkline__path" d={path} />
+        <circle className="pt-sparkline__dot" cx={lastPoint.x} cy={lastPoint.y} r="3.25" />
+      </svg>
+    </div>
+  );
 }
 
 function ChangeBadge({ change, changePct }: { change: number; changePct: number }) {
@@ -143,9 +171,9 @@ export default function PriceTable({
               <th className="pt-th" onClick={() => toggleSort('priceAvg')}>Giá TB</th>
               <th className="pt-th" onClick={() => toggleSort('change')}>Thay đổi</th>
               <th className="pt-th" onClick={() => toggleSort('changePct')}>% thay đổi</th>
-              <th className="pt-th">Biên độ vùng</th>
-              <th className="pt-th">Dải 52 tuần</th>
-              <th className="pt-th">Khuyến nghị</th>
+              <th className="pt-th">Cao - thấp</th>
+              <th className="pt-th">Xu hướng 30 ngày</th>
+              <th className="pt-th">Nhận định xu hướng</th>
             </tr>
           </thead>
           <tbody>
@@ -160,6 +188,7 @@ export default function PriceTable({
                 const isExpanded = Boolean(expanded[item.commodity]);
                 const isUp = item.change >= 0;
                 const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết';
+                const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct);
 
                 return (
                   <Fragment key={item.commodity}>
@@ -190,11 +219,11 @@ export default function PriceTable({
                           <strong>{formatVnPrice(item.priceHigh)}</strong>
                         </div>
                       </td>
-                      <td className="pt-td pt-td--range">
-                        <RangeBar low={item.low52w} high={item.high52w} current={item.priceAvg} />
+                      <td className="pt-td pt-td--trend">
+                        <Sparkline points={item.sparkline30d} trendDirection={trendDirection} />
                       </td>
                       <td className="pt-td pt-td--badge">
-                        <RecommendationBadge value={item.recommendation} />
+                        <TrendBadge value={trendDirection} />
                       </td>
                     </tr>
                     {isExpanded ? (
@@ -247,6 +276,7 @@ export default function PriceTable({
         ) : (
           rows.map((item) => {
             const isExpanded = Boolean(expanded[item.commodity]);
+            const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct);
 
             return (
               <article key={`${item.commodity}-mobile`} className={`pt-mobile-card${isExpanded ? ' pt-mobile-card--expanded' : ''}`}>
@@ -257,7 +287,7 @@ export default function PriceTable({
                     </div>
                   </div>
                   <div className="pt-mobile-card__actions">
-                    <RecommendationBadge value={item.recommendation} />
+                    <TrendBadge value={trendDirection} />
                     <span className="pt-mobile-card__toggle">{isExpanded ? 'Ẩn' : 'Xem'}</span>
                   </div>
                 </button>
@@ -274,13 +304,13 @@ export default function PriceTable({
                     <ChangeBadge change={item.change} changePct={item.changePct} />
                   </div>
                   <div className="pt-mobile-card__metric">
-                    <span className="pt-mobile-card__label">Mức giá</span>
+                    <span className="pt-mobile-card__label">Cao - thấp</span>
                     <strong>{formatVnPrice(item.priceLow)} - {formatVnPrice(item.priceHigh)}</strong>
                     <small>{item.regions.length} khu vực / loại</small>
                   </div>
-                  <div className="pt-mobile-card__metric pt-mobile-card__metric--range">
-                    <span className="pt-mobile-card__label">Vị trí 52 tuần</span>
-                    <RangeBar low={item.low52w} high={item.high52w} current={item.priceAvg} />
+                  <div className="pt-mobile-card__metric pt-mobile-card__metric--trend">
+                    <span className="pt-mobile-card__label">Xu hướng 30 ngày</span>
+                    <Sparkline points={item.sparkline30d} trendDirection={trendDirection} />
                   </div>
                 </div>
 

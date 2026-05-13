@@ -25,6 +25,7 @@ import {
   toRegionPrices,
 } from './priceQuality.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from './supabaseClient.js'
+import { getTrendDirection, roundTrendNumber, type CommoditySparkPoint } from './trendUtils.js'
 
 type LatestObservationRow = {
   recorded_at: string
@@ -680,6 +681,25 @@ function buildHistoricalLookups(rows: DailySummaryRow[]) {
   }
 }
 
+function buildSparkline30d(
+  dailyState?: Map<string, { weightedSum: number; observationCount: number; minPrice: number; maxPrice: number }>,
+): CommoditySparkPoint[] {
+  if (!dailyState || dailyState.size === 0) {
+    return []
+  }
+
+  return [...dailyState.entries()]
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .slice(-30)
+    .map(([date, aggregate]) => ({
+      date,
+      priceAvg:
+        aggregate.observationCount > 0
+          ? roundNumber(aggregate.weightedSum / aggregate.observationCount)
+          : roundNumber(aggregate.weightedSum),
+    }))
+}
+
 function toSourceId(value: string): SourceSnapshot['id'] {
   return value in SOURCE_BASE_CONFIDENCE ? (value as SourceSnapshot['id']) : 'fallback'
 }
@@ -813,6 +833,11 @@ function buildVnResponseFromRows(
           : changePct
       const historicalRange = rangeByCommodity.get(commoditySlug)
       const regions = toRegionPrices(regionSelections)
+      const sparkline30d = buildSparkline30d(dailyState)
+      const trend7dPct =
+        typeof trend?.trend_7d_pct === 'number' && Number.isFinite(trend.trend_7d_pct)
+          ? roundTrendNumber(trend.trend_7d_pct)
+          : null
 
       return {
         commodity: commoditySlug,
@@ -829,6 +854,9 @@ function buildVnResponseFromRows(
         regions,
         sources: [...new Set(rows.map(row => toSourceId(row.source)))],
         recommendation: getRecommendation(recommendationBasis),
+        trend7dPct,
+        trendDirection: getTrendDirection(trend7dPct),
+        sparkline30d,
         lastUpdated: latestDate,
       }
     })

@@ -183,42 +183,52 @@
   color: var(--color-text-muted);
 }
 
-.pt-td--range {
+.pt-td--trend {
   min-width: 180px;
 }
 
-.range-bar {
+.pt-sparkline {
+  width: 100%;
+  min-width: 140px;
+  height: 30px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
 }
 
-.range-bar__track {
-  position: relative;
-  flex: 1;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-border);
+.pt-sparkline__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.range-bar__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
-  border-radius: 999px;
+.pt-sparkline__path {
+  fill: none;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.range-bar__dot {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  transform: translate(-50%, -50%);
-  border: 2px solid var(--color-surface);
+.pt-sparkline__dot {
+  stroke: var(--color-surface);
+  stroke-width: 1.5;
+}
+
+.pt-sparkline--up .pt-sparkline__path,
+.pt-sparkline--up .pt-sparkline__dot {
+  stroke: var(--color-up);
+  fill: var(--color-up);
+}
+
+.pt-sparkline--down .pt-sparkline__path,
+.pt-sparkline--down .pt-sparkline__dot {
+  stroke: var(--color-down);
+  fill: var(--color-down);
+}
+
+.pt-sparkline--neutral .pt-sparkline__path,
+.pt-sparkline--neutral .pt-sparkline__dot {
+  stroke: var(--color-hold);
+  fill: var(--color-hold);
 }
 
 .badge {
@@ -233,17 +243,17 @@
   text-transform: uppercase;
 }
 
-.badge--mua {
+.badge--up {
   color: var(--color-buy);
   background: var(--color-buy-bg);
 }
 
-.badge--ban {
+.badge--down {
   color: var(--color-down);
   background: var(--color-down-bg);
 }
 
-.badge--giu {
+.badge--neutral {
   color: var(--color-hold);
   background: var(--color-hold-bg);
 }
@@ -465,7 +475,7 @@
     font-size: 0.73rem;
   }
 
-  .pt-mobile-card__metric--range {
+  .pt-mobile-card__metric--trend {
     grid-column: 1 / -1;
   }
 
@@ -516,7 +526,7 @@
     grid-template-columns: 1fr;
   }
 
-  .pt-mobile-card__metric--range {
+  .pt-mobile-card__metric--trend {
     grid-column: auto;
   }
 }

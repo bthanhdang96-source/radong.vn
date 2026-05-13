@@ -23,9 +23,17 @@ import {
   pickSummaryRegionSelections,
   toRegionPrices,
 } from './priceQuality.js';
+import { calculateTrend7dPct, getTrendDirection, roundTrendNumber, type CommoditySparkPoint } from './trendUtils.js';
 
 const CACHE_KEY = 'vn-prices';
 const CACHE_TTL_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_SPARKLINE_VALUES: Record<string, number[]> = {
+  'ho-tieu': [138400, 138900, 139500, 140100, 140200, 141100, 140200],
+  'ca-phe-robusta': [88200, 87950, 87700, 87580, 87320, 87040, 86875],
+  'heo-hoi': [66400, 66550, 66620, 66780, 66810, 66860, 66833],
+  'gao-noi-dia': [8340, 8385, 8425, 8480, 8510, 8550, 8575],
+};
 
 function roundNumber(value: number): number {
   return Number(value.toFixed(2));
@@ -45,10 +53,83 @@ function getRecommendation(changePct: number): 'Mua' | 'Bán' | 'Giữ' {
   return 'Giữ';
 }
 
+function buildFallbackSparkline(values: number[], endDate = new Date()): CommoditySparkPoint[] {
+  return values.map((priceAvg, index) => {
+    const date = new Date(endDate.getTime() - (values.length - 1 - index) * DAY_MS);
+
+    return {
+      date: date.toISOString().slice(0, 10),
+      priceAvg: roundNumber(priceAvg),
+    };
+  });
+}
+
+function getRecommendationLabel(changePct: number): CommoditySummary['recommendation'] {
+  const legacyRecommendation = getRecommendation(changePct);
+
+  if (legacyRecommendation === 'Mua') {
+    return 'Mua';
+  }
+
+  if (changePct <= -1) {
+    return 'Bán';
+  }
+
+  return 'Giữ';
+}
+
+function getFallbackSparkline30d(commodity: string, currentPriceAvg: number): CommoditySparkPoint[] {
+  const values = FALLBACK_SPARKLINE_VALUES[commodity];
+  if (!values || values.length === 0) {
+    return [
+      {
+        date: new Date().toISOString().slice(0, 10),
+        priceAvg: roundNumber(currentPriceAvg),
+      },
+    ];
+  }
+
+  return buildFallbackSparkline(values);
+}
+
+function buildHistoricalSeries(limit = 30): Map<string, CommoditySparkPoint[]> {
+  const byCommodity = new Map<string, CommoditySparkPoint[]>();
+
+  for (const date of listHistoryDates(limit)) {
+    const snapshot = getHistory<CrawledDayData>(date);
+    if (!snapshot) {
+      continue;
+    }
+
+    const summaries = buildSummaries(snapshot.items, undefined, snapshot.sources, undefined, false);
+    for (const summary of summaries) {
+      const series = byCommodity.get(summary.commodity) ?? [];
+      series.push({
+        date,
+        priceAvg: roundNumber(summary.priceAvg),
+      });
+      byCommodity.set(summary.commodity, series);
+    }
+  }
+
+  return byCommodity;
+}
+
+function hasEnhancedTrendData(response: VnPricesResponse): boolean {
+  return response.data.every(
+    (item) =>
+      typeof item.trendDirection === 'string' &&
+      Array.isArray(item.sparkline30d) &&
+      'trend7dPct' in item,
+  );
+}
+
 function buildSummaries(
   items: CrawledPriceItem[],
   historicalRanges?: Map<string, { low: number; high: number }>,
   sourceSnapshots?: SourceSnapshot[],
+  historicalSeries?: Map<string, CommoditySparkPoint[]>,
+  useFallbackSparkline = true,
 ): CommoditySummary[] {
   const groups = new Map<string, CrawledPriceItem[]>();
   const sourcePriorityLookup = buildSourcePriorityLookup(sourceSnapshots);
@@ -92,6 +173,19 @@ function buildSummaries(
       const previousAverage = avg - avgChange;
       const avgChangePct = previousAverage > 0 ? roundNumber((avgChange / previousAverage) * 100) : 0;
       const regions = toRegionPrices(regionSelections);
+      const historyPoints = historicalSeries?.get(commodity) ?? [];
+      const sparkline30d =
+        historyPoints.length > 0
+          ? historyPoints
+          : useFallbackSparkline
+            ? getFallbackSparkline30d(commodity, avg)
+            : [
+                {
+                  date: commodityItems[0].timestamp.slice(0, 10),
+                  priceAvg: avg,
+                },
+              ];
+      const trend7dPct = calculateTrend7dPct(sparkline30d, roundTrendNumber(avgChangePct));
 
       const range = historicalRanges?.get(commodity);
       const low52w = range ? range.low : Math.min(...prices);
@@ -111,7 +205,10 @@ function buildSummaries(
         high52w: Math.max(high52w, avg),
         regions,
         sources: [...new Set(commodityItems.map((item) => item.source))],
-        recommendation: getRecommendation(avgChangePct),
+        recommendation: getRecommendationLabel(avgChangePct),
+        trend7dPct,
+        trendDirection: getTrendDirection(trend7dPct),
+        sparkline30d,
         lastUpdated: commodityItems.reduce((latest, item) => (item.timestamp > latest ? item.timestamp : latest), commodityItems[0].timestamp),
       };
     })
@@ -144,7 +241,8 @@ function buildHistoricalRanges(): Map<string, { low: number; high: number }> {
 
 function toResponse(dayData: CrawledDayData, status: VnPricesResponse['status'], errors: string[] = []): VnPricesResponse {
   const historicalRanges = buildHistoricalRanges();
-  const summaries = buildSummaries(dayData.items, historicalRanges, dayData.sources);
+  const historicalSeries = buildHistoricalSeries(30);
+  const summaries = buildSummaries(dayData.items, historicalRanges, dayData.sources, historicalSeries);
   const lastUpdated =
     summaries.reduce((latest, item) => (item.lastUpdated > latest ? item.lastUpdated : latest), dayData.items[0]?.timestamp ?? new Date().toISOString());
 
@@ -217,7 +315,7 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
 export async function getVnPrices(forceRefresh = false): Promise<VnPricesResponse> {
   if (!forceRefresh) {
     const cached = getCached<VnPricesResponse>(CACHE_KEY);
-    if (cached) {
+    if (cached && hasEnhancedTrendData(cached)) {
       return cached;
     }
   }
@@ -231,7 +329,7 @@ export async function getVnPrices(forceRefresh = false): Promise<VnPricesRespons
   }
 
   const cachedEntry = getCacheEntry<VnPricesResponse>(CACHE_KEY);
-  if (cachedEntry) {
+  if (cachedEntry && hasEnhancedTrendData(cachedEntry.data)) {
     return {
       ...cachedEntry.data,
       status: 'cached',

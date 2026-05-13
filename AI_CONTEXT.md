@@ -82,7 +82,7 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Các AI Agent (Antigravity, Cursor, Windsurf, Claude Code...) hiện được hướng dẫn sử dụng `bd` cho công việc quản lý.
 
 - **[07/04/2026] V0.2 - Dashboard hoàn chỉnh:**
-  - Xây dựng `PriceTable` (filter, search, sort, 52W range bar, badge)
+  - Xây dựng `PriceTable` (filter, search, sort, sparkline 30 ngày, trend-direction badge)
   - Xây dựng `TopMovers` spotlight section
   - Lắp ráp `App.tsx` đầy đủ với tất cả component
   - Cập nhật `App.css` với `.app-body`
@@ -106,7 +106,7 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Khung Tab phân loại Danh mục (Filter Tab).
   - Khung tìm kiếm thời gian thực.
   - Sắp xếp Header (Thực sự tương tác sort tăng/giảm theo tên, giá, %.v.v.).
-  - Progress bar dải 52 tuần hiển thị tương quan giá cả.
+  - Sparkline 30 ngày hiển thị xu hướng giá theo từng mặt hàng.
   - Animation Highlight cho hàng (row) khi vừa update và Staggered reveal.
 - TopMovers (spotlight: top gainers + losers).
 - Bổ sung Footer pháp lý và Detail Modal pop-up giả lập thông tin chi tiết. 
@@ -141,7 +141,7 @@ server/                    ← [NEW] Express.js Backend (port 3001)
 - Navbar (fixed, glassmorphism, live clock, LIVE badge, mobile)
 - TickerBar (sticky, infinite scroll, pause on hover)
 - SummaryCards (4 KPI, animated)
-- PriceTable (filter, sort, search, 52W bar, recommendation badge)
+- PriceTable (filter, sort, search, 30-day sparkline, trend-direction badge)
 - TopMovers (spotlight: top gainers + losers)
 - Routing (React Router DOM)
 - Marketplace Page (Feed + Form)

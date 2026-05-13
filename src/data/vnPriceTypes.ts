@@ -39,6 +39,13 @@ export interface RegionPrice {
   conflictPct: number | null;
 }
 
+export type TrendDirection = 'Tăng' | 'Giảm' | 'Trung tính';
+
+export interface CommoditySparkPoint {
+  date: string;
+  priceAvg: number;
+}
+
 export interface CommoditySummary {
   commodity: string;
   commodityName: string;
@@ -54,6 +61,9 @@ export interface CommoditySummary {
   regions: RegionPrice[];
   sources: SourceId[];
   recommendation: 'Mua' | 'Bán' | 'Giữ';
+  trend7dPct: number | null;
+  trendDirection: TrendDirection;
+  sparkline30d: CommoditySparkPoint[];
   lastUpdated: string;
 }
 
@@ -127,6 +137,20 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   fallback: 'Dự phòng',
 };
 
+function buildFallbackSparkline(values: number[]): CommoditySparkPoint[] {
+  const today = new Date();
+
+  return values.map((priceAvg, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (values.length - 1 - index));
+
+    return {
+      date: date.toISOString().slice(0, 10),
+      priceAvg,
+    };
+  });
+}
+
 export const FALLBACK_VN_PRICES: VnPricesResponse = {
   status: 'fallback',
   fetchedAt: new Date().toISOString(),
@@ -158,6 +182,9 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       low52w: 138000,
       high52w: 142000,
       recommendation: 'Giữ',
+      trend7dPct: 1.24,
+      trendDirection: 'Tăng',
+      sparkline30d: buildFallbackSparkline([138400, 138900, 139500, 140100, 140200, 141100, 140200]),
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
@@ -181,6 +208,9 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       low52w: 86500,
       high52w: 87000,
       recommendation: 'Bán',
+      trend7dPct: -1.14,
+      trendDirection: 'Giảm',
+      sparkline30d: buildFallbackSparkline([88200, 87950, 87700, 87580, 87320, 87040, 86875]),
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
@@ -203,6 +233,9 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       low52w: 65000,
       high52w: 68500,
       recommendation: 'Giữ',
+      trend7dPct: 0.46,
+      trendDirection: 'Trung tính',
+      sparkline30d: buildFallbackSparkline([66400, 66550, 66620, 66780, 66810, 66860, 66833]),
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
@@ -224,6 +257,9 @@ export const FALLBACK_VN_PRICES: VnPricesResponse = {
       low52w: 7550,
       high52w: 9300,
       recommendation: 'Giữ',
+      trend7dPct: 0.82,
+      trendDirection: 'Trung tính',
+      sparkline30d: buildFallbackSparkline([8340, 8385, 8425, 8480, 8510, 8550, 8575]),
       lastUpdated: new Date().toISOString(),
       sources: ['fallback'],
       regions: [
