@@ -157,6 +157,14 @@ server/                    ← [NEW] Express.js Backend (port 3001)
 - Deploy: Frontend trên Vercel/Netlify, Backend trên Railway/Render.
 ## 6. Session Notes
 
+- [13/05/2026] Public attribution cleanup + `/assmin` report:
+  - Removed public source attribution across the news experience and all price-facing pages.
+  - News index no longer shows source counts, source filter, or hero source labels; news detail no longer shows article source notes or "latest from same source".
+  - VN price summary now shows neutral dataset status instead of source tags; VN price detail rows no longer expose per-source labels.
+  - Price chain and world price tables no longer render public source attribution in their footers.
+  - Added standalone route `/assmin` outside the main `Navbar`/`Footer` shell for a read-only operational report page.
+  - Added public read-only API `/api/assmin/report` that aggregates news source health, VN price source snapshots, weather provider status, dataset freshness, runtime scheduler rows, and warnings.
+
 - [01/05/2026] Marketplace Supabase wiring:
   - Added `@supabase/supabase-js` to the Vite app.
   - Enabled Vite `envPrefix` for both `VITE_` and `NEXT_PUBLIC_` so the current `.env` keys can be used without renaming.

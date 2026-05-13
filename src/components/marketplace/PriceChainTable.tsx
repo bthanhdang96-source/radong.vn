@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import { SOURCE_LABELS, type PriceChainItem, type PriceSourceStatus } from '../../data/vnPriceTypes'
+import type { PriceChainItem } from '../../data/vnPriceTypes'
 import './PriceChainTable.css'
 
 type Props = {
   data: PriceChainItem[]
   loading: boolean
   error: string | null
-  sources: PriceSourceStatus[]
+  lastUpdated: string
 }
 
-export default function PriceChainTable({ data, loading, error, sources }: Props) {
+export default function PriceChainTable({ data, loading, error, lastUpdated }: Props) {
   const [activeCategory, setActiveCategory] = useState('Tất cả')
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null)
 
@@ -152,12 +152,7 @@ export default function PriceChainTable({ data, loading, error, sources }: Props
         <span>
           Hiển thị {filteredData.length.toLocaleString('vi-VN')} / {data.length.toLocaleString('vi-VN')} mặt hàng
         </span>
-        <span>
-          Nguồn:{' '}
-          {sources.length > 0
-            ? sources.map(source => SOURCE_LABELS[source.id] ?? source.label).join(', ')
-            : 'Chưa có snapshot live'}
-        </span>
+        <span>Cập nhật: {lastUpdated ? new Date(lastUpdated).toLocaleString('vi-VN') : '--'}</span>
       </div>
     </section>
   )

@@ -97,7 +97,7 @@ export default function PriceChainPage() {
       {pageError ? <div className="price-chain-page__error">{pageError}</div> : null}
 
       <PriceChainSummaryCards data={payload.data} lastUpdated={payload.lastUpdated} />
-      <PriceChainTable data={payload.data} loading={loading} error={pageError} sources={payload.sources} />
+      <PriceChainTable data={payload.data} loading={loading} error={pageError} lastUpdated={payload.lastUpdated} />
     </div>
   )
 }

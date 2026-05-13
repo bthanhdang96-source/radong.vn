@@ -1,12 +1,12 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
-import type { NewsListItem, NewsListResponse, NewsSource } from '../data/newsTypes'
-import { FALLBACK_NEWS_ITEMS, FALLBACK_NEWS_SOURCES, FALLBACK_NEWS_TOPICS } from '../data/newsFallback'
+import type { NewsListItem, NewsListResponse } from '../data/newsTypes'
+import { FALLBACK_NEWS_ITEMS, FALLBACK_NEWS_TOPICS } from '../data/newsFallback'
 import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v5'
+const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v6'
 const NEWS_INDEX_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 type TopicResponse = {
@@ -15,7 +15,6 @@ type TopicResponse = {
 }
 
 type FilterState = {
-  source: string
   topic: string
   q: string
 }
@@ -27,13 +26,12 @@ type NewsArticleLocationState = {
 type NewsIndexCache = {
   savedAt: string
   items: NewsListItem[]
-  sources: NewsSource[]
   topics: string[]
   cursor: string | null
   totalApprox: number
 }
 
-const DEFAULT_FILTERS: FilterState = { source: '', topic: '', q: '' }
+const DEFAULT_FILTERS: FilterState = { topic: '', q: '' }
 
 function readNewsIndexCache() {
   if (typeof window === 'undefined') {
@@ -47,7 +45,7 @@ function readNewsIndexCache() {
     }
 
     const parsed = JSON.parse(raw) as Partial<NewsIndexCache>
-    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.sources) || !Array.isArray(parsed.topics) || typeof parsed.savedAt !== 'string') {
+    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.topics) || typeof parsed.savedAt !== 'string') {
       return null
     }
 
@@ -59,7 +57,6 @@ function readNewsIndexCache() {
     return {
       savedAt: parsed.savedAt,
       items: parsed.items,
-      sources: parsed.sources,
       topics: parsed.topics,
       cursor: typeof parsed.cursor === 'string' ? parsed.cursor : null,
       totalApprox: typeof parsed.totalApprox === 'number' ? parsed.totalApprox : parsed.items.length,
@@ -79,7 +76,6 @@ function writeNewsIndexCache(update: Partial<NewsIndexCache>) {
     const next: NewsIndexCache = {
       savedAt: new Date().toISOString(),
       items: update.items ?? current?.items ?? [],
-      sources: update.sources ?? current?.sources ?? [],
       topics: update.topics ?? current?.topics ?? [],
       cursor: update.cursor ?? current?.cursor ?? null,
       totalApprox: update.totalApprox ?? current?.totalApprox ?? 0,
@@ -92,7 +88,7 @@ function writeNewsIndexCache(update: Partial<NewsIndexCache>) {
 }
 
 function isDefaultFilterState(filters: FilterState) {
-  return filters.source === DEFAULT_FILTERS.source && filters.topic === DEFAULT_FILTERS.topic && filters.q.trim() === DEFAULT_FILTERS.q
+  return filters.topic === DEFAULT_FILTERS.topic && filters.q.trim() === DEFAULT_FILTERS.q
 }
 
 function formatDate(value: string) {
@@ -108,10 +104,6 @@ function formatDate(value: string) {
 function buildNewsUrl(filters: FilterState, cursor?: string | null) {
   const params = new URLSearchParams()
   params.set('limit', '12')
-
-  if (filters.source) {
-    params.set('source', filters.source)
-  }
 
   if (filters.topic) {
     params.set('topic', filters.topic)
@@ -205,7 +197,6 @@ export default function NewsIndexPage() {
   const [cacheSnapshot] = useState<NewsIndexCache | null>(() => readNewsIndexCache())
   const hasCachedItems = (cacheSnapshot?.items.length ?? 0) > 0
   const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? FALLBACK_NEWS_ITEMS)
-  const [sources, setSources] = useState<NewsSource[]>(() => cacheSnapshot?.sources ?? FALLBACK_NEWS_SOURCES)
   const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? FALLBACK_NEWS_TOPICS)
   const [cursor, setCursor] = useState<string | null>(() => cacheSnapshot?.cursor ?? null)
   const [totalApprox, setTotalApprox] = useState(() => cacheSnapshot?.totalApprox ?? FALLBACK_NEWS_ITEMS.length)
@@ -251,6 +242,7 @@ export default function NewsIndexPage() {
       if (!hasCachedItems && isDefaultFilterState(filters)) {
         setLoading(true)
       }
+
       try {
         const response = await fetch(buildNewsUrl(filters))
         const json: NewsListResponse = await response.json()
@@ -263,14 +255,13 @@ export default function NewsIndexPage() {
         }
 
         setItems(json.items)
-        setSources(json.sources)
         setCursor(json.nextCursor)
         setTotalApprox(json.totalApprox)
         setError(null)
+
         if (isDefaultFilterState(filters)) {
           writeNewsIndexCache({
             items: json.items,
-            sources: json.sources,
             cursor: json.nextCursor,
             totalApprox: json.totalApprox,
           })
@@ -331,8 +322,7 @@ export default function NewsIndexPage() {
         <div className="news-index__hero-frame">
           <div className="news-index__hero-topbar">
             <span className="news-index__eyebrow">Tin nông sản mới nhất</span>
-            <div className="news-index__hero-stats" aria-label="Tổng quan nguồn tin">
-              <span>{sources.length} nguồn</span>
+            <div className="news-index__hero-stats" aria-label="Tổng quan tin tức">
               <span>{totalApprox} bài</span>
               <span>{topics.length} chủ đề</span>
             </div>
@@ -354,8 +344,6 @@ export default function NewsIndexPage() {
               </div>
               <div className="news-index__hero-lead-body">
                 <div className="news-index__meta-row">
-                  <span className="news-index__source">{hero.sourceLabel}</span>
-                  <span className="news-index__dot" />
                   <time>{formatDate(hero.publishedAt)}</time>
                 </div>
                 <h1 className="news-index__hero-title">{hero.title}</h1>
@@ -377,22 +365,6 @@ export default function NewsIndexPage() {
       </section>
 
       <section className="news-index__filters">
-        <div className="news-index__filter-group">
-          <label htmlFor="news-source">Nguồn</label>
-          <select
-            id="news-source"
-            value={draftFilters.source}
-            onChange={event => setDraftFilters(current => ({ ...current, source: event.target.value }))}
-          >
-            <option value="">Tất cả nguồn</option>
-            {sources.map(source => (
-              <option key={source.key} value={source.key}>
-                {source.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div className="news-index__filter-group">
           <label htmlFor="news-topic">Chủ đề</label>
           <select

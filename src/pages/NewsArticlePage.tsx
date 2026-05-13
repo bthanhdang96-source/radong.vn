@@ -6,7 +6,7 @@ import { buildApiUrl } from '../lib/api'
 import './NewsArticlePage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const NEWS_ARTICLE_CACHE_PREFIX = 'news-article-cache:v5:'
+const NEWS_ARTICLE_CACHE_PREFIX = 'news-article-cache:v6:'
 const NEWS_ARTICLE_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 type NewsArticleLocationState = {
@@ -386,7 +386,6 @@ export default function NewsArticlePage() {
   const sanitizedHtml = currentPayload?.article.contentHtml ? stripArticleNoise(currentPayload.article.contentHtml) : ''
   const sanitizedText = currentPayload?.article.contentText ? stripArticleNoiseFromText(currentPayload.article.contentText) : ''
   const related = currentPayload?.related ?? []
-  const latestFromSource = currentPayload?.latestFromSource ?? []
 
   return (
     <main className="news-article">
@@ -449,18 +448,11 @@ export default function NewsArticlePage() {
             </section>
           )}
 
-          <footer className="news-article__source-note">
-            <p>
-              Nguồn bài viết: <strong>{article.sourceLabel}</strong>
-            </p>
-          </footer>
-
           {error ? <div className="news-article__inline-error">{error}</div> : null}
         </div>
 
         <aside className="news-article__aside">
           <StoryRail title="Bài liên quan" items={related} />
-          <StoryRail title="Mới nhất cùng nguồn" items={latestFromSource} />
         </aside>
       </div>
     </main>

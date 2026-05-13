@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import express from 'express';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
+import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
@@ -13,30 +14,12 @@ import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDa
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const TZ = process.env.TZ ?? 'UTC';
-const VN_PRICE_CRON = process.env.VN_PRICE_CRON ?? '0 8,14 * * *';
-const WORLD_PRICE_CRAWL_ENABLED = parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true);
-const WORLD_PRICE_CRAWL_CRON = process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *';
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
-
-function parseBoolean(value: string | undefined, defaultValue: boolean) {
-  if (!value) {
-    return defaultValue;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'true') {
-    return true;
-  }
-
-  if (normalized === 'false') {
-    return false;
-  }
-
-  return defaultValue;
-}
+const appScheduleConfig = getAppScheduleConfig();
+const { timezone: TZ, vnPricesCron: VN_PRICE_CRON, worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED, worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON } =
+  appScheduleConfig;
 
 function parseCsv(value: string | undefined, defaultValue: string[]) {
   if (!value) {
@@ -122,12 +105,7 @@ app.get('/api/health/details', requireAdminApiKey, async (_req, res) => {
     crawlers: {
       schedule: getCrawlerScheduleConfig(),
       newsSchedule: getNewsSchedulerConfig(),
-      appSchedule: {
-        vnPricesCron: VN_PRICE_CRON,
-        worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
-        worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
-        timezone: TZ,
-      },
+      appSchedule: appScheduleConfig,
       shopeeSession: sanitizeShopeeSession(shopeeSession),
     },
     news,

@@ -1,87 +1,88 @@
-import { useState, useMemo, useCallback, type CSSProperties } from 'react';
-import type { WorldCommodityItem, WorldCategory } from '../../data/worldCommodityData';
-import './WorldPriceTable.css';
+import { useState, useMemo, useCallback, type CSSProperties } from 'react'
+import type { WorldCommodityItem, WorldCategory } from '../../data/worldCommodityData'
+import './WorldPriceTable.css'
 
 interface Props {
-  data: WorldCommodityItem[];
-  categories: WorldCategory[];
-  exchangeRate: number;
-  loading?: boolean;
+  data: WorldCommodityItem[]
+  categories: WorldCategory[]
+  exchangeRate: number
+  loading?: boolean
 }
 
-type SortKey = 'name' | 'priceCurrent' | 'changePct' | 'priceVndKg';
-type SortDir = 'asc' | 'desc';
+type SortKey = 'name' | 'priceCurrent' | 'changePct' | 'priceVndKg'
+type SortDir = 'asc' | 'desc'
 
 export default function WorldPriceTable({ data, categories, exchangeRate, loading }: Props) {
-  const [activeCategory, setActiveCategory] = useState<WorldCategory>('Tất cả');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [activeCategory, setActiveCategory] = useState<WorldCategory>('Tất cả')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const handleSort = useCallback((key: SortKey) => {
-    setSortKey((prev) => {
+    setSortKey(prev => {
       if (prev === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return key;
+        setSortDir(direction => (direction === 'asc' ? 'desc' : 'asc'))
+        return key
       }
-      setSortDir(key === 'name' ? 'asc' : 'desc');
-      return key;
-    });
-  }, []);
+
+      setSortDir(key === 'name' ? 'asc' : 'desc')
+      return key
+    })
+  }, [])
 
   const filteredData = useMemo(() => {
-    let result = data;
+    let result = data
 
     if (activeCategory !== 'Tất cả') {
-      result = result.filter((item) => item.category === activeCategory);
+      result = result.filter(item => item.category === activeCategory)
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
+      const q = searchQuery.toLowerCase().trim()
       result = result.filter(
-        (item) =>
+        item =>
           item.name.toLowerCase().includes(q) ||
           item.nameEn.toLowerCase().includes(q) ||
-          item.symbol.toLowerCase().includes(q)
-      );
+          item.symbol.toLowerCase().includes(q),
+      )
     }
 
-    result = [...result].sort((a, b) => {
-      let cmp = 0;
+    return [...result].sort((a, b) => {
+      let cmp = 0
       switch (sortKey) {
         case 'name':
-          cmp = a.name.localeCompare(b.name, 'vi');
-          break;
+          cmp = a.name.localeCompare(b.name, 'vi')
+          break
         case 'priceCurrent':
-          cmp = a.priceCurrent - b.priceCurrent;
-          break;
+          cmp = a.priceCurrent - b.priceCurrent
+          break
         case 'changePct':
-          cmp = a.changePct - b.changePct;
-          break;
+          cmp = a.changePct - b.changePct
+          break
         case 'priceVndKg':
-          cmp = (getReferenceVndKg(a, exchangeRate) ?? Number.NEGATIVE_INFINITY) - (getReferenceVndKg(b, exchangeRate) ?? Number.NEGATIVE_INFINITY);
-          break;
+          cmp = (getReferenceVndKg(a, exchangeRate) ?? Number.NEGATIVE_INFINITY) - (getReferenceVndKg(b, exchangeRate) ?? Number.NEGATIVE_INFINITY)
+          break
       }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-
-    return result;
-  }, [data, activeCategory, searchQuery, sortKey, sortDir, exchangeRate]);
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [activeCategory, data, exchangeRate, searchQuery, sortDir, sortKey])
 
   const renderSortIcon = (key: SortKey) => {
-    if (sortKey !== key) return <span className="wpt-sort-icon wpt-sort-icon--inactive">&#8597;</span>;
-    return (
-      <span className="wpt-sort-icon">
-        {sortDir === 'asc' ? '▲' : '▼'}
-      </span>
-    );
-  };
+    if (sortKey !== key) {
+      return <span className="wpt-sort-icon wpt-sort-icon--inactive">&#8597;</span>
+    }
+
+    return <span className="wpt-sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>
+  }
 
   const renderRangeBar = (item: WorldCommodityItem) => {
-    const range = item.high52w - item.low52w;
-    if (range <= 0) return null;
-    const position = ((item.priceCurrent - item.low52w) / range) * 100;
-    const clampedPos = Math.max(0, Math.min(100, position));
+    const range = item.high52w - item.low52w
+    if (range <= 0) {
+      return null
+    }
+
+    const position = ((item.priceCurrent - item.low52w) / range) * 100
+    const clampedPos = Math.max(0, Math.min(100, position))
 
     return (
       <div className="wpt-range">
@@ -92,8 +93,8 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
         </div>
         <span className="wpt-range__high">{formatPrice(item.high52w)}</span>
       </div>
-    );
-  };
+    )
+  }
 
   if (loading) {
     return (
@@ -109,18 +110,15 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
           ))}
         </div>
       </section>
-    );
+    )
   }
 
   return (
     <section className="wpt" aria-label="Bảng giá nông sản thế giới">
       <div className="wpt__controls">
         <div className="wpt__tabs" role="tablist">
-          {categories.map((cat) => {
-            const count =
-              cat === 'Tất cả'
-                ? data.length
-                : data.filter((d) => d.category === cat).length;
+          {categories.map(cat => {
+            const count = cat === 'Tất cả' ? data.length : data.filter(item => item.category === cat).length
             return (
               <button
                 key={cat}
@@ -132,7 +130,7 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                 {cat}
                 <span className="wpt__tab-count">{count}</span>
               </button>
-            );
+            )
           })}
         </div>
 
@@ -146,14 +144,14 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
             className="wpt__search-input"
             placeholder="Tìm kiếm mặt hàng..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={event => setSearchQuery(event.target.value)}
             aria-label="Tìm kiếm mặt hàng"
           />
-          {searchQuery && (
+          {searchQuery ? (
             <button className="wpt__search-clear" onClick={() => setSearchQuery('')} aria-label="Xóa tìm kiếm">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -194,9 +192,9 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
               </tr>
             ) : (
               filteredData.map((item, index) => {
-                const isUp = item.changePct > 0;
-                const isDown = item.changePct < 0;
-                const priceVND = getReferenceVndKg(item, exchangeRate);
+                const isUp = item.changePct > 0
+                const isDown = item.changePct < 0
+                const priceVnd = getReferenceVndKg(item, exchangeRate)
 
                 return (
                   <tr
@@ -225,7 +223,7 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
 
                     <td className="wpt__td wpt__td--price-vnd">
                       <span className="wpt__price-vnd">
-                        {priceVND !== null ? formatVND(priceVND) : '--'}
+                        {priceVnd !== null ? formatVnd(priceVnd) : '--'}
                       </span>
                     </td>
 
@@ -244,7 +242,7 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                       {renderRangeBar(item)}
                     </td>
                   </tr>
-                );
+                )
               })
             )}
           </tbody>
@@ -256,46 +254,50 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
           Hiển thị {filteredData.length} / {data.length} mặt hàng
         </span>
         <span className="wpt__footer-source">
-          Nguồn: Supabase curated views &middot; Tỷ giá tham chiếu: {exchangeRate.toLocaleString('vi-VN')} VND/USD
+          Tỷ giá tham chiếu: {exchangeRate.toLocaleString('vi-VN')} VND/USD
         </span>
       </div>
     </section>
-  );
+  )
 }
 
 function formatPrice(value: number): string {
   if (Math.abs(value) >= 1000) {
-    return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return value.toLocaleString('en-US', { maximumFractionDigits: 0 })
   }
+
   if (Math.abs(value) >= 1) {
-    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
 }
 
-function formatVND(value: number): string {
+function formatVnd(value: number): string {
   if (value >= 1_000_000) {
-    return (value / 1_000_000).toFixed(1) + ' tr';
+    return `${(value / 1_000_000).toFixed(1)} tr`
   }
+
   if (value >= 1_000) {
-    return Math.round(value).toLocaleString('vi-VN');
+    return Math.round(value).toLocaleString('vi-VN')
   }
-  return value.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
+
+  return value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })
 }
 
 function getReferenceVndKg(item: WorldCommodityItem, rate: number): number | null {
   if (typeof item.priceVndKg === 'number' && Number.isFinite(item.priceVndKg)) {
-    return item.priceVndKg;
+    return item.priceVndKg
   }
 
-  const unit = item.unit.toLowerCase();
+  const unit = item.unit.toLowerCase()
   if (unit.includes('usd/kg')) {
-    return item.priceCurrent * rate;
+    return item.priceCurrent * rate
   }
 
   if (unit.includes('usd/tấn') || unit.includes('usd/tan') || unit.includes('usd/ton')) {
-    return (item.priceCurrent * rate) / 1000;
+    return (item.priceCurrent * rate) / 1000
   }
 
-  return null;
+  return null
 }

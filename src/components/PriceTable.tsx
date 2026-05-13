@@ -1,49 +1,48 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react'
 import {
   CATEGORY_LABELS,
   FALLBACK_VN_PRICES,
-  SOURCE_LABELS,
   type CommoditySummary,
   type TrendDirection,
-} from '../data/vnPriceTypes';
-import { buildSparklinePath, getSparklineLastPoint, getTrendDirection } from '../utils/priceTrend';
-import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat';
-import './PriceTable.css';
+} from '../data/vnPriceTypes'
+import { buildSparklinePath, getSparklineLastPoint, getTrendDirection } from '../utils/priceTrend'
+import { formatSignedVnPrice, formatVnPrice } from '../utils/vnPriceFormat'
+import './PriceTable.css'
 
-type SortKey = 'commodityName' | 'priceAvg' | 'change' | 'changePct';
-type SortDir = 'asc' | 'desc';
+type SortKey = 'commodityName' | 'priceAvg' | 'change' | 'changePct'
+type SortDir = 'asc' | 'desc'
 
-const SPARKLINE_WIDTH = 160;
-const SPARKLINE_HEIGHT = 30;
+const SPARKLINE_WIDTH = 160
+const SPARKLINE_HEIGHT = 30
 
 function getTrendVariant(direction: TrendDirection) {
   if (direction === 'Tăng') {
-    return 'up';
+    return 'up'
   }
 
   if (direction === 'Giảm') {
-    return 'down';
+    return 'down'
   }
 
-  return 'neutral';
+  return 'neutral'
 }
 
 function TrendBadge({ value }: { value: TrendDirection }) {
-  const variant = getTrendVariant(value);
-  return <span className={`badge badge--${variant}`}>{value}</span>;
+  const variant = getTrendVariant(value)
+  return <span className={`badge badge--${variant}`}>{value}</span>
 }
 
 function Sparkline({
   points,
   trendDirection,
 }: {
-  points: CommoditySummary['sparkline30d'];
-  trendDirection: TrendDirection;
+  points: CommoditySummary['sparkline30d']
+  trendDirection: TrendDirection
 }) {
-  const direction = trendDirection || getTrendDirection(null);
-  const variant = points.length < 2 ? 'neutral' : getTrendVariant(direction);
-  const path = buildSparklinePath(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT);
-  const lastPoint = getSparklineLastPoint(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT);
+  const direction = trendDirection || getTrendDirection(null)
+  const variant = points.length < 2 ? 'neutral' : getTrendVariant(direction)
+  const path = buildSparklinePath(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT)
+  const lastPoint = getSparklineLastPoint(points, SPARKLINE_WIDTH, SPARKLINE_HEIGHT)
 
   return (
     <div className={`pt-sparkline pt-sparkline--${variant}`} aria-hidden="true">
@@ -56,26 +55,26 @@ function Sparkline({
         <circle className="pt-sparkline__dot" cx={lastPoint.x} cy={lastPoint.y} r="3.25" />
       </svg>
     </div>
-  );
+  )
 }
 
 function ChangeBadge({ change, changePct }: { change: number; changePct: number }) {
-  const isUp = change >= 0;
+  const isUp = change >= 0
 
   return (
     <span className={`pt-pct-badge ${isUp ? 'pct--up' : 'pct--down'}`}>
       {isUp ? '▲' : '▼'} {changePct >= 0 ? '+' : ''}
       {changePct.toFixed(2)}%
     </span>
-  );
+  )
 }
 
 function RegionChange({ change }: { change: number | null }) {
   if (change === null) {
-    return <>--</>;
+    return <>--</>
   }
 
-  return <>{formatSignedVnPrice(change)}</>;
+  return <>{formatSignedVnPrice(change)}</>
 }
 
 export default function PriceTable({
@@ -83,60 +82,60 @@ export default function PriceTable({
   loading = false,
   error = null,
 }: {
-  data?: CommoditySummary[];
-  loading?: boolean;
-  error?: string | null;
+  data?: CommoditySummary[]
+  loading?: boolean
+  error?: string | null
 }) {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('Tất cả');
-  const [sortKey, setSortKey] = useState<SortKey>('priceAvg');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('Tất cả')
+  const [sortKey, setSortKey] = useState<SortKey>('priceAvg')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  const categories = useMemo(() => ['Tất cả', ...new Set(data.map((item) => item.category))], [data]);
+  const categories = useMemo(() => ['Tất cả', ...new Set(data.map(item => item.category))], [data])
 
   const rows = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search.trim().toLowerCase()
 
     return [...data]
-      .filter((item) => (category === 'Tất cả' ? true : item.category === category))
-      .filter((item) => {
+      .filter(item => (category === 'Tất cả' ? true : item.category === category))
+      .filter(item => {
         if (!query) {
-          return true;
+          return true
         }
 
-        return item.commodityName.toLowerCase().includes(query) || item.regions.some((region) => region.region.toLowerCase().includes(query));
+        return item.commodityName.toLowerCase().includes(query) || item.regions.some(region => region.region.toLowerCase().includes(query))
       })
       .sort((a, b) => {
-        const av = a[sortKey];
-        const bv = b[sortKey];
-        const cmp = typeof av === 'string' ? av.localeCompare(bv as string, 'vi') : (av as number) - (bv as number);
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-  }, [category, data, search, sortDir, sortKey]);
+        const av = a[sortKey]
+        const bv = b[sortKey]
+        const cmp = typeof av === 'string' ? av.localeCompare(bv as string, 'vi') : (av as number) - (bv as number)
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+  }, [category, data, search, sortDir, sortKey])
 
   function toggleSort(nextKey: SortKey) {
     if (sortKey === nextKey) {
-      setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'));
-      return;
+      setSortDir(current => (current === 'asc' ? 'desc' : 'asc'))
+      return
     }
 
-    setSortKey(nextKey);
-    setSortDir(nextKey === 'commodityName' ? 'asc' : 'desc');
+    setSortKey(nextKey)
+    setSortDir(nextKey === 'commodityName' ? 'asc' : 'desc')
   }
 
   function toggleExpanded(commodity: string) {
-    setExpanded((current) => ({
+    setExpanded(current => ({
       ...current,
       [commodity]: !current[commodity],
-    }));
+    }))
   }
 
   return (
     <section id="bang-gia" className="price-table-section" aria-label="Bảng giá nông sản">
       <div className="pt-toolbar">
         <div className="pt-tabs" role="tablist" aria-label="Lọc theo danh mục">
-          {categories.map((item) => (
+          {categories.map(item => (
             <button
               key={item}
               className={`pt-tab${category === item ? ' pt-tab--active' : ''}`}
@@ -151,7 +150,7 @@ export default function PriceTable({
           type="search"
           placeholder="Tìm mặt hàng hoặc khu vực..."
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={event => setSearch(event.target.value)}
           aria-label="Tìm mặt hàng"
         />
       </div>
@@ -184,11 +183,11 @@ export default function PriceTable({
                 </td>
               </tr>
             ) : (
-              rows.map((item) => {
-                const isExpanded = Boolean(expanded[item.commodity]);
-                const isUp = item.change >= 0;
-                const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết';
-                const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct);
+              rows.map(item => {
+                const isExpanded = Boolean(expanded[item.commodity])
+                const isUp = item.change >= 0
+                const detailLabel = item.regions.length > 1 ? 'Khu vực / loại' : 'Chi tiết'
+                const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct)
 
                 return (
                   <Fragment key={item.commodity}>
@@ -232,7 +231,6 @@ export default function PriceTable({
                           <div className="pt-detail">
                             <div className="pt-detail__summary">
                               <span>{detailLabel}: {item.regions.length}</span>
-                              <span>Nguồn: {item.sources.map((source) => SOURCE_LABELS[source]).join(', ')}</span>
                             </div>
                             <table className="pt-subtable">
                               <thead>
@@ -240,7 +238,6 @@ export default function PriceTable({
                                   <th>{detailLabel}</th>
                                   <th>Giá</th>
                                   <th>Thay đổi</th>
-                                  <th>Nguồn</th>
                                   <th>Cảnh báo</th>
                                 </tr>
                               </thead>
@@ -250,9 +247,6 @@ export default function PriceTable({
                                     <td>{region.region}</td>
                                     <td>{formatVnPrice(region.price)}</td>
                                     <td><RegionChange change={region.change} /></td>
-                                    <td>
-                                      <span className="pt-source-badge">{SOURCE_LABELS[region.source]}</span>
-                                    </td>
                                     <td>{region.hasConflict ? `Lệch ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
                                   </tr>
                                 ))}
@@ -263,7 +257,7 @@ export default function PriceTable({
                       </tr>
                     ) : null}
                   </Fragment>
-                );
+                )
               })
             )}
           </tbody>
@@ -274,9 +268,9 @@ export default function PriceTable({
         {rows.length === 0 ? (
           <div className="pt-mobile-empty">Không có dữ liệu khớp bộ lọc hiện tại.</div>
         ) : (
-          rows.map((item) => {
-            const isExpanded = Boolean(expanded[item.commodity]);
-            const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct);
+          rows.map(item => {
+            const isExpanded = Boolean(expanded[item.commodity])
+            const trendDirection = item.trendDirection || getTrendDirection(item.trend7dPct)
 
             return (
               <article key={`${item.commodity}-mobile`} className={`pt-mobile-card${isExpanded ? ' pt-mobile-card--expanded' : ''}`}>
@@ -314,14 +308,6 @@ export default function PriceTable({
                   </div>
                 </div>
 
-                <div className="pt-mobile-card__sources">
-                  {item.sources.map((source) => (
-                    <span key={`${item.commodity}-${source}`} className="pt-source-badge">
-                      {SOURCE_LABELS[source]}
-                    </span>
-                  ))}
-                </div>
-
                 {isExpanded ? (
                   <div className="pt-mobile-card__detail">
                     {item.regions.map((region, index) => (
@@ -331,7 +317,7 @@ export default function PriceTable({
                       >
                         <div className="pt-mobile-region__meta">
                           <strong>{region.region}</strong>
-                          <span>{SOURCE_LABELS[region.source]}</span>
+                          <span>{region.hasConflict ? 'Chênh lệch nguồn' : 'Ổn định'}</span>
                         </div>
                         <div className="pt-mobile-region__price">
                           <strong>{formatVnPrice(region.price)}</strong>
@@ -342,10 +328,10 @@ export default function PriceTable({
                   </div>
                 ) : null}
               </article>
-            );
+            )
           })
         )}
       </div>
     </section>
-  );
+  )
 }

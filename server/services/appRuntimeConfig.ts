@@ -1,0 +1,25 @@
+function parseBoolean(value: string | undefined, defaultValue: boolean) {
+  if (!value) {
+    return defaultValue
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'true') {
+    return true
+  }
+
+  if (normalized === 'false') {
+    return false
+  }
+
+  return defaultValue
+}
+
+export function getAppScheduleConfig() {
+  return {
+    vnPricesCron: process.env.VN_PRICE_CRON ?? '0 8,14 * * *',
+    worldPriceCrawlEnabled: parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true),
+    worldPriceCrawlCron: process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *',
+    timezone: process.env.TZ ?? 'UTC',
+  }
+}
