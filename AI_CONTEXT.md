@@ -164,6 +164,7 @@ server/                    ← [NEW] Express.js Backend (port 3001)
   - Price chain and world price tables no longer render public source attribution in their footers.
   - Added standalone route `/assmin` outside the main `Navbar`/`Footer` shell for a read-only operational report page.
   - Added public read-only API `/api/assmin/report` that aggregates news source health, VN price source snapshots, weather provider status, dataset freshness, runtime scheduler rows, and warnings.
+  - Tightened Vietfood article classification so member-directory/company profile pages (`Hội viên`, `Danh sách hội viên`, company profile slugs/titles) are archived and hidden from the public news feed.
 
 - [01/05/2026] Marketplace Supabase wiring:
   - Added `@supabase/supabase-js` to the Vite app.

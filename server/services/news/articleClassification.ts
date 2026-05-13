@@ -40,6 +40,19 @@ function createHiddenClassification(topicTags: string[]): ArticleClassification 
   }
 }
 
+function hasAnyFragment(value: string, fragments: string[]) {
+  return fragments.some(fragment => value.includes(fragment))
+}
+
+function startsWithCompanyName(value: string) {
+  return (
+    value.startsWith('cong ty ') ||
+    value.startsWith('cty ') ||
+    value.startsWith('doanh nghiep tu nhan ') ||
+    value.startsWith('company ')
+  )
+}
+
 function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): ArticleClassification {
   const title = foldText(input.title ?? '')
   const excerpt = foldText(input.excerpt ?? '')
@@ -87,6 +100,8 @@ export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClas
   const title = foldText(input.title ?? '')
   const category = foldText(input.category ?? '')
   const canonicalUrl = foldText(input.canonicalUrl ?? '')
+  const excerpt = foldText(input.excerpt ?? '')
+  const contentText = foldText(input.contentText ?? '')
   const isDomesticPriceBulletin =
     title.includes('gia lua gao noi dia ngay') ||
     canonicalUrl.includes('gia-lua-gao-noi-dia-ngay-') ||
@@ -140,6 +155,30 @@ export function classifyVietfoodArticle(input: VietfoodArticleLike): ArticleClas
       kind: 'price_roundup',
       priceDataTarget: null,
     }
+  }
+
+  const hasMemberCategory = hasAnyFragment(category, ['hoi vien', 'danh sach hoi vien'])
+  const hasMemberDirectoryUrl = hasAnyFragment(canonicalUrl, [
+    'danh-sach-hoi-vien',
+    '/hoi-vien/',
+    '/member/',
+  ])
+  const hasCompanyTitle =
+    startsWithCompanyName(title) ||
+    title.includes(' company limited') ||
+    title.includes(' - hiep hoi luong thuc viet nam')
+  const hasCompanyProfileSignals =
+    hasAnyFragment(title, ['tnhh', 'co phan', 'cp ', 'xnk', 'hang hai', 'panoramas', 'vienduong', 'tnm']) ||
+    hasAnyFragment(excerpt, ['dia chi', 'company limited']) ||
+    hasAnyFragment(contentText, ['dia chi:', 'danh sach hoi vien', 'hoi vien noi bat'])
+
+  const isMemberOrCompanyProfile =
+    hasMemberCategory ||
+    hasMemberDirectoryUrl ||
+    (hasCompanyTitle && hasCompanyProfileSignals)
+
+  if (isMemberOrCompanyProfile) {
+    return createHiddenClassification(['vietfood-member-directory'])
   }
 
   return createDefaultClassification()
