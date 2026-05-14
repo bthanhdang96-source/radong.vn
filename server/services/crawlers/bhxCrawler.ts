@@ -1,7 +1,13 @@
 import { access, readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { closeBhxApiSession, fetchBhxCategoryProducts, launchBhxApiSession, type BhxResolvedRegion } from './bhxBrowser.js'
+import {
+  closeBhxApiSession,
+  fetchBhxCategoryProducts,
+  launchBhxApiSession,
+  type BhxApiSession,
+  type BhxResolvedRegion,
+} from './bhxBrowser.js'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
 import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
@@ -147,30 +153,62 @@ export function hasBhxApiCredentials() {
   return credentials.bearerToken.length > 0 && credentials.apiKey.length > 0
 }
 
-async function fetchBhxLocations() {
-  const credentials = getBhxApiCredentials()
-  if (!credentials.bearerToken || !credentials.apiKey) {
-    throw new Error('BHX API credentials are not configured')
+function hasBhxSessionCredentials(headers: Record<string, string> | null | undefined) {
+  if (!headers) {
+    return false
   }
 
+  return Boolean(headers.authorization && (headers.xapikey || headers['x-api-key']))
+}
+
+export function getBhxLocationAuthSource(headers: Record<string, string> | null | undefined) {
+  if (hasBhxApiCredentials()) {
+    return 'env'
+  }
+
+  if (hasBhxSessionCredentials(headers)) {
+    return 'browser_headers'
+  }
+
+  return null
+}
+
+function buildBhxLocationHeaders(sessionHeaders?: Record<string, string> | null) {
+  const credentials = getBhxApiCredentials()
+  const authSource = getBhxLocationAuthSource(sessionHeaders)
+
+  if (!authSource) {
+    throw new Error('BHX live auth is not configured')
+  }
+
+  return {
+    accept: 'application/json, text/plain, */*',
+    authorization:
+      authSource === 'env'
+        ? `Bearer ${credentials.bearerToken}`
+        : sessionHeaders?.authorization ?? '',
+    deviceid: sessionHeaders?.deviceid ?? randomUUID(),
+    platform: sessionHeaders?.platform ?? 'webnew',
+    reversehost: sessionHeaders?.reversehost ?? 'http://bhxapi.live',
+    referer: BHX_HOME_URL,
+    'referer-url': BHX_HOME_URL,
+    'user-agent': sessionHeaders?.['user-agent'] ?? BHX_USER_AGENT,
+    xapikey:
+      authSource === 'env'
+        ? credentials.apiKey
+        : sessionHeaders?.xapikey ?? sessionHeaders?.['x-api-key'] ?? '',
+    'customer-id': sessionHeaders?.['customer-id'] ?? '',
+  }
+}
+
+async function fetchBhxLocations(session?: BhxApiSession | null) {
   let lastError: unknown
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15_000)
       const response = await fetch(BHX_LOCATION_API_URL, {
-        headers: {
-          accept: 'application/json, text/plain, */*',
-          authorization: `Bearer ${credentials.bearerToken}`,
-          deviceid: randomUUID(),
-          platform: 'webnew',
-          reversehost: 'http://bhxapi.live',
-          referer: BHX_HOME_URL,
-          'referer-url': BHX_HOME_URL,
-          'user-agent': BHX_USER_AGENT,
-          xapikey: credentials.apiKey,
-          'customer-id': '',
-        },
+        headers: buildBhxLocationHeaders(session?.headers),
         signal: controller.signal,
       })
       clearTimeout(timeout)
@@ -199,7 +237,7 @@ function toLookupKey(value: string) {
     .toLowerCase()
 }
 
-async function resolveBhxRegions(regionCodes: string[]) {
+async function resolveBhxRegions(regionCodes: string[], session?: BhxApiSession | null) {
   const seeds = regionCodes
     .map(code => BHX_REGION_SEEDS.find(seed => seed.code === code))
     .filter((seed): seed is BhxRegionSeed => Boolean(seed))
@@ -207,7 +245,7 @@ async function resolveBhxRegions(regionCodes: string[]) {
   const resolutionErrors: string[] = []
 
   try {
-    const payload = await fetchBhxLocations()
+    const payload = await fetchBhxLocations(session)
     const provinces = payload.data?.provinces ?? []
     const provinceByName = new Map(
       provinces
@@ -400,6 +438,8 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
 
   try {
     const fixture = fixturePath ? await loadFixture(fixturePath) : null
+    const session = fixture ? null : await launchBhxApiSession()
+    const authSource = fixture ? 'fixture' : getBhxLocationAuthSource(session?.headers)
     const resolution = fixture
       ? {
           regions: fixture.regions
@@ -416,7 +456,7 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
             ),
           resolutionErrors: [] as string[],
         }
-      : await resolveBhxRegions(regionCodes)
+      : await resolveBhxRegions(regionCodes, session)
 
     const items: CrawledPriceItem[] = []
     const warnings = [...resolution.resolutionErrors]
@@ -445,7 +485,10 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
         }
       }
     } else {
-      const session = await launchBhxApiSession()
+      if (!session) {
+        throw new Error('BHX browser bootstrap session was not created')
+      }
+
       try {
         for (const region of resolution.regions) {
           for (const category of categoryTargets) {
@@ -482,6 +525,7 @@ export async function crawlBhx(options: CrawlBhxOptions = {}): Promise<CrawlerRe
         regionCodes,
         resolvedRegionCodes: resolution.regions.map(region => region.code),
         categoryUrls: categoryTargets.map(target => target.categoryUrl),
+        locationAuthSource: authSource,
         maxProductsPerCategory,
         warnings,
       },

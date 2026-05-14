@@ -59,14 +59,12 @@ async function main() {
     },
     {
       name: 'bhx_scheduler_flags',
-      ok:
-        !bhxRequested ||
-        ((!schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0) && bhxCredentialsConfigured),
+      ok: !schedule.bhxCrawlEnabled || schedule.bhxEnabledRegions.length > 0,
       detail: schedule.bhxCrawlEnabled
-        ? `enabled with cron ${schedule.bhxCrawlCron} across regions ${schedule.bhxEnabledRegions.join(',')}`
-        : bhxCredentialsConfigured
-          ? 'disabled; safe default until retail rollout'
-          : 'disabled because BHX_API_BEARER_TOKEN and BHX_API_X_API_KEY are not configured',
+        ? `enabled with cron ${schedule.bhxCrawlCron} across regions ${schedule.bhxEnabledRegions.join(',')} auth=${bhxCredentialsConfigured ? 'env_credentials' : 'browser_bootstrap'}`
+        : bhxRequested
+          ? 'disabled because no BHX regions are configured'
+          : 'disabled; safe default until retail rollout',
     },
     {
       name: 'coop_scheduler_flags',

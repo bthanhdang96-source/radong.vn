@@ -65,6 +65,8 @@ BHX_API_BEARER_TOKEN=...
 BHX_API_X_API_KEY=...
 ```
 
+`BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` remain supported as manual overrides, but the live crawler can now bootstrap the authenticated BHX request headers directly from the browser session when those env vars are absent.
+
 ## One-time setup
 
 1. Install server dependencies:

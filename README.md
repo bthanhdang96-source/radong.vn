@@ -86,7 +86,7 @@ Quick local verification for the BHX retail crawler:
 
 - Run the fixture parser smoke test:
   `npm --prefix server run crawler:bhx -- --fixture=server/fixtures/bhx-sample.json --dry-run`
-- Set `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` before any live BHX crawl.
+- `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` are optional overrides; when omitted, the live crawler bootstraps the authenticated BHX request headers from Playwright automatically.
 - Run the live multi-region crawl without syncing:
   `npm --prefix server run crawler:bhx -- --dry-run --regions=HCM,DNG,CTO,DNI,BNI`
 - The live path bootstraps a browser request context once, then reuses that authenticated request profile for `Category/V2/GetCate`, which is more stable than relying on repeated `page.goto` intercepts.

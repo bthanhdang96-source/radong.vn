@@ -56,6 +56,8 @@ export function getSupabaseRuntimeStatus() {
   return {
     hasReadConfig: hasSupabaseReadConfig,
     hasAdminConfig: hasSupabaseAdminConfig,
+    hasSupabaseReadConfig,
+    hasSupabaseAdminConfig,
     missingServiceRole: hasSupabaseReadConfig && !hasSupabaseAdminConfig,
   }
 }
