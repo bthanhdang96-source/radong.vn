@@ -1,14 +1,15 @@
 import cron from 'node-cron'
 import { crawlNewsSources } from './service.js'
-import { NEWS_SOURCE_KEYS } from './sourceRegistry.js'
+import { NEWS_SOURCE_KEYS, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import type { NewsSourceKey } from './types.js'
 
 let registered = false
+const DEFAULT_SOURCE_KEYS = listVisibleNewsSourceConfigs().map(source => source.key)
 
 function getEnabledSourceKeys(): NewsSourceKey[] {
   const raw = process.env.NEWS_ENABLED_SOURCES?.trim()
   if (!raw) {
-    return NEWS_SOURCE_KEYS.filter(sourceKey => ['vietnambiz', 'congthuong', 'nongnghiepmoitruong', 'vpsaspice', 'vietfood'].includes(sourceKey))
+    return DEFAULT_SOURCE_KEYS
   }
 
   const requested = raw
@@ -16,7 +17,7 @@ function getEnabledSourceKeys(): NewsSourceKey[] {
     .map(value => value.trim())
     .filter((value): value is NewsSourceKey => NEWS_SOURCE_KEYS.includes(value as NewsSourceKey))
 
-  return requested.length > 0 ? requested : NEWS_SOURCE_KEYS
+  return requested.length > 0 ? requested : DEFAULT_SOURCE_KEYS
 }
 
 export function getNewsSchedulerConfig() {

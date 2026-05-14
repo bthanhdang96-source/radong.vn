@@ -744,9 +744,7 @@ export async function crawlNewsSources(sourceKeys?: NewsSourceKey[]) {
   const keys =
     sourceKeys && sourceKeys.length > 0
       ? sourceKeys.filter(isNewsSourceVisible)
-      : listVisibleNewsSourceConfigs()
-          .filter(source => source.phase <= 2)
-          .map(source => source.key)
+      : listVisibleNewsSourceConfigs().map(source => source.key)
   const results: NewsCrawlResult[] = []
 
   for (const sourceKey of keys) {

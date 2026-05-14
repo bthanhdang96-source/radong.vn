@@ -34,6 +34,17 @@ function normalizeHtmlFragment(html: string) {
     .trim()
 }
 
+function normalizeCanonicalUrl(value: string | null | undefined, fallbackUrl: string) {
+  const candidate = normalizeWhitespace(value) || fallbackUrl
+  const sanitized = candidate.replace(/^httpss:\/\//i, 'https://')
+
+  try {
+    return new URL(sanitized, fallbackUrl).toString()
+  } catch {
+    return fallbackUrl
+  }
+}
+
 export function hasSuspiciousExtractedBody(sourceKey: NewsSourceKey, canonicalUrl: string, html: string | null) {
   if (!html) {
     return false
@@ -95,10 +106,12 @@ export async function extractNewsArticle(source: NewsSourceConfig, discovered: N
         readability?.excerpt ??
         '',
     ) || (contentText ? toPlainExcerpt(contentText) : null)
-  const canonicalUrl =
+  const canonicalUrl = normalizeCanonicalUrl(
     $('link[rel="canonical"]').attr('href') ??
-    $('meta[property="og:url"]').attr('content') ??
-    discovered.canonicalUrl
+      $('meta[property="og:url"]').attr('content') ??
+      discovered.canonicalUrl,
+    discovered.canonicalUrl,
+  )
   const thumbnailUrl =
     $('meta[property="og:image"]').attr('content') ??
     $('meta[name="twitter:image"]').attr('content') ??
@@ -118,9 +131,11 @@ export async function extractNewsArticle(source: NewsSourceConfig, discovered: N
     ) || null
   const publishedAt = parseLooseDate(
     $('meta[property="article:published_time"]').attr('content') ??
+      $('[itemprop="datePublished"]').attr('content') ??
       $('meta[name="pubdate"]').attr('content') ??
       $('time').first().attr('datetime') ??
       $('time').first().text() ??
+      pickFirstText($, ['.post-meta-date', '.post-meta-elements', '.box_ngay', '.content_box_ol li:first-child']) ??
       discovered.publishedAt ??
       fetchedAt,
     fetchedAt,

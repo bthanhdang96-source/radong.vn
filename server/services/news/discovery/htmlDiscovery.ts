@@ -36,7 +36,7 @@ export async function discoverFromHtml(source: NewsSourceConfig): Promise<NewsDi
       const publishedRaw =
         parent.find('time').attr('datetime') ??
         parent.find('time').text() ??
-        parent.find('.date, .time, .published').first().text()
+        parent.find('.date, .time, .published, .post-meta-date, .post-meta-elements, .box_ngay').first().text()
 
       items.push({
         sourceKey: source.key,

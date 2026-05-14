@@ -59,10 +59,13 @@ export function parseLooseDate(value: string | null | undefined, fallback = new 
     return fallback
   }
 
-  const ddmmyyyyMatch = value.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/)
-  const normalizedBase = ddmmyyyyMatch
-    ? `${ddmmyyyyMatch[3]}-${ddmmyyyyMatch[2]}-${ddmmyyyyMatch[1]}T${ddmmyyyyMatch[4] ?? '00'}:${ddmmyyyyMatch[5] ?? '00'}:${ddmmyyyyMatch[6] ?? '00'}`
-    : value
+  const dateFirstMatch = value.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/)
+  const timeFirstMatch = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})[/-](\d{1,2})[/-](\d{4})/)
+  const normalizedBase = dateFirstMatch
+    ? `${dateFirstMatch[3]}-${dateFirstMatch[2].padStart(2, '0')}-${dateFirstMatch[1].padStart(2, '0')}T${(dateFirstMatch[4] ?? '00').padStart(2, '0')}:${dateFirstMatch[5] ?? '00'}:${dateFirstMatch[6] ?? '00'}`
+    : timeFirstMatch
+      ? `${timeFirstMatch[6]}-${timeFirstMatch[5].padStart(2, '0')}-${timeFirstMatch[4].padStart(2, '0')}T${timeFirstMatch[1].padStart(2, '0')}:${timeFirstMatch[2]}:${timeFirstMatch[3] ?? '00'}`
+      : value
 
   const normalized = normalizedBase
     .replace(/GMT([+-]\d{1,2})/i, 'GMT$1:00')
