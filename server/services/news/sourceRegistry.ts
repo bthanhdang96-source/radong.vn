@@ -186,7 +186,7 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     priority: 'P2',
     phase: 3,
     accessState: 'partial',
-    active: true,
+    active: false,
     fullTextCapable: false,
     browserRequired: false,
     rateLimitMs: P2_RATE_LIMIT_MS,

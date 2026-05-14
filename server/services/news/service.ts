@@ -679,6 +679,10 @@ async function persistCrawlResult(
 }
 
 export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCrawlOptions): Promise<NewsCrawlResult> {
+  if (!isNewsSourceVisible(sourceKey)) {
+    throw new Error(`Source ${sourceKey} is disabled`)
+  }
+
   const source = {
     ...getNewsSourceConfig(sourceKey),
     maxArticlesPerRun: options?.maxArticlesPerRun ?? getNewsSourceConfig(sourceKey).maxArticlesPerRun,

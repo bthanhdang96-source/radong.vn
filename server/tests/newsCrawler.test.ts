@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseLooseDate } from '../services/news/common.js'
 import { getNewsSchedulerConfig } from '../services/news/scheduler.js'
+import { crawlNewsSource } from '../services/news/service.js'
 import type { NewsSourceKey } from '../services/news/types.js'
 
 function withEnv(values: Record<string, string | undefined>, callback: () => void) {
@@ -50,9 +51,15 @@ test('getNewsSchedulerConfig includes all active sources by default', () => {
     () => {
       const config = getNewsSchedulerConfig()
 
-      for (const sourceKey of ['congthuong', 'kinhtenongthon', 'vinacas', 'coa', 'vasep'] as NewsSourceKey[]) {
+      for (const sourceKey of ['congthuong', 'kinhtenongthon', 'vinacas', 'coa'] as NewsSourceKey[]) {
         assert.ok(config.sourceKeys.includes(sourceKey))
       }
+
+      assert.ok(!config.sourceKeys.includes('vasep'))
     },
   )
+})
+
+test('crawlNewsSource rejects disabled sources', async () => {
+  await assert.rejects(() => crawlNewsSource('vasep'), /Source vasep is disabled/)
 })

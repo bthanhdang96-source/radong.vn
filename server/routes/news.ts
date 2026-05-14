@@ -9,7 +9,7 @@ import {
   getNewsSources,
   getNewsTopics,
 } from '../services/news/service.js'
-import { NEWS_SOURCE_KEYS } from '../services/news/sourceRegistry.js'
+import { NEWS_SOURCE_KEYS, isNewsSourceVisible } from '../services/news/sourceRegistry.js'
 import type { NewsSourceKey } from '../services/news/types.js'
 
 const router = Router()
@@ -83,6 +83,11 @@ router.post('/admin/news/crawl/:sourceKey', requireAdminApiKey, async (req, res)
   const sourceKey = req.params.sourceKey
   if (!NEWS_SOURCE_KEYS.includes(sourceKey as NewsSourceKey)) {
     res.status(400).json({ success: false, error: 'Unknown source key' })
+    return
+  }
+
+  if (!isNewsSourceVisible(sourceKey as NewsSourceKey)) {
+    res.status(400).json({ success: false, error: 'Source is disabled' })
     return
   }
 
