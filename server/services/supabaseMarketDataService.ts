@@ -5,7 +5,7 @@ import {
   getVnPrices as getLegacyVnPrices,
   getVnPricesHistory as getLegacyVnPricesHistory,
 } from './priceAggregator.js'
-import type { CrawledPriceItem, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
+import type { CrawledPriceItem, SourceId, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
 import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
 import { processQueuedBatch } from './ingestion/worker.js'
@@ -183,6 +183,21 @@ type VnPriceChainResponse = {
 }
 
 const DEFAULT_VN_PRICE_TYPES: PriceType[] = ['farm_gate', 'wholesale']
+const EXPORT_OBSERVATION_LOOKBACK_DAYS = 45
+const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
+  'nongnghiep',
+  'vietnambiz',
+  'congthuong',
+  'dongnai_sct_daugiay',
+  'vpsaspice',
+  'banggianongsan',
+  'vietfood',
+  'giaca_nsvl',
+  'bhx',
+  'coop',
+  'shopee',
+  'customs',
+]
 
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
@@ -242,6 +257,15 @@ function isDefaultPriceTypeQuery(priceTypes: PriceType[]) {
     priceTypes.length === DEFAULT_VN_PRICE_TYPES.length &&
     DEFAULT_VN_PRICE_TYPES.every(priceType => priceTypes.includes(priceType))
   )
+}
+
+export function resolveSourceSnapshotIds(sourceIds?: SourceSnapshot['id'][]) {
+  const requested = sourceIds?.filter(Boolean)
+  if (requested && requested.length > 0) {
+    return [...new Set(requested)]
+  }
+
+  return [...DEFAULT_SOURCE_SNAPSHOT_IDS]
 }
 
 async function refreshCuratedViews() {
@@ -594,47 +618,84 @@ async function getRetailRegionalPriceRows() {
 
 async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
   const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
-  if (!client || (sourceIds && sourceIds.length === 0)) {
+  const requestedSourceIds = resolveSourceSnapshotIds(sourceIds)
+  if (!client || requestedSourceIds.length === 0) {
     return []
   }
 
-  const runQuery = (column?: 'source' | 'source_name') => {
-    let query = client
+  const runQuery = async (sourceId: SourceSnapshot['id'], column: 'source' | 'source_name') => {
+    const { data, error } = await client
       .from('raw_crawl_logs')
       .select('*')
+      .eq(column, sourceId)
       .order('crawled_at', { ascending: false })
-      .limit(50)
+      .limit(1)
 
-    if (column && sourceIds && sourceIds.length > 0) {
-      query = query.in(column, sourceIds)
-    }
-
-    return query
-  }
-
-  let { data, error } = sourceIds && sourceIds.length > 0 ? await runQuery('source') : await runQuery()
-  if (error && sourceIds && sourceIds.length > 0) {
-    const retry = await runQuery('source_name')
-    data = retry.data
-    error = retry.error
-  }
-
-  if (error) {
-    throw error
+    return { data, error }
   }
 
   const bySource = new Map<string, SourceSnapshot>()
-  for (const row of data as RawCrawlLogRow[]) {
-    const snapshot = row.raw_json?.snapshot
-    const sourceId = snapshot?.id ?? row.source_name ?? row.source
-    if (!snapshot || !sourceId || bySource.has(sourceId)) {
+  for (const sourceId of requestedSourceIds) {
+    let { data, error } = await runQuery(sourceId, 'source')
+    if (error) {
+      const retry = await runQuery(sourceId, 'source_name')
+      data = retry.data
+      error = retry.error
+    }
+
+    if (error) {
+      throw error
+    }
+
+    const row = (data as RawCrawlLogRow[] | null | undefined)?.[0]
+    if (!row) {
       continue
     }
 
-    bySource.set(sourceId, snapshot)
+    const snapshot = row.raw_json?.snapshot
+    const snapshotSourceId = snapshot?.id ?? row.source_name ?? row.source
+    if (!snapshot || !snapshotSourceId || bySource.has(snapshotSourceId)) {
+      continue
+    }
+
+    bySource.set(snapshotSourceId, snapshot)
   }
 
   return [...bySource.values()]
+}
+
+export function selectLatestObservationRows(rows: LatestObservationRow[]) {
+  const sortedRows = [...rows].sort((left, right) => right.recorded_at.localeCompare(left.recorded_at))
+  const bySignature = new Map<string, LatestObservationRow>()
+
+  for (const row of sortedRows) {
+    const priceType = getObservationPriceType(row)
+    const provinceCode = row.province_code ?? ''
+    const marketName =
+      typeof row.raw_payload?.marketName === 'string' && row.raw_payload.marketName.length > 0
+        ? row.raw_payload.marketName
+        : ''
+    const articleTitle =
+      typeof row.raw_payload?.articleTitle === 'string' && row.raw_payload.articleTitle.length > 0
+        ? row.raw_payload.articleTitle
+        : ''
+    const signature = [
+      getObservationSource(row),
+      row.commodity_slug,
+      priceType,
+      provinceCode,
+      row.variety ?? '',
+      row.quality_grade ?? '',
+      marketName,
+      articleTitle,
+    ].join('::')
+
+    if (!bySignature.has(signature)) {
+      bySignature.set(signature, row)
+    }
+  }
+
+  return [...bySignature.values()]
 }
 
 function buildHistoricalLookups(rows: DailySummaryRow[]) {
@@ -1165,7 +1226,9 @@ function buildUnsupportedPriceTypeResponse(priceTypes: PriceType[]): VnPricesRes
 }
 
 async function buildVnResponseFromSupabase(priceTypes: PriceType[]) {
-  const observationRows = await getLatestObservationRows(priceTypes)
+  const observationRows = priceTypes.includes('export')
+    ? selectLatestObservationRows((await getRecentObservationRows(priceTypes, EXPORT_OBSERVATION_LOOKBACK_DAYS)) ?? [])
+    : await getLatestObservationRows(priceTypes)
   if (!observationRows || observationRows.length === 0) {
     return null
   }
