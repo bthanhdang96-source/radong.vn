@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber, USER_AGENT } from './common.js'
 import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
+import { retryTransient } from '../transientNetwork.js'
 
 type CoopAddressSuggestion = {
   fullAddress?: string
@@ -180,29 +181,31 @@ function getMaxPagesPerCategory(options: CrawlCoopOptions) {
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
+  return retryTransient(async () => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20_000)
 
-  try {
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        accept: 'application/json, text/plain, */*',
-        'content-type': 'application/json',
-        'user-agent': USER_AGENT,
-        ...(init?.headers ?? {}),
-      },
-      signal: controller.signal,
-    })
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          'content-type': 'application/json',
+          'user-agent': USER_AGENT,
+          ...(init?.headers ?? {}),
+        },
+        signal: controller.signal,
+      })
 
-    if (!response.ok) {
-      throw new Error(`Request failed with ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`)
+      }
+
+      return (await response.json()) as T
+    } finally {
+      clearTimeout(timeout)
     }
-
-    return (await response.json()) as T
-  } finally {
-    clearTimeout(timeout)
-  }
+  })
 }
 
 async function loadFixture(path: string) {

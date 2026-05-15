@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { CrawledPriceItem, CrawlerResult, SourceId } from './types.js';
+import { isTransientNetworkError, retryTransient, retryTransientResult, type RetryOptions } from '../transientNetwork.js';
 import { validateAndDedupSourceBatch } from '../validators/vnPriceValidation.js';
 
 export const USER_AGENT = 'NongSanVN/0.6 (+https://github.com/bthanhdang96-source/radong.vn)';
@@ -29,14 +30,36 @@ export function roundNumber(value: number): number {
 }
 
 export async function fetchUtf8(url: string): Promise<string> {
-  const response = await fetch(url, { headers: HTML_HEADERS });
-  const html = Buffer.from(await response.arrayBuffer()).toString('utf8');
+  return retryTransient(async () => {
+    const response = await fetch(url, { headers: HTML_HEADERS });
+    const html = Buffer.from(await response.arrayBuffer()).toString('utf8');
 
-  if (!response.ok) {
-    throw new Error(`Request failed with ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+
+    return html;
+  });
+}
+
+function isRetryableSourceFailure(result: CrawlerResult) {
+  if (result.sources.length === 0) {
+    return true;
   }
 
-  return html;
+  const failedSources = result.sources.filter((source) => !source.success);
+  return (
+    failedSources.length > 0 &&
+    failedSources.length === result.sources.length &&
+    failedSources.every((source) => isTransientNetworkError(new Error(source.error ?? 'Unknown crawler error')))
+  );
+}
+
+export async function retryCrawlerResult(
+  operation: () => Promise<CrawlerResult>,
+  options: RetryOptions = {},
+): Promise<CrawlerResult> {
+  return retryTransientResult(operation, isRetryableSourceFailure, options);
 }
 
 export function toBodyText(html: string): string {

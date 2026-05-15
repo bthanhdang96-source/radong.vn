@@ -1,5 +1,6 @@
 import '../env.js'
 import { crawlCoop } from '../services/crawlers/coopCrawler.js'
+import { retryCrawlerResult } from '../services/crawlers/common.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'
 
@@ -29,17 +30,19 @@ async function main() {
           .filter(Boolean)
       : null
 
-  const result = await crawlCoop({
-    fixturePath,
-    regionCodes,
-    categorySlugs: categoryArg
-      ? categoryArg
-          .split(',')
-          .map(value => value.trim())
-          .filter(Boolean)
-      : null,
-    maxPagesPerCategory: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 2,
-  })
+  const result = await retryCrawlerResult(() =>
+    crawlCoop({
+      fixturePath,
+      regionCodes,
+      categorySlugs: categoryArg
+        ? categoryArg
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean)
+        : null,
+      maxPagesPerCategory: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 2,
+    }),
+  )
 
   const source = result.sources[0]
   console.log(`[Coop Run] success=${source?.success ?? false}`)

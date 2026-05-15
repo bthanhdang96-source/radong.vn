@@ -1,5 +1,6 @@
 import '../env.js'
 import { crawlDongnaiDauGiay } from '../services/crawlers/dongnaiDauGiayCrawler.js'
+import { retryCrawlerResult } from '../services/crawlers/common.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'
 
@@ -14,10 +15,12 @@ function hasFlag(name: string) {
 
 async function main() {
   const dryRun = hasFlag('dry-run')
-  const result = await crawlDongnaiDauGiay({
-    articleUrl: getArgValue('article-url') ?? null,
-    pdfUrl: getArgValue('pdf-url') ?? null,
-  })
+  const result = await retryCrawlerResult(() =>
+    crawlDongnaiDauGiay({
+      articleUrl: getArgValue('article-url') ?? null,
+      pdfUrl: getArgValue('pdf-url') ?? null,
+    }),
+  )
 
   const source = result.sources[0]
   console.log(`[Dong Nai Dau Giay Run] success=${source?.success ?? false}`)

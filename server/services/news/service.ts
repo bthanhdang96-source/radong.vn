@@ -8,6 +8,7 @@ import { extractNewsArticle, hasSuspiciousExtractedBody } from './extract/articl
 import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache, rememberLiveNewsArticles } from './liveCache.js'
 import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
+import { retryTransientResult } from '../transientNetwork.js'
 import type {
   NewsArticleRecord,
   NewsCrawlResult,
@@ -72,6 +73,13 @@ type NewsRunRow = {
   inserted_count: number
   updated_count: number
   failed_count: number
+  status: NewsCrawlRunRecord['status']
+  error: string | null
+}
+
+type NewsSourceAttempt = {
+  discoveredItems: NewsDiscoveredItem[]
+  articles: NewsArticleRecord[]
   status: NewsCrawlRunRecord['status']
   error: string | null
 }
@@ -678,6 +686,38 @@ async function persistCrawlResult(
   }
 }
 
+async function performNewsSourceAttempt(source: NewsSourceConfig): Promise<NewsSourceAttempt> {
+  try {
+    const discoveredItems = await discoverNewsItems(source)
+    const articles: NewsArticleRecord[] = []
+
+    for (const item of discoveredItems.slice(0, source.maxArticlesPerRun)) {
+      try {
+        const article = await extractNewsArticle(source, item)
+        articles.push(article)
+      } catch (error) {
+        console.warn(`[News] Failed to extract article for ${source.key}:`, item.canonicalUrl, error)
+      }
+
+      await sleep(source.rateLimitMs)
+    }
+
+    return {
+      discoveredItems,
+      articles: articles.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
+      status: articles.length === discoveredItems.length ? 'success' : articles.length > 0 ? 'partial' : 'failed',
+      error: null,
+    }
+  } catch (error) {
+    return {
+      discoveredItems: [],
+      articles: [],
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Unknown crawl failure',
+    }
+  }
+}
+
 export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCrawlOptions): Promise<NewsCrawlResult> {
   if (!isNewsSourceVisible(sourceKey)) {
     throw new Error(`Source ${sourceKey} is disabled`)
@@ -688,60 +728,48 @@ export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCr
     maxArticlesPerRun: options?.maxArticlesPerRun ?? getNewsSourceConfig(sourceKey).maxArticlesPerRun,
   }
   const startedAt = new Date().toISOString()
+  const attempted = await retryTransientResult(
+    () => performNewsSourceAttempt(source),
+    result => result.status === 'failed',
+    {
+      attempts: 3,
+      initialDelayMs: source.rateLimitMs,
+    },
+  )
 
-  try {
-    const discoveredItems = await discoverNewsItems(source)
-    const articles: NewsArticleRecord[] = []
-
-    for (const item of discoveredItems.slice(0, source.maxArticlesPerRun)) {
-      try {
-        const article = await extractNewsArticle(source, item)
-        articles.push(article)
-      } catch (error) {
-        console.warn(`[News] Failed to extract article for ${sourceKey}:`, item.canonicalUrl, error)
-      }
-
-      await sleep(source.rateLimitMs)
+  if (options?.persist === false) {
+    return {
+      source: toSourceRecord(source),
+      run: {
+        sourceKey: source.key,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        discoverCount: attempted.discoveredItems.length,
+        insertedCount: attempted.articles.length,
+        updatedCount: 0,
+        failedCount: Math.max(0, attempted.discoveredItems.length - attempted.articles.length),
+        status: attempted.status,
+        error: attempted.error,
+      },
+      items: attempted.articles,
     }
-
-    const status = articles.length === discoveredItems.length ? 'success' : articles.length > 0 ? 'partial' : 'failed'
-    if (options?.persist === false) {
-      return {
-        source: toSourceRecord(source),
-        run: {
-          sourceKey: source.key,
-          startedAt,
-          finishedAt: new Date().toISOString(),
-          discoverCount: discoveredItems.length,
-          insertedCount: articles.length,
-          updatedCount: 0,
-          failedCount: Math.max(0, discoveredItems.length - articles.length),
-          status,
-          error: null,
-        },
-        items: articles.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
-      }
-    }
-
-    const result = await persistCrawlResult(
-      source,
-      discoveredItems,
-      articles.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt)),
-      status,
-      null,
-    )
-
-    if (result.items.length > 0) {
-      rememberLiveNewsArticles(result.items)
-      clearReadCaches()
-    }
-
-    result.run.startedAt = startedAt
-    return result
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown crawl failure'
-    return persistCrawlResult(source, [], [], 'failed', message)
   }
+
+  const result = await persistCrawlResult(
+    source,
+    attempted.discoveredItems,
+    attempted.articles,
+    attempted.status,
+    attempted.error,
+  )
+
+  if (result.items.length > 0) {
+    rememberLiveNewsArticles(result.items)
+    clearReadCaches()
+  }
+
+  result.run.startedAt = startedAt
+  return result
 }
 
 export async function crawlNewsSources(sourceKeys?: NewsSourceKey[]) {

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { load } from 'cheerio'
+import { retryTransient } from '../transientNetwork.js'
 import type { NewsCursorPayload } from './types.js'
 
 const REQUEST_HEADERS = {
@@ -9,12 +10,14 @@ const REQUEST_HEADERS = {
 }
 
 export async function fetchText(url: string) {
-  const response = await fetch(url, { headers: REQUEST_HEADERS })
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`)
-  }
+  return retryTransient(async () => {
+    const response = await fetch(url, { headers: REQUEST_HEADERS })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status}`)
+    }
 
-  return response.text()
+    return response.text()
+  })
 }
 
 export function resolveUrl(baseUrl: string, url: string) {

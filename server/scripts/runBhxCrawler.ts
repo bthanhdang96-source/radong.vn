@@ -1,5 +1,6 @@
 import '../env.js'
 import { crawlBhx } from '../services/crawlers/bhxCrawler.js'
+import { retryCrawlerResult } from '../services/crawlers/common.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'
 
@@ -31,17 +32,19 @@ async function main() {
           .filter(Boolean)
       : null
 
-  const result = await crawlBhx({
-    fixturePath,
-    regionCodes,
-    categoryUrls: categoryArg
-      ? categoryArg
-          .split(',')
-          .map(value => value.trim())
-          .filter(Boolean)
-      : null,
-    maxProductsPerCategory: Number.isFinite(maxProducts) && maxProducts > 0 ? maxProducts : 12,
-  })
+  const result = await retryCrawlerResult(() =>
+    crawlBhx({
+      fixturePath,
+      regionCodes,
+      categoryUrls: categoryArg
+        ? categoryArg
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean)
+        : null,
+      maxProductsPerCategory: Number.isFinite(maxProducts) && maxProducts > 0 ? maxProducts : 12,
+    }),
+  )
 
   const source = result.sources[0]
   console.log(`[BHX Run] success=${source?.success ?? false}`)

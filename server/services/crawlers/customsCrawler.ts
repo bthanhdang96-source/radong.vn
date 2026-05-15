@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
+import { retryTransient } from '../transientNetwork.js'
 
 const CUSTOMS_REPORT_ROOT = 'https://files.customs.gov.vn/CustomsCMS/TONG_CUC'
 const CUSTOMS_SITE_URL = 'https://www.customs.gov.vn/'
@@ -187,14 +188,16 @@ function buildCustomsPdfCandidates(now = new Date(), maxLookbackDays = 45) {
 
 async function fetchUsdExchangeRate() {
   try {
-    const response = await fetch(VIETCOMBANK_EXCHANGE_URL, {
-      headers: { 'user-agent': 'Mozilla/5.0' },
-    })
-    if (!response.ok) {
-      throw new Error(`Exchange rate request failed with ${response.status}`)
-    }
+    const xml = await retryTransient(async () => {
+      const response = await fetch(VIETCOMBANK_EXCHANGE_URL, {
+        headers: { 'user-agent': 'Mozilla/5.0' },
+      })
+      if (!response.ok) {
+        throw new Error(`Exchange rate request failed with ${response.status}`)
+      }
 
-    const xml = await response.text()
+      return response.text()
+    })
     const usdMatch = xml.match(/<Exrate[^>]*CurrencyCode="USD"[^>]*Sell="([^"]+)"/i)
     if (!usdMatch) {
       throw new Error('USD sell rate was not found in Vietcombank XML')
@@ -217,23 +220,25 @@ function isPdfResponse(response: Response, payload: Buffer) {
 }
 
 async function downloadCustomsPdf(reportUrl: string) {
-  const response = await fetch(reportUrl, {
-    headers: {
-      accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
-      'user-agent': 'Mozilla/5.0',
-    },
+  return retryTransient(async () => {
+    const response = await fetch(reportUrl, {
+      headers: {
+        accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
+        'user-agent': 'Mozilla/5.0',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Customs report request failed with ${response.status}`)
+    }
+
+    const payload = Buffer.from(await response.arrayBuffer())
+    if (!isPdfResponse(response, payload) || payload.length < 10_000) {
+      throw new Error('Customs report response is not a valid PDF payload')
+    }
+
+    return payload
   })
-
-  if (!response.ok) {
-    throw new Error(`Customs report request failed with ${response.status}`)
-  }
-
-  const payload = Buffer.from(await response.arrayBuffer())
-  if (!isPdfResponse(response, payload) || payload.length < 10_000) {
-    throw new Error('Customs report response is not a valid PDF payload')
-  }
-
-  return payload
 }
 
 async function resolveCustomsReportUrl(options: CrawlCustomsOptions = {}) {
@@ -255,13 +260,15 @@ async function resolveCustomsReportUrl(options: CrawlCustomsOptions = {}) {
   const candidates = buildCustomsPdfCandidates(new Date(), options.maxLookbackDays ?? 45)
   for (const url of candidates) {
     try {
-      const response = await fetch(url, {
-        method: 'HEAD',
-        headers: {
-          accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
-          'user-agent': 'Mozilla/5.0',
-        },
-      })
+      const response = await retryTransient(() =>
+        fetch(url, {
+          method: 'HEAD',
+          headers: {
+            accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
+            'user-agent': 'Mozilla/5.0',
+          },
+        }),
+      )
 
       if (!response.ok) {
         continue

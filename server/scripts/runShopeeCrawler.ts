@@ -1,5 +1,6 @@
 import '../env.js'
 import { crawlShopee } from '../services/crawlers/shopeeCrawler.js'
+import { retryCrawlerResult } from '../services/crawlers/common.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'
 
@@ -21,19 +22,21 @@ async function main() {
   const minRating = Number(getArgValue('min-rating') ?? '4')
   const enabledSlugsArg = getArgValue('enabled-slugs')
 
-  const result = await crawlShopee({
-    fixturePath,
-    maxPages: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 2,
-    minSold: Number.isFinite(minSold) && minSold >= 0 ? minSold : 5,
-    minRating: Number.isFinite(minRating) && minRating >= 0 ? minRating : 4,
-    enabledSlugs: enabledSlugsArg
-      ? enabledSlugsArg
-          .split(',')
-          .map(entry => entry.trim())
-          .filter(Boolean)
-      : null,
-    forceSessionRefresh: forceRefresh,
-  })
+  const result = await retryCrawlerResult(() =>
+    crawlShopee({
+      fixturePath,
+      maxPages: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 2,
+      minSold: Number.isFinite(minSold) && minSold >= 0 ? minSold : 5,
+      minRating: Number.isFinite(minRating) && minRating >= 0 ? minRating : 4,
+      enabledSlugs: enabledSlugsArg
+        ? enabledSlugsArg
+            .split(',')
+            .map(entry => entry.trim())
+            .filter(Boolean)
+        : null,
+      forceSessionRefresh: forceRefresh,
+    }),
+  )
 
   const source = result.sources[0]
   console.log(`[Shopee Run] success=${source?.success ?? false}`)

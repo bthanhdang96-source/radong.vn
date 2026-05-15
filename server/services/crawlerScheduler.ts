@@ -1,4 +1,5 @@
 import cron from 'node-cron'
+import { retryCrawlerResult } from './crawlers/common.js'
 import { crawlBhx } from './crawlers/bhxCrawler.js'
 import { crawlCoop } from './crawlers/coopCrawler.js'
 import { crawlCustoms } from './crawlers/customsCrawler.js'
@@ -208,7 +209,7 @@ export async function runShopeeCrawlJob(trigger = 'manual') {
     }
 
     console.log(`[Shopee Crawl] started (${trigger})`)
-    const result = await crawlShopee()
+    const result = await retryCrawlerResult(() => crawlShopee())
     await syncCrawlerResult('Shopee Crawl', config.shopeeDryRun, result)
   })
 }
@@ -217,9 +218,11 @@ export async function runBhxCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('bhx-crawl', async () => {
     console.log(`[BHX Crawl] started (${trigger})`)
-    const result = await crawlBhx({
-      regionCodes: config.bhxEnabledRegions,
-    })
+    const result = await retryCrawlerResult(() =>
+      crawlBhx({
+        regionCodes: config.bhxEnabledRegions,
+      }),
+    )
     await syncCrawlerResult('BHX Crawl', config.bhxDryRun, result)
   })
 }
@@ -228,11 +231,13 @@ export async function runCoopCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('coop-crawl', async () => {
     console.log(`[Co.op Crawl] started (${trigger})`)
-    const result = await crawlCoop({
-      regionCodes: config.coopEnabledRegions,
-      categorySlugs: config.coopEnabledCategories,
-      maxPagesPerCategory: config.coopMaxPagesPerCategory,
-    })
+    const result = await retryCrawlerResult(() =>
+      crawlCoop({
+        regionCodes: config.coopEnabledRegions,
+        categorySlugs: config.coopEnabledCategories,
+        maxPagesPerCategory: config.coopMaxPagesPerCategory,
+      }),
+    )
     await syncCrawlerResult('Co.op Crawl', config.coopDryRun, result)
   })
 }
@@ -241,7 +246,7 @@ export async function runCustomsCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('customs-crawl', async () => {
     console.log(`[Customs Crawl] started (${trigger})`)
-    const result = await crawlCustoms()
+    const result = await retryCrawlerResult(() => crawlCustoms())
     await syncCrawlerResult('Customs Crawl', config.customsDryRun, result)
   })
 }

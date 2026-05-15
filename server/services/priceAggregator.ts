@@ -7,6 +7,7 @@ import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
 import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
 import { crawlVietfood } from './crawlers/vietfoodCrawler.js';
 import { crawlVpsaspice } from './crawlers/vpsaspiceCrawler.js';
+import { retryCrawlerResult } from './crawlers/common.js';
 import type {
   CommoditySummary,
   CrawledDayData,
@@ -262,14 +263,14 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
   const errors: string[] = [];
 
   const [nongnghiep, vietnambiz, congthuong, dongnaiDauGiay, vpsaspice, banggianongsan, vietfood, giacaNsvl] = await Promise.all([
-    crawlNongnghiep(),
-    crawlVietnambiz(),
-    crawlCongthuong(),
-    crawlDongnaiDauGiay(),
-    crawlVpsaspice(),
-    crawlBanggianongsan(),
-    crawlVietfood(),
-    crawlGiacaNsvl(),
+    retryCrawlerResult(() => crawlNongnghiep()),
+    retryCrawlerResult(() => crawlVietnambiz()),
+    retryCrawlerResult(() => crawlCongthuong()),
+    retryCrawlerResult(() => crawlDongnaiDauGiay()),
+    retryCrawlerResult(() => crawlVpsaspice()),
+    retryCrawlerResult(() => crawlBanggianongsan()),
+    retryCrawlerResult(() => crawlVietfood()),
+    retryCrawlerResult(() => crawlGiacaNsvl()),
   ]);
   const items = [
     ...nongnghiep.items,

@@ -1,5 +1,6 @@
 import '../env.js'
 import { crawlCustoms } from '../services/crawlers/customsCrawler.js'
+import { retryCrawlerResult } from '../services/crawlers/common.js'
 import { syncCrawlerResultToSupabase } from '../services/ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from '../services/supabaseClient.js'
 
@@ -19,18 +20,20 @@ async function main() {
   const discoveryModeArg = getArgValue('discovery')
   const parserArg = getArgValue('parser')
   const enabledSlugsArg = getArgValue('enabled-slugs')
-  const result = await crawlCustoms({
-    reportUrl,
-    maxLookbackDays: Number.isFinite(maxLookbackDays) && maxLookbackDays > 0 ? maxLookbackDays : 45,
-    discoveryMode: discoveryModeArg === 'manual' ? 'manual' : discoveryModeArg === 'pattern' ? 'pattern' : undefined,
-    parserPreference: parserArg === 'pdftotext' || parserArg === 'js' ? parserArg : undefined,
-    enabledSlugs: enabledSlugsArg
-      ? enabledSlugsArg
-          .split(',')
-          .map(entry => entry.trim())
-          .filter(Boolean)
-      : null,
-  })
+  const result = await retryCrawlerResult(() =>
+    crawlCustoms({
+      reportUrl,
+      maxLookbackDays: Number.isFinite(maxLookbackDays) && maxLookbackDays > 0 ? maxLookbackDays : 45,
+      discoveryMode: discoveryModeArg === 'manual' ? 'manual' : discoveryModeArg === 'pattern' ? 'pattern' : undefined,
+      parserPreference: parserArg === 'pdftotext' || parserArg === 'js' ? parserArg : undefined,
+      enabledSlugs: enabledSlugsArg
+        ? enabledSlugsArg
+            .split(',')
+            .map(entry => entry.trim())
+            .filter(Boolean)
+        : null,
+    }),
+  )
 
   const source = result.sources[0]
   console.log(`[Customs Run] success=${source?.success ?? false}`)
