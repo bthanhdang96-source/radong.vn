@@ -19,6 +19,10 @@ type CommodityConfig = {
   parser: (html: string, timestamp: string) => CrawledPriceItem[]
 }
 
+export function isDomesticCoffeeLabel(label: string) {
+  return foldText(label).includes('(d/kg)')
+}
+
 function parsePriceDelta(value: string): number {
   const normalized = foldText(value)
   if (!value || normalized.includes('khong doi') || normalized.includes('moi cap nhat') || value.trim() === '-') {
@@ -47,9 +51,10 @@ function parseCoffee(html: string, timestamp: string): CrawledPriceItem[] {
   return extractRows(table)
     .slice(1)
     .map(cells => {
-      const match = (cells[0] ?? '').match(/Cà phê\s+(.+?)\s+\(/i)
+      const label = cells[0] ?? ''
+      const match = label.match(/Cà phê\s+(.+?)\s+\(/i)
       const price = parseNumber(cells[2] ?? '')
-      if (!match || !Number.isFinite(price) || price <= 0) {
+      if (!match || !isDomesticCoffeeLabel(label) || !Number.isFinite(price) || price <= 0) {
         return null
       }
 
