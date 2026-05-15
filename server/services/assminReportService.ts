@@ -209,6 +209,8 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
   return priceSources.map<ReportSourceRow>(source => {
     const warnings: ReportWarning[] = []
     const freshnessLabel = toFreshnessLabel(source.fetchedAt)
+    const validationErrorCount = source.validationErrors?.length ?? 0
+    const droppedCount = source.droppedCount ?? 0
 
     if (!source.success) {
       warnings.push(makeWarning('source_failed', 'critical', `${source.label} crawl lỗi: ${source.error ?? 'không có item hợp lệ'}.`))
@@ -218,12 +220,23 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
       warnings.push(makeWarning('stale_snapshot', 'warning', `${source.label} đã quá cũ, cập nhật gần nhất ${formatTimestamp(source.fetchedAt)}.`))
     }
 
-    if ((source.validationErrors?.length ?? 0) > 0) {
-      warnings.push(makeWarning('validation_errors', 'warning', `${source.label} có ${source.validationErrors?.length ?? 0} lỗi validation.`))
-    }
+    if (validationErrorCount > 0 && droppedCount > 0) {
+      const droppedSummary =
+        droppedCount === validationErrorCount
+          ? `đã loại ${droppedCount} dòng dữ liệu.`
+          : `đã loại ${droppedCount} dòng dữ liệu sau validation.`
 
-    if ((source.droppedCount ?? 0) > 0) {
-      warnings.push(makeWarning('dropped_rows', 'warning', `${source.label} đã loại ${source.droppedCount} dòng dữ liệu.`))
+      warnings.push(
+        makeWarning(
+          'validation_summary',
+          'warning',
+          `${source.label} có ${validationErrorCount} lỗi validation và ${droppedSummary}`,
+        ),
+      )
+    } else if (validationErrorCount > 0) {
+      warnings.push(makeWarning('validation_errors', 'warning', `${source.label} có ${validationErrorCount} lỗi validation.`))
+    } else if (droppedCount > 0) {
+      warnings.push(makeWarning('dropped_rows', 'warning', `${source.label} đã loại ${droppedCount} dòng dữ liệu.`))
     }
 
     const status: ReportSeverity =
