@@ -26,6 +26,7 @@ function renderWebPageJsonLd(pageUrl, page) {
     dateModified: page.updatedAt,
     datePublished: page.publishedAt || page.updatedAt,
     about: [page.commoditySlug, page.locationLabel],
+    image: page.thumbnailUrl || undefined,
   }
 }
 
@@ -105,6 +106,7 @@ export default async function handler(req, res) {
     <meta property="og:title" content="${escapeHtml(page.seo.ogTitle)}" />
     <meta property="og:description" content="${escapeHtml(page.seo.ogDescription)}" />
     <meta property="og:url" content="${escapeHtml(pageUrl)}" />
+    ${page.thumbnailUrl ? `<meta property="og:image" content="${escapeHtml(page.thumbnailUrl)}" />` : ''}
     ${noindex ? '<meta name="robots" content="noindex,follow" />' : '<meta name="robots" content="index,follow,max-image-preview:large" />'}
     ${jsonLd.map(item => `<script type="application/ld+json">${JSON.stringify(item)}</script>`).join('\n')}
     <style>
@@ -117,6 +119,8 @@ export default async function handler(req, res) {
       .badge { display: inline-flex; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(34,197,94,0.22); background: rgba(34,197,94,0.12); color: #5ee38e; }
       h1 { margin: 16px 0; font-size: clamp(2.1rem, 4vw, 3.25rem); line-height: 1.04; }
       .lede { margin: 0; color: rgba(237,244,250,0.86); font: 400 18px/1.8 Arial, sans-serif; }
+      .hero { margin: 24px 0 0; overflow: hidden; border-radius: 22px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
+      .hero img { display: block; width: 100%; max-height: 360px; object-fit: cover; }
       .facts { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin: 24px 0; }
       .facts article, .faq article, .rail-item { border-radius: 18px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.04); padding: 16px; }
       .facts span, .rail-item p { display: block; font: 500 13px/1.5 Arial, sans-serif; color: rgba(237,244,250,0.64); }
@@ -153,6 +157,7 @@ export default async function handler(req, res) {
             <h1>${escapeHtml(page.title)}</h1>
             <p class="lede">${escapeHtml(page.answerSummary)}</p>
           </header>
+          ${page.thumbnailUrl ? `<figure class="hero"><img src="${escapeHtml(page.thumbnailUrl)}" alt="${escapeHtml(page.title)}" /></figure>` : ''}
           <section class="facts">
             <article><span>Giá hiện tại</span><strong>${escapeHtml(Math.round(page.latestPriceVnd).toLocaleString('vi-VN'))} đồng/kg</strong></article>
             <article><span>So với hôm qua</span><strong>${escapeHtml(page.dayChangePct > 0 ? '+' : '')}${escapeHtml(page.dayChangePct.toFixed(2))}%</strong></article>

@@ -140,3 +140,65 @@ test('buildCandidatePages requires latest day, yesterday, and at least three obs
   assert.equal(pages[0]?.primaryPriceType, 'wholesale')
   assert.equal(pages[0]?.dayChangeVnd, 2000)
 })
+
+test('buildCandidatePages normalizes commodity and location labels for public titles', () => {
+  const pages = __generatedPricePagesTestUtils.buildCandidatePages(
+    {
+      latestRows: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'cam-sanh',
+          province_code: 'VLO',
+          price_type: 'wholesale',
+          variety: null,
+          market_name: null,
+          raw_payload: null,
+        },
+      ],
+      observations: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'cam-sanh',
+          province_code: 'VLO',
+          price_type: 'wholesale',
+          price_vnd: 32500,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: null,
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'cam-sanh',
+          province_code: 'VLO',
+          price_type: 'wholesale',
+          price_vnd: 30000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: null,
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'cam-sanh',
+          province_code: 'VLO',
+          price_type: 'wholesale',
+          price_vnd: 31000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: null,
+        },
+      ],
+      commodities: [{ slug: 'cam-sanh', name_vi: 'Cam sanh', category: 'Trai cay' }],
+      provinces: [{ code: 'VLO', name_vi: 'Vinh Long' }],
+      regionalPrices: [],
+      trends: [],
+    },
+    {},
+  )
+
+  assert.equal(pages[0]?.commodityName, 'Cam sành')
+  assert.equal(pages[0]?.scope.locationLabel, 'Vĩnh Long')
+  assert.match(__generatedPricePagesTestUtils.getCommodityThumbnailUrl('cam-sanh'), /images\.unsplash\.com/i)
+})

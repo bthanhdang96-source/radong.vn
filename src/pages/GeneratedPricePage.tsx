@@ -139,6 +139,12 @@ export default function GeneratedPricePage() {
             <p className="generated-price-page__excerpt">{page.answerSummary}</p>
           </header>
 
+          {page.thumbnailUrl ? (
+            <figure className="generated-price-page__hero">
+              <img src={page.thumbnailUrl} alt={page.title} loading="eager" />
+            </figure>
+          ) : null}
+
           <section className="generated-price-page__facts">
             <article>
               <span>Giá hiện tại</span>
