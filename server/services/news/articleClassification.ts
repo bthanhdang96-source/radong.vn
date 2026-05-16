@@ -71,6 +71,54 @@ function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): Artic
     return createHiddenClassification(['vietnambiz-topic-hub'])
   }
 
+  const isCoffeePriceRoundup =
+    title.includes('gia ca phe hom nay') ||
+    canonicalUrl.includes('gia-ca-phe-hom-nay-') ||
+    contentText.includes('gia ca phe hom nay') ||
+    contentText.includes('gia thu mua ca phe')
+
+  if (isCoffeePriceRoundup) {
+    return {
+      status: 'archived',
+      hideFromNewsFeed: true,
+      topicTags: ['price-roundup', 'vietnambiz-price', 'vietnambiz-coffee'],
+      kind: 'price_roundup',
+      priceDataTarget: null,
+    }
+  }
+
+  const isPepperPriceRoundup =
+    title.includes('gia tieu hom nay') ||
+    canonicalUrl.includes('gia-tieu-hom-nay-') ||
+    contentText.includes('gia tieu sang nay') ||
+    contentText.includes('gia thu mua ngay')
+
+  if (isPepperPriceRoundup) {
+    return {
+      status: 'archived',
+      hideFromNewsFeed: true,
+      topicTags: ['price-roundup', 'vietnambiz-price', 'vietnambiz-pepper'],
+      kind: 'price_roundup',
+      priceDataTarget: null,
+    }
+  }
+
+  const isPorkPriceRoundup =
+    title.includes('gia heo hoi hom nay') ||
+    canonicalUrl.includes('gia-heo-hoi-hom-nay-') ||
+    contentText.includes('gia heo hoi hom nay tai mien') ||
+    contentText.includes('thi truong heo hoi')
+
+  if (isPorkPriceRoundup) {
+    return {
+      status: 'archived',
+      hideFromNewsFeed: true,
+      topicTags: ['price-roundup', 'vietnambiz-price', 'vietnambiz-pork'],
+      kind: 'price_roundup',
+      priceDataTarget: null,
+    }
+  }
+
   const isRicePriceRoundup =
     title.includes('gia lua gao hom nay') ||
     canonicalUrl.includes('gia-lua-gao-hom-nay-') ||

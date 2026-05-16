@@ -81,6 +81,43 @@ test('classifyNewsArticle hides Vietnambiz domestic rice price roundups from the
   assert.equal(classification.priceDataTarget, 'vn_domestic_rice')
 })
 
+test('classifyNewsArticle hides Vietnambiz coffee, pepper, and pork price roundups from the news feed', () => {
+  const cases = [
+    {
+      title: 'Giá cà phê hôm nay 13/5: Hạ nhiệt sau chuỗi tăng liên tiếp',
+      canonicalUrl: 'https://vietnambiz.vn/gia-ca-phe-hom-nay-135-ha-nhiet-sau-chuoi-tang-lien-tiep-202651372113500.htm',
+      contentText: 'Giá thu mua cà phê tại Đắk Nông được điều chỉnh giảm nhẹ.',
+      expectedTag: 'vietnambiz-coffee',
+    },
+    {
+      title: 'Giá tiêu hôm nay 13/5: Vẫn trong xu hướng tăng, một số địa phương nhích thêm 500 đồng/kg',
+      canonicalUrl: 'https://vietnambiz.vn/gia-tieu-hom-nay-135-van-trong-xu-huong-tang-mot-so-dia-phuong-nhich-them-500-dongkg-202651365835877.htm',
+      contentText: 'Giá thu mua ngày 13/5 tại các vùng trồng tiêu trọng điểm tiếp tục tăng nhẹ.',
+      expectedTag: 'vietnambiz-pepper',
+    },
+    {
+      title: 'Giá heo hơi hôm nay 13/5: Sơn La và Thanh Hóa tăng nhẹ 1.000 đồng/kg',
+      canonicalUrl: 'https://vietnambiz.vn/gia-heo-hoi-hom-nay-135-son-la-va-thanh-hoa-tang-nhe-1000-dongkg-202651371653645.htm',
+      contentText: 'Thị trường heo hơi hôm nay tại miền Bắc tăng rải rác ở một vài địa phương.',
+      expectedTag: 'vietnambiz-pork',
+    },
+  ]
+
+  for (const input of cases) {
+    const classification = classifyNewsArticle({
+      sourceKey: 'vietnambiz',
+      title: input.title,
+      canonicalUrl: input.canonicalUrl,
+      contentText: input.contentText,
+    })
+
+    assert.equal(classification.hideFromNewsFeed, true)
+    assert.equal(classification.status, 'archived')
+    assert.equal(classification.kind, 'price_roundup')
+    assert.ok(classification.topicTags.includes(input.expectedTag))
+  }
+})
+
 test('parseVietnambizRiceArticle extracts structured rice rows from the article table', () => {
   const articleHtml = `
     <html>
