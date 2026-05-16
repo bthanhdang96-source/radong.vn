@@ -234,10 +234,6 @@ export function summarizeHourlyToDaily(
     }))
 }
 
-export function buildWeatherCacheKey(locationCode: string) {
-  return `agri-weather:${locationCode}`
-}
-
 export function uniqueSorted<T>(values: T[]) {
   return [...new Set(values)].sort()
 }

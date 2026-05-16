@@ -53,7 +53,7 @@ Required environment variables:
 Runtime behavior:
 
 - `server/env.ts` loads the repo root `.env` first, then applies `server/.env` as an optional override. This keeps `npm --prefix server run ...` aligned with the main workspace config.
-- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world data into Supabase.
+- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world/weather data into Supabase.
 - Public API reads use `SUPABASE_PUBLISHABLE_KEY`; they no longer fall back to the service role key.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
@@ -63,7 +63,7 @@ Runtime behavior:
 - Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
-- The agricultural weather page fetches through the server only, caches per `locationCode`, serves partial data when one provider is down, and falls back to stale cache when all providers fail temporarily.
+- The agricultural weather page fetches through the server only, persists cache rows in `public.weather_cache`, refreshes every configured location together when weather data is stale or force-refreshed, serves partial data when one provider is down, and falls back to stale DB cache when all providers fail temporarily.
 - User-facing numeric forecast values are arithmetic averages across the providers that are still available for a given hour or day. If only one provider is alive, its values pass through unchanged.
 
 Quick local verification for the ingestion pipeline:
@@ -132,7 +132,7 @@ Quick local verification for the agricultural weather page:
 - Start the app with `npm run dev`.
 - Check location list: `GET /api/agri-weather/locations`.
 - Check one forecast payload: `GET /api/agri-weather?locationCode=HCM`.
-- Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=HCM` with `Authorization: Bearer $ADMIN_API_KEY`.
+- Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=HCM` with `Authorization: Bearer $ADMIN_API_KEY`. The refresh job now pulls and persists all configured weather locations before returning the requested location payload.
 
 ## React + TypeScript + Vite
 

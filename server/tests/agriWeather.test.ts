@@ -4,13 +4,169 @@ import { readFileSync } from 'node:fs'
 import { normalizeMetNoForecast } from '../services/weather/providers/metNo.js'
 import { normalizeOpenMeteoForecast } from '../services/weather/providers/openMeteo.js'
 import { normalizeWeatherApiForecast } from '../services/weather/providers/weatherApi.js'
+import { createAgriWeatherService } from '../services/weather/service.js'
 import { buildAgriAdvisories } from '../services/weather/advisories.js'
 import { buildCurrentConsensus, buildDailyConsensus, buildHourlyConsensus } from '../services/weather/consensus.js'
-import type { ForecastDay, ForecastHour, WeatherProviderForecast } from '../services/weather/types.js'
+import type { AgriWeatherPayload, ForecastDay, ForecastHour, WeatherLocationSummary, WeatherProviderForecast } from '../services/weather/types.js'
 
 function readFixture<T>(filename: string): T {
   const content = readFileSync(new URL(`../fixtures/${filename}`, import.meta.url), 'utf-8')
   return JSON.parse(content) as T
+}
+
+const TEST_LOCATIONS: WeatherLocationSummary[] = [
+  { code: 'HCM', nameVi: 'TP. Ho Chi Minh', type: 'city', macroRegion: 'south', lat: 10.77689, lon: 106.70081, elevationM: null, featured: true },
+  { code: 'DLK', nameVi: 'Dak Lak', type: 'province', macroRegion: 'highland', lat: 12.66747, lon: 108.03775, elevationM: null, featured: true },
+]
+
+function getTestLocation(code: string) {
+  return TEST_LOCATIONS.find(location => location.code === code) ?? null
+}
+
+function createPersistedPayload(locationCode: string, updatedAt: string): AgriWeatherPayload {
+  const location = getTestLocation(locationCode)
+  if (!location) {
+    throw new Error(`Missing test location ${locationCode}`)
+  }
+
+  return {
+    status: 'live',
+    updatedAt,
+    location,
+    current: null,
+    hourly72h: [],
+    daily7d: [],
+    advisories: [],
+    sourceStatus: [],
+    comparison: [],
+    providerErrors: [],
+  }
+}
+
+function createProviderForecast(locationCode: string, updatedAt: string): WeatherProviderForecast {
+  const tempBase = locationCode === 'HCM' ? 32 : 26
+
+  return {
+    provider: 'open_meteo',
+    updatedAt,
+    current: {
+      time: updatedAt,
+      tempC: tempBase,
+      humidityPct: 70,
+      rainMm: 1,
+      windKph: 10,
+      uv: 5,
+      conditionKey: 'cloudy',
+    },
+    hourly: [
+      {
+        time: updatedAt,
+        tempC: tempBase,
+        humidityPct: 70,
+        rainMm: 1,
+        rainProbabilityPct: 40,
+        windKph: 10,
+        uv: 5,
+        et0Mm: 0.2,
+        soilTemperatureC: null,
+        soilMoistureRatio: null,
+        conditionKey: 'cloudy',
+      },
+    ],
+    daily: [
+      {
+        date: updatedAt.slice(0, 10),
+        tempMinC: tempBase - 4,
+        tempMaxC: tempBase + 2,
+        humidityAvgPct: 70,
+        rainMm: 4,
+        rainProbabilityPct: 40,
+        windMaxKph: 14,
+        uvMax: 6,
+        et0Mm: 3.4,
+        conditionKey: 'cloudy',
+      },
+    ],
+  }
+}
+
+function createWeatherServiceHarness(options: {
+  nowIso: string
+  initialRows?: Array<{
+    province_code: string
+    payload: AgriWeatherPayload
+    fetched_at: string
+    expires_at: string
+  }>
+  runProvidersByCode: Record<
+    string,
+    {
+      providerErrors: string[]
+      forecasts: WeatherProviderForecast[]
+    }
+  >
+}) {
+  const store = new Map((options.initialRows ?? []).map(row => [row.province_code, row]))
+  const refreshCalls: string[] = []
+  const upsertedRows: Array<{
+    province_code: string
+    payload: AgriWeatherPayload
+    fetched_at: string
+    expires_at: string
+  }> = []
+
+  const service = createAgriWeatherService({
+    getDefaultLocation: () => TEST_LOCATIONS[0],
+    getLocation: code => getTestLocation(code ?? ''),
+    listLocations: () => TEST_LOCATIONS,
+    now: () => new Date(options.nowIso),
+    readPersistedWeather: async provinceCode => store.get(provinceCode) ?? null,
+    runProviders: async locationCode => {
+      refreshCalls.push(locationCode)
+
+      const location = getTestLocation(locationCode)
+      const result = options.runProvidersByCode[locationCode]
+      if (!location || !result) {
+        throw new Error(`Missing provider stub for ${locationCode}`)
+      }
+
+      return {
+        location,
+        sourceStatus: result.forecasts.length > 0
+          ? [{
+              provider: 'open_meteo' as const,
+              success: true,
+              updatedAt: result.forecasts[0].updatedAt,
+              horizonDays: result.forecasts[0].daily.length,
+              latencyMs: 10,
+              error: null,
+            }]
+          : [{
+              provider: 'open_meteo' as const,
+              success: false,
+              updatedAt: null,
+              horizonDays: 0,
+              latencyMs: 10,
+              error: result.providerErrors[0] ?? 'provider failed',
+            }],
+        providerErrors: result.providerErrors,
+        forecasts: result.forecasts,
+      }
+    },
+    upsertPersistedWeather: async rows => {
+      upsertedRows.push(...rows)
+      for (const row of rows) {
+        store.set(row.province_code, row)
+      }
+    },
+  })
+
+  return {
+    service,
+    store,
+    refreshCalls,
+    upsertedRows,
+  }
 }
 
 test('normalizeOpenMeteoForecast maps hourly and daily fields', () => {
@@ -364,4 +520,75 @@ test('buildAgriAdvisories emits expected rule-based warnings', () => {
   assert.ok(ids.includes('rain_warning'))
   assert.ok(ids.includes('spray_caution'))
   assert.ok(ids.includes('heat_stress'))
+})
+
+test('getAgriWeather returns a fresh persisted Supabase row without re-fetching providers', async () => {
+  const nowIso = '2026-05-16T03:00:00.000Z'
+  const persistedPayload = createPersistedPayload('HCM', '2026-05-16T02:30:00.000Z')
+  const harness = createWeatherServiceHarness({
+    nowIso,
+    initialRows: [
+      {
+        province_code: 'HCM',
+        payload: persistedPayload,
+        fetched_at: '2026-05-16T02:30:00.000Z',
+        expires_at: '2026-05-16T03:30:00.000Z',
+      },
+    ],
+    runProvidersByCode: {
+      HCM: { providerErrors: [], forecasts: [createProviderForecast('HCM', nowIso)] },
+      DLK: { providerErrors: [], forecasts: [createProviderForecast('DLK', nowIso)] },
+    },
+  })
+
+  const result = await harness.service.getAgriWeather('HCM')
+
+  assert.deepEqual(result, persistedPayload)
+  assert.deepEqual(harness.refreshCalls, [])
+  assert.equal(harness.upsertedRows.length, 0)
+})
+
+test('force refreshing one weather location refreshes and persists every configured location', async () => {
+  const nowIso = '2026-05-16T04:00:00.000Z'
+  const harness = createWeatherServiceHarness({
+    nowIso,
+    runProvidersByCode: {
+      HCM: { providerErrors: [], forecasts: [createProviderForecast('HCM', nowIso)] },
+      DLK: { providerErrors: [], forecasts: [createProviderForecast('DLK', nowIso)] },
+    },
+  })
+
+  const result = await harness.service.getAgriWeather('HCM', { forceRefresh: true })
+
+  assert.equal(result.location.code, 'HCM')
+  assert.deepEqual(new Set(harness.refreshCalls), new Set(['HCM', 'DLK']))
+  assert.equal(harness.upsertedRows.length, 2)
+  assert.ok(harness.store.has('HCM'))
+  assert.ok(harness.store.has('DLK'))
+})
+
+test('getAgriWeather falls back to a stale persisted row when the all-location refresh fails', async () => {
+  const nowIso = '2026-05-16T05:00:00.000Z'
+  const persistedPayload = createPersistedPayload('HCM', '2026-05-16T01:00:00.000Z')
+  const harness = createWeatherServiceHarness({
+    nowIso,
+    initialRows: [
+      {
+        province_code: 'HCM',
+        payload: persistedPayload,
+        fetched_at: '2026-05-16T01:00:00.000Z',
+        expires_at: '2026-05-16T02:00:00.000Z',
+      },
+    ],
+    runProvidersByCode: {
+      HCM: { providerErrors: ['Open-Meteo: timeout'], forecasts: [] },
+      DLK: { providerErrors: ['Open-Meteo: timeout'], forecasts: [] },
+    },
+  })
+
+  const result = await harness.service.getAgriWeather('HCM')
+
+  assert.equal(result.status, 'stale')
+  assert.deepEqual(result.providerErrors, ['Open-Meteo: timeout'])
+  assert.deepEqual(new Set(harness.refreshCalls), new Set(['HCM', 'DLK']))
 })
