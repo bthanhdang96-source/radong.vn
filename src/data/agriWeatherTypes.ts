@@ -117,6 +117,20 @@ export interface AgriWeatherPayload {
   providerErrors: string[]
 }
 
+export type PersistedAgriWeatherPayload = Omit<AgriWeatherPayload, 'success'>
+
+export interface AgriWeatherHistorySnapshot {
+  snapshotDate: string
+  fetchedAt: string
+  payload: PersistedAgriWeatherPayload
+}
+
+export interface AgriWeatherHistoryPayload {
+  success: boolean
+  location: WeatherLocationSummary
+  snapshots: AgriWeatherHistorySnapshot[]
+}
+
 export const WEATHER_PROVIDER_META: Record<
   WeatherProviderId,
   {

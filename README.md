@@ -63,7 +63,7 @@ Runtime behavior:
 - Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.
-- The agricultural weather page fetches through the server only, persists cache rows in `public.weather_cache`, refreshes every configured location together when weather data is stale or force-refreshed, serves partial data when one provider is down, and falls back to stale DB cache when all providers fail temporarily.
+- The agricultural weather page fetches through the server only, persists the latest row in `public.weather_cache`, appends each successful refresh to `public.weather_snapshots`, refreshes every configured location together when weather data is stale or force-refreshed, serves partial data when one provider is down, and falls back to the newest historical DB snapshot when all providers fail temporarily.
 - User-facing numeric forecast values are arithmetic averages across the providers that are still available for a given hour or day. If only one provider is alive, its values pass through unchanged.
 
 Quick local verification for the ingestion pipeline:
@@ -132,6 +132,7 @@ Quick local verification for the agricultural weather page:
 - Start the app with `npm run dev`.
 - Check location list: `GET /api/agri-weather/locations`.
 - Check one forecast payload: `GET /api/agri-weather?locationCode=HCM`.
+- Check historical snapshots: `GET /api/agri-weather/history?locationCode=HCM&limit=7` or `GET /api/agri-weather/history?locationCode=HCM&date=2026-05-16`.
 - Force a refresh when testing admin flows: `POST /api/admin/agri-weather/refresh?locationCode=HCM` with `Authorization: Bearer $ADMIN_API_KEY`. The refresh job now pulls and persists all configured weather locations before returning the requested location payload.
 
 ## React + TypeScript + Vite

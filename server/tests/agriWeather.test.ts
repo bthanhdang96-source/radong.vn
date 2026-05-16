@@ -7,7 +7,13 @@ import { normalizeWeatherApiForecast } from '../services/weather/providers/weath
 import { createAgriWeatherService } from '../services/weather/service.js'
 import { buildAgriAdvisories } from '../services/weather/advisories.js'
 import { buildCurrentConsensus, buildDailyConsensus, buildHourlyConsensus } from '../services/weather/consensus.js'
-import type { AgriWeatherPayload, ForecastDay, ForecastHour, WeatherLocationSummary, WeatherProviderForecast } from '../services/weather/types.js'
+import type {
+  AgriWeatherPayload,
+  ForecastDay,
+  ForecastHour,
+  WeatherLocationSummary,
+  WeatherProviderForecast,
+} from '../services/weather/types.js'
 
 function readFixture<T>(filename: string): T {
   const content = readFileSync(new URL(`../fixtures/${filename}`, import.meta.url), 'utf-8')
@@ -98,6 +104,12 @@ function createWeatherServiceHarness(options: {
     fetched_at: string
     expires_at: string
   }>
+  initialSnapshots?: Array<{
+    province_code: string
+    snapshot_date: string
+    fetched_at: string
+    payload: AgriWeatherPayload
+  }>
   runProvidersByCode: Record<
     string,
     {
@@ -107,12 +119,19 @@ function createWeatherServiceHarness(options: {
   >
 }) {
   const store = new Map((options.initialRows ?? []).map(row => [row.province_code, row]))
+  const snapshotStore = [...(options.initialSnapshots ?? [])]
   const refreshCalls: string[] = []
   const upsertedRows: Array<{
     province_code: string
     payload: AgriWeatherPayload
     fetched_at: string
     expires_at: string
+  }> = []
+  const insertedSnapshots: Array<{
+    province_code: string
+    snapshot_date: string
+    fetched_at: string
+    payload: AgriWeatherPayload
   }> = []
 
   const service = createAgriWeatherService({
@@ -121,6 +140,16 @@ function createWeatherServiceHarness(options: {
     listLocations: () => TEST_LOCATIONS,
     now: () => new Date(options.nowIso),
     readPersistedWeather: async provinceCode => store.get(provinceCode) ?? null,
+    readLatestHistoricalSnapshot: async provinceCode =>
+      snapshotStore
+        .filter(row => row.province_code === provinceCode)
+        .sort((left, right) => right.fetched_at.localeCompare(left.fetched_at))[0] ?? null,
+    listHistoricalSnapshots: async (provinceCode, query) =>
+      snapshotStore
+        .filter(row => row.province_code === provinceCode)
+        .filter(row => !query.date || row.snapshot_date === query.date)
+        .sort((left, right) => right.fetched_at.localeCompare(left.fetched_at))
+        .slice(0, query.limit),
     runProviders: async locationCode => {
       refreshCalls.push(locationCode)
 
@@ -159,13 +188,19 @@ function createWeatherServiceHarness(options: {
         store.set(row.province_code, row)
       }
     },
+    insertHistoricalSnapshots: async rows => {
+      insertedSnapshots.push(...rows)
+      snapshotStore.push(...rows)
+    },
   })
 
   return {
     service,
     store,
+    snapshotStore,
     refreshCalls,
     upsertedRows,
+    insertedSnapshots,
   }
 }
 
@@ -563,21 +598,23 @@ test('force refreshing one weather location refreshes and persists every configu
   assert.equal(result.location.code, 'HCM')
   assert.deepEqual(new Set(harness.refreshCalls), new Set(['HCM', 'DLK']))
   assert.equal(harness.upsertedRows.length, 2)
+  assert.equal(harness.insertedSnapshots.length, 2)
   assert.ok(harness.store.has('HCM'))
   assert.ok(harness.store.has('DLK'))
+  assert.equal(harness.snapshotStore.length, 2)
 })
 
-test('getAgriWeather falls back to a stale persisted row when the all-location refresh fails', async () => {
+test('getAgriWeather falls back to the latest historical snapshot when refresh fails and no cache row is available', async () => {
   const nowIso = '2026-05-16T05:00:00.000Z'
   const persistedPayload = createPersistedPayload('HCM', '2026-05-16T01:00:00.000Z')
   const harness = createWeatherServiceHarness({
     nowIso,
-    initialRows: [
+    initialSnapshots: [
       {
         province_code: 'HCM',
+        snapshot_date: '2026-05-16',
         payload: persistedPayload,
         fetched_at: '2026-05-16T01:00:00.000Z',
-        expires_at: '2026-05-16T02:00:00.000Z',
       },
     ],
     runProvidersByCode: {
@@ -591,4 +628,47 @@ test('getAgriWeather falls back to a stale persisted row when the all-location r
   assert.equal(result.status, 'stale')
   assert.deepEqual(result.providerErrors, ['Open-Meteo: timeout'])
   assert.deepEqual(new Set(harness.refreshCalls), new Set(['HCM', 'DLK']))
+})
+
+test('listAgriWeatherHistory returns snapshots ordered newest first and supports date filters', async () => {
+  const nowIso = '2026-05-16T06:00:00.000Z'
+  const morningPayload = createPersistedPayload('HCM', '2026-05-16T01:00:00.000Z')
+  const noonPayload = createPersistedPayload('HCM', '2026-05-16T05:00:00.000Z')
+  const previousDayPayload = createPersistedPayload('HCM', '2026-05-15T08:00:00.000Z')
+  const harness = createWeatherServiceHarness({
+    nowIso,
+    initialSnapshots: [
+      {
+        province_code: 'HCM',
+        snapshot_date: '2026-05-15',
+        fetched_at: '2026-05-15T08:00:00.000Z',
+        payload: previousDayPayload,
+      },
+      {
+        province_code: 'HCM',
+        snapshot_date: '2026-05-16',
+        fetched_at: '2026-05-16T01:00:00.000Z',
+        payload: morningPayload,
+      },
+      {
+        province_code: 'HCM',
+        snapshot_date: '2026-05-16',
+        fetched_at: '2026-05-16T05:00:00.000Z',
+        payload: noonPayload,
+      },
+    ],
+    runProvidersByCode: {
+      HCM: { providerErrors: [], forecasts: [createProviderForecast('HCM', nowIso)] },
+      DLK: { providerErrors: [], forecasts: [createProviderForecast('DLK', nowIso)] },
+    },
+  })
+
+  const latestHistory = await harness.service.listAgriWeatherHistory('HCM', { limit: 2 })
+  const dayHistory = await harness.service.listAgriWeatherHistory('HCM', { date: '2026-05-16', limit: 5 })
+
+  assert.equal(latestHistory.snapshots.length, 2)
+  assert.equal(latestHistory.snapshots[0]?.fetchedAt, '2026-05-16T05:00:00.000Z')
+  assert.equal(latestHistory.snapshots[1]?.fetchedAt, '2026-05-16T01:00:00.000Z')
+  assert.equal(dayHistory.snapshots.length, 2)
+  assert.ok(dayHistory.snapshots.every(snapshot => snapshot.snapshotDate === '2026-05-16'))
 })

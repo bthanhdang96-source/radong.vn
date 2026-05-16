@@ -166,3 +166,14 @@ export interface AgriWeatherPayload {
   comparison: DailyComparisonRow[]
   providerErrors: string[]
 }
+
+export interface AgriWeatherHistorySnapshot {
+  snapshotDate: string
+  fetchedAt: string
+  payload: AgriWeatherPayload
+}
+
+export interface AgriWeatherHistoryPayload {
+  location: WeatherLocationSummary
+  snapshots: AgriWeatherHistorySnapshot[]
+}
