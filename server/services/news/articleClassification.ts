@@ -71,6 +71,23 @@ function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): Artic
     return createHiddenClassification(['vietnambiz-topic-hub'])
   }
 
+  const isRicePriceRoundup =
+    title.includes('gia lua gao hom nay') ||
+    canonicalUrl.includes('gia-lua-gao-hom-nay-') ||
+    contentText.includes('bang gia gao hom nay') ||
+    contentText.includes('gia lua tuoi') ||
+    contentText.includes('gia gao xuat khau')
+
+  if (isRicePriceRoundup) {
+    return {
+      status: 'archived',
+      hideFromNewsFeed: true,
+      topicTags: ['price-roundup', 'vietnambiz-price', 'vietnambiz-domestic-rice'],
+      kind: 'price_roundup',
+      priceDataTarget: 'vn_domestic_rice',
+    }
+  }
+
   return createDefaultClassification()
 }
 

@@ -105,7 +105,7 @@ export function extractRows(tableHtml: string): string[][] {
 export function foldText(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[đĐ]/g, 'd')
+    .replace(/[\u0111\u0110]/g, 'd')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[–—]/g, '-')
     .replace(/\s+/g, ' ')
@@ -118,7 +118,7 @@ export function parseNumber(value: string): number {
 }
 
 export function parseSignedChange(value: string): number | null {
-  const normalized = value.replace(/\s+/g, ' ').trim();
+  const normalized = value.replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
   const folded = foldText(normalized);
   if (!normalized || normalized === '-' || folded.includes('khong doi') || folded.includes('moi cap nhat')) {
     return 0;
@@ -137,7 +137,7 @@ export function parseSignedChange(value: string): number | null {
 }
 
 export function parseRangeAverage(value: string): number {
-  const parts = value.split(/\s*[-–—]\s*/).map((part) => parseNumber(part));
+  const parts = value.split(/\s*[-–—â€“â€”]\s*/).map((part) => parseNumber(part));
   const valid = parts.filter((part) => Number.isFinite(part) && part > 0);
 
   if (valid.length === 0) {

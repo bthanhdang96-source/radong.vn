@@ -1,3 +1,5 @@
+import { load } from 'cheerio';
+import { parseLooseDate } from '../news/common.js';
 import {
   createItem,
   extractRows,
@@ -14,6 +16,7 @@ import type { CrawledPriceItem, CrawlerResult } from './types.js';
 
 const BASE_URL = 'https://vietnambiz.vn';
 const LISTING_URL = `${BASE_URL}/hang-hoa/nong-san.htm`;
+const ARTICLE_SELECTORS = ['.vnbiz-content', '.detail-content', 'article'];
 
 type CommodityConfig = {
   commodity: string;
@@ -89,33 +92,146 @@ function parsePork(html: string, timestamp: string): CrawledPriceItem[] {
     .filter((item): item is CrawledPriceItem => item !== null);
 }
 
-function parseRice(html: string, timestamp: string): CrawledPriceItem[] {
-  const tables = extractTables(html);
-  const table = tables.find((entry) => foldText(entry).includes('gia lua gao')) ?? tables[0];
-  if (!table) {
-    return [];
+function extractArticleBodyHtml(html: string) {
+  const $ = load(html);
+
+  for (const selector of ARTICLE_SELECTORS) {
+    const node = $(selector).first();
+    const bodyHtml = node.length > 0 ? $.html(node) : null;
+    if (bodyHtml && foldText(node.text()).length > 0) {
+      return bodyHtml;
+    }
   }
 
-  const rows = extractRows(table);
-  const cells = rows.length === 1 ? rows[0] : rows.flat();
-  const bodyCells = cells.slice(4);
-  const items: CrawledPriceItem[] = [];
+  return html;
+}
+
+function extractArticleTitle(html: string) {
+  const $ = load(html);
+  const title =
+    $('meta[property="og:title"]').attr('content') ??
+    $('meta[name="twitter:title"]').attr('content') ??
+    $('h1').first().text() ??
+    '';
+
+  return title.replace(/\s+/g, ' ').trim() || 'Giá lúa gạo hôm nay';
+}
+
+function extractArticleTimestamp(html: string, fallback: string) {
+  const $ = load(html);
+  return parseLooseDate(
+    $('meta[property="article:published_time"]').attr('content') ??
+      $('time').first().attr('datetime') ??
+      $('time').first().text() ??
+      $('.date, .time, .news-date, .article-time').first().text() ??
+      fallback,
+    fallback,
+  );
+}
+
+function extractRicePriceTable(articleHtml: string) {
+  const tables = extractTables(articleHtml);
+  return (
+    tables.find((entry) => {
+      const header = foldText(extractRows(entry)[0]?.join(' ') ?? '');
+      return header.includes('gia lua gao') && header.includes('gia tai cho');
+    }) ??
+    tables.find((entry) => foldText(extractRows(entry)[0]?.join(' ') ?? '').includes('gia lua gao')) ??
+    null
+  );
+}
+
+function normalizeRiceLabel(value: string) {
+  return value.replace(/^[\s-]+/, '').replace(/\s+/g, ' ').trim();
+}
+
+function inferRicePriceType(label: string): 'farm_gate' | 'wholesale' {
+  return foldText(label).startsWith('lua tuoi ') ? 'farm_gate' : 'wholesale';
+}
+
+function parseRiceRows(tableHtml: string) {
+  const rows = extractRows(tableHtml);
+  const structuredRows = rows
+    .filter((row) => row.length >= 3)
+    .map((row) => {
+      const label = normalizeRiceLabel(row[0] ?? '');
+      const priceText = row.length >= 4 ? row[2] ?? '' : row[row.length - 2] ?? '';
+      const changeText = row[row.length - 1] ?? '0';
+
+      if (!label || foldText(label).includes('gia lua gao')) {
+        return null;
+      }
+
+      return {
+        label,
+        priceText,
+        changeText,
+      };
+    })
+    .filter((row): row is { label: string; priceText: string; changeText: string } => row !== null);
+
+  if (structuredRows.length > 0) {
+    return structuredRows;
+  }
+
+  const flatCells = rows.flat();
+  const bodyCells = flatCells.length > 4 ? flatCells.slice(4) : flatCells;
+  const fallbackRows: Array<{ label: string; priceText: string; changeText: string }> = [];
 
   for (let index = 0; index + 3 < bodyCells.length; index += 4) {
-    const region = bodyCells[index]?.replace(/^-+\s*/, '');
-    const currentText = bodyCells[index + 2];
-    const changeText = bodyCells[index + 3];
-    const price = parseRangeAverage(currentText ?? '');
-    if (!region || !Number.isFinite(price) || price <= 0) {
+    const label = normalizeRiceLabel(bodyCells[index] ?? '');
+    if (!label) {
       continue;
     }
 
-    const change = parseSignedChange(changeText ?? '0');
-    const previousPrice = change === null ? price : price - change;
-    items.push(createItem('vietnambiz', 'gao-noi-dia', 'Lua gao DBSCL', 'Luong thuc', region, price, change, timestamp, previousPrice));
+    fallbackRows.push({
+      label,
+      priceText: bodyCells[index + 2] ?? '',
+      changeText: bodyCells[index + 3] ?? '0',
+    });
   }
 
-  return items;
+  return fallbackRows;
+}
+
+export function parseVietnambizRiceArticle(html: string, fallbackTimestamp: string) {
+  const articleBodyHtml = extractArticleBodyHtml(html);
+  const table = extractRicePriceTable(articleBodyHtml) ?? extractRicePriceTable(html);
+  const articleTitle = extractArticleTitle(html);
+  const timestamp = extractArticleTimestamp(html, fallbackTimestamp);
+
+  if (!table) {
+    return {
+      articleTitle,
+      timestamp,
+      items: [] as CrawledPriceItem[],
+    };
+  }
+
+  const items: CrawledPriceItem[] = [];
+  for (const { label, priceText, changeText } of parseRiceRows(table)) {
+    const price = parseRangeAverage(priceText);
+    if (!Number.isFinite(price) || price <= 0) {
+      continue;
+    }
+
+    const change = parseSignedChange(changeText);
+    items.push({
+      ...createItem('vietnambiz', 'gao-noi-dia', 'Lua gao DBSCL', 'Luong thuc', label, price, change, timestamp),
+      priceType: inferRicePriceType(label),
+      articleTitle,
+    });
+  }
+
+  return {
+    articleTitle,
+    timestamp,
+    items,
+  };
+}
+
+function parseRice(html: string, timestamp: string): CrawledPriceItem[] {
+  return parseVietnambizRiceArticle(html, timestamp).items;
 }
 
 const COMMODITIES: CommodityConfig[] = [

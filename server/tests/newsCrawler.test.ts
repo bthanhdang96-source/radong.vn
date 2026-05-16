@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { parseVietnambizRiceArticle } from '../services/crawlers/vietnambizCrawler.js'
+import { classifyNewsArticle } from '../services/news/articleClassification.js'
 import { parseLooseDate } from '../services/news/common.js'
 import { getNewsSchedulerConfig } from '../services/news/scheduler.js'
 import { crawlNewsSource } from '../services/news/service.js'
@@ -62,4 +64,130 @@ test('getNewsSchedulerConfig includes all active sources by default', () => {
 
 test('crawlNewsSource rejects disabled sources', async () => {
   await assert.rejects(() => crawlNewsSource('vasep'), /Source vasep is disabled/)
+})
+
+test('classifyNewsArticle hides Vietnambiz domestic rice price roundups from the news feed', () => {
+  const classification = classifyNewsArticle({
+    sourceKey: 'vietnambiz',
+    title: 'Giá lúa gạo hôm nay 16/5: Gạo xuất khẩu của Việt Nam tăng thêm 5-10 USD/tấn',
+    canonicalUrl:
+      'https://vietnambiz.vn/gia-lua-gao-hom-nay-165-gao-xuat-khau-cua-viet-nam-tang-them-5-10-usdtan-20265161234567.htm',
+    contentText: 'Bảng giá gạo hôm nay 16/5 tại khu vực Đồng bằng sông Cửu Long.',
+  })
+
+  assert.equal(classification.hideFromNewsFeed, true)
+  assert.equal(classification.status, 'archived')
+  assert.equal(classification.kind, 'price_roundup')
+  assert.equal(classification.priceDataTarget, 'vn_domestic_rice')
+})
+
+test('parseVietnambizRiceArticle extracts structured rice rows from the article table', () => {
+  const articleHtml = `
+    <html>
+      <head>
+        <meta property="og:title" content="Giá lúa gạo hôm nay 16/5: Gạo xuất khẩu của Việt Nam tăng thêm 5-10 USD/tấn" />
+        <meta property="article:published_time" content="2026-05-16T07:00:00+07:00" />
+      </head>
+      <body>
+        <div class="vnbiz-content">
+          <table>
+            <tr>
+              <th>Giá lúa gạo</th>
+              <th>DVT</th>
+              <th>Giá tại chợ (đồng)</th>
+              <th>Tăng (+), giảm (-) so với hôm trước</th>
+            </tr>
+            <tr>
+              <td>- Nguyên liệu OM 5451</td>
+              <td>kg</td>
+              <td>9.500 – 9.600</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>- Nguyên liệu CL 555</td>
+              <td>kg</td>
+              <td>9.100 – 9.200</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>- Tấm 3,4</td>
+              <td>kg</td>
+              <td>7.500 – 7.600</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>- Cám</td>
+              <td>kg</td>
+              <td>7.300 – 7.500</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>- Lúa tươi OM 18</td>
+              <td>kg</td>
+              <td>6.100 – 6.300</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>- Lúa tươi Đài Thơm 8</td>
+              <td>kg</td>
+              <td>6.100 – 6.300</td>
+              <td>-</td>
+            </tr>
+          </table>
+        </div>
+      </body>
+    </html>
+  `
+
+  const parsed = parseVietnambizRiceArticle(articleHtml, '2026-05-16T00:00:00.000Z')
+
+  assert.equal(parsed.articleTitle, 'Giá lúa gạo hôm nay 16/5: Gạo xuất khẩu của Việt Nam tăng thêm 5-10 USD/tấn')
+  assert.equal(parsed.timestamp, '2026-05-16T00:00:00.000Z')
+  assert.equal(parsed.items.length, 6)
+  assert.deepEqual(
+    parsed.items.map(item => ({
+      region: item.region,
+      price: item.price,
+      priceType: item.priceType,
+      articleTitle: item.articleTitle,
+    })),
+    [
+      {
+        region: 'Nguyên liệu OM 5451',
+        price: 9550,
+        priceType: 'wholesale',
+        articleTitle: parsed.articleTitle,
+      },
+      {
+        region: 'Nguyên liệu CL 555',
+        price: 9150,
+        priceType: 'wholesale',
+        articleTitle: parsed.articleTitle,
+      },
+      {
+        region: 'Tấm 3,4',
+        price: 7550,
+        priceType: 'wholesale',
+        articleTitle: parsed.articleTitle,
+      },
+      {
+        region: 'Cám',
+        price: 7400,
+        priceType: 'wholesale',
+        articleTitle: parsed.articleTitle,
+      },
+      {
+        region: 'Lúa tươi OM 18',
+        price: 6200,
+        priceType: 'farm_gate',
+        articleTitle: parsed.articleTitle,
+      },
+      {
+        region: 'Lúa tươi Đài Thơm 8',
+        price: 6200,
+        priceType: 'farm_gate',
+        articleTitle: parsed.articleTitle,
+      },
+    ],
+  )
 })
