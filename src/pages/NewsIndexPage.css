@@ -284,6 +284,11 @@
   font-weight: 600;
 }
 
+.news-index__tag--badge {
+  background: rgba(245, 158, 11, 0.16);
+  color: hsl(35, 95%, 62%);
+}
+
 .news-index__more {
   display: flex;
   justify-content: center;

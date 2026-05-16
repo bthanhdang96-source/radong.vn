@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import PriceChainSummaryCards from '../components/marketplace/PriceChainSummaryCards'
 import PriceChainTable from '../components/marketplace/PriceChainTable'
+import type { GeneratedPricePageListResponse, GeneratedPricePageSummary } from '../data/generatedPricePageTypes'
 import type { VnPriceChainResponse } from '../data/vnPriceTypes'
 import { buildApiUrl } from '../lib/api'
 import './PriceChainPage.css'
@@ -16,6 +17,7 @@ const EMPTY_PRICE_CHAIN: VnPriceChainResponse = {
 
 export default function PriceChainPage() {
   const [payload, setPayload] = useState<VnPriceChainResponse>(EMPTY_PRICE_CHAIN)
+  const [pricePages, setPricePages] = useState<GeneratedPricePageSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,17 +28,23 @@ export default function PriceChainPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const response = await fetch(buildApiUrl('/api/vn-price-chain'))
+      const [response, pageResponse] = await Promise.all([
+        fetch(buildApiUrl('/api/vn-price-chain')),
+        fetch(buildApiUrl('/api/price-pages?limit=400')),
+      ])
       const json: VnPriceChainResponse = await response.json()
+      const pageJson: GeneratedPricePageListResponse = await pageResponse.json()
 
       if (!response.ok || !json.success) {
         throw new Error('Không thể tải dữ liệu chuỗi giá')
       }
 
       setPayload(json)
+      setPricePages(pageResponse.ok && pageJson.success ? pageJson.items : [])
       setError(null)
     } catch (fetchError) {
       setPayload(EMPTY_PRICE_CHAIN)
+      setPricePages([])
       setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải dữ liệu chuỗi giá')
     } finally {
       setLoading(false)
@@ -97,7 +105,13 @@ export default function PriceChainPage() {
       {pageError ? <div className="price-chain-page__error">{pageError}</div> : null}
 
       <PriceChainSummaryCards data={payload.data} lastUpdated={payload.lastUpdated} />
-      <PriceChainTable data={payload.data} loading={loading} error={pageError} lastUpdated={payload.lastUpdated} />
+      <PriceChainTable
+        data={payload.data}
+        pricePages={pricePages}
+        loading={loading}
+        error={pageError}
+        lastUpdated={payload.lastUpdated}
+      />
     </div>
   )
 }

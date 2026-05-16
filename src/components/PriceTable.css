@@ -4,6 +4,12 @@
   padding: 0 1.5rem 4rem;
 }
 
+.pt-region-link {
+  color: hsl(35, 95%, 62%);
+  text-decoration: none;
+  font-weight: 600;
+}
+
 .pt-toolbar {
   display: flex;
   justify-content: space-between;
@@ -518,6 +524,12 @@
   .pt-mobile-region__price span {
     color: var(--color-text-muted);
     font-size: 0.73rem;
+  }
+
+  .pt-region-link {
+    color: hsl(35, 95%, 62%);
+    text-decoration: none;
+    font-weight: 600;
   }
 }
 

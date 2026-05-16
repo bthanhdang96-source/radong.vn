@@ -3,6 +3,7 @@ import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import AgriWeatherPage from './pages/AgriWeatherPage'
 import AssminReportPage from './pages/AssminReportPage'
+import GeneratedPricePage from './pages/GeneratedPricePage'
 import HomeDashboard from './pages/HomeDashboard'
 import NewsArticlePage from './pages/NewsArticlePage'
 import NewsIndexPage from './pages/NewsIndexPage'
@@ -29,6 +30,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<NewsIndexPage />} />
           <Route path="/tin-tuc/:slug" element={<NewsArticlePage />} />
+          <Route path="/gia-nong-san/:commoditySlug/:locationSlug" element={<GeneratedPricePage />} />
           <Route path="/bang-gia" element={<HomeDashboard />} />
           <Route path="/chuoi-gia" element={<PriceChainPage />} />
           <Route path="/thegioi" element={<WorldPricesPage />} />

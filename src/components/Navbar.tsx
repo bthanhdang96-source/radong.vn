@@ -4,7 +4,7 @@ import './Navbar.css'
 
 const NAV_LINKS = [
   { label: 'Tin tức', to: '/', matches: ['/', '/tin-tuc/'] },
-  { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia'] },
+  { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia', '/gia-nong-san/'] },
   { label: 'Chuỗi giá', to: '/chuoi-gia', matches: ['/chuoi-gia'] },
   { label: 'Thế giới', to: '/thegioi', matches: ['/thegioi'] },
   { label: 'Thời tiết', to: '/thoi-tiet-nong-nghiep', matches: ['/thoi-tiet-nong-nghiep'] },

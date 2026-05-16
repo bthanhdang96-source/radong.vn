@@ -1,17 +1,32 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { GeneratedPricePageSummary } from '../../data/generatedPricePageTypes'
 import type { PriceChainItem } from '../../data/vnPriceTypes'
 import './PriceChainTable.css'
 
 type Props = {
   data: PriceChainItem[]
+  pricePages: GeneratedPricePageSummary[]
   loading: boolean
   error: string | null
   lastUpdated: string
 }
 
-export default function PriceChainTable({ data, loading, error, lastUpdated }: Props) {
+function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
+  return pricePages.reduce<Map<string, GeneratedPricePageSummary>>((acc, page) => {
+    const provinceKey = page.provinceCode ? `${page.commoditySlug}::${page.provinceCode}` : null
+    if (provinceKey && !acc.has(provinceKey)) {
+      acc.set(provinceKey, page)
+    }
+
+    return acc
+  }, new Map())
+}
+
+export default function PriceChainTable({ data, pricePages, loading, error, lastUpdated }: Props) {
   const [activeCategory, setActiveCategory] = useState('Tất cả')
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null)
+  const pricePageLookup = useMemo(() => buildPricePageLookup(pricePages), [pricePages])
 
   const categories = ['Tất cả', ...new Set(data.map(item => item.category))]
   const filteredData = activeCategory === 'Tất cả' ? data : data.filter(item => item.category === activeCategory)
@@ -121,21 +136,29 @@ export default function PriceChainTable({ data, loading, error, lastUpdated }: P
                             <span>{new Date(item.updatedAt).toLocaleString('vi-VN')}</span>
                           </div>
                           <div className="pct__detail-grid">
-                            {item.retailRegions.map(region => (
-                              <article key={`${item.commodity}-${region.provinceCode}`} className="pct__detail-card">
-                                <div className="pct__detail-top">
-                                  <strong>{region.region}</strong>
-                                  <span>{region.provinceCode}</span>
-                                </div>
-                                <div className="pct__detail-price">{formatVnd(region.avgPrice)}</div>
-                                <div className="pct__detail-meta">
-                                  <span className={getDeltaClass(region.vsNationalAvgPct)}>
-                                    {formatPercent(region.vsNationalAvgPct)}
-                                  </span>
-                                  <span>{region.dataPoints} điểm dữ liệu</span>
-                                </div>
-                              </article>
-                            ))}
+                            {item.retailRegions.map(region => {
+                              const linkedPage = pricePageLookup.get(`${item.commodity}::${region.provinceCode}`) ?? null
+                              return (
+                                <article key={`${item.commodity}-${region.provinceCode}`} className="pct__detail-card">
+                                  <div className="pct__detail-top">
+                                    <strong>{region.region}</strong>
+                                    <span>{region.provinceCode}</span>
+                                  </div>
+                                  <div className="pct__detail-price">{formatVnd(region.avgPrice)}</div>
+                                  <div className="pct__detail-meta">
+                                    <span className={getDeltaClass(region.vsNationalAvgPct)}>
+                                      {formatPercent(region.vsNationalAvgPct)}
+                                    </span>
+                                    <span>{region.dataPoints} điểm dữ liệu</span>
+                                  </div>
+                                  {linkedPage ? (
+                                    <Link className="pct__detail-link" to={linkedPage.path}>
+                                      Xem trang phân tích
+                                    </Link>
+                                  ) : null}
+                                </article>
+                              )
+                            })}
                           </div>
                         </div>
                       </td>

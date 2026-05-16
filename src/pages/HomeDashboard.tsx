@@ -3,12 +3,14 @@ import TickerBar from '../components/TickerBar';
 import SummaryCards from '../components/SummaryCards';
 import TopMovers from '../components/TopMovers';
 import PriceTable from '../components/PriceTable';
+import type { GeneratedPricePageListResponse, GeneratedPricePageSummary } from '../data/generatedPricePageTypes';
 import { FALLBACK_VN_PRICES, type VnPricesResponse } from '../data/vnPriceTypes';
 import { buildApiUrl } from '../lib/api';
 import './HomeDashboard.css';
 
 export default function HomeDashboard() {
   const [payload, setPayload] = useState<VnPricesResponse>(FALLBACK_VN_PRICES);
+  const [pricePages, setPricePages] = useState<GeneratedPricePageSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,9 +29,13 @@ export default function HomeDashboard() {
     async function load() {
       setLoading(true);
       try {
-        const response = await fetch(buildApiUrl('/api/vn-prices'));
-        const json = await response.json();
-        if (!response.ok || !json.success) {
+        const [priceResponse, pageResponse] = await Promise.all([
+          fetch(buildApiUrl('/api/vn-prices')),
+          fetch(buildApiUrl('/api/price-pages?limit=400')),
+        ]);
+        const json = await priceResponse.json();
+        const pageJson: GeneratedPricePageListResponse = await pageResponse.json();
+        if (!priceResponse.ok || !json.success) {
           throw new Error(json.error ?? 'Failed to fetch VN prices');
         }
 
@@ -42,11 +48,13 @@ export default function HomeDashboard() {
             sources: json.sources,
             errors: json.errors ?? [],
           });
+          setPricePages(pageResponse.ok && pageJson.success ? pageJson.items : []);
           setError(null);
         }
       } catch (err) {
         if (active) {
           setPayload(FALLBACK_VN_PRICES);
+          setPricePages([]);
           setError(err instanceof Error ? err.message : 'Failed to fetch VN prices');
         }
       } finally {
@@ -74,7 +82,12 @@ export default function HomeDashboard() {
         loading={loading}
       />
       <TopMovers items={payload.data} />
-      <PriceTable data={payload.data} loading={loading} error={error ?? payload.errors[0] ?? null} />
+      <PriceTable
+        data={payload.data}
+        pricePages={pricePages}
+        loading={loading}
+        error={error ?? payload.errors[0] ?? null}
+      />
       <div className="home-dashboard__dock" aria-label="Tác vụ nhanh trên điện thoại">
         <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('.summary-grid')}>
           Tổng quan

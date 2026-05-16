@@ -4,6 +4,12 @@
   padding: 0 24px;
 }
 
+.pct__detail-link {
+  color: hsl(35, 95%, 62%);
+  text-decoration: none;
+  font-weight: 600;
+}
+
 .pct__controls {
   display: flex;
   justify-content: space-between;

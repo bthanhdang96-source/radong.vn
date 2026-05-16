@@ -1,4 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { GeneratedPricePageSummary } from '../data/generatedPricePageTypes'
 import {
   CATEGORY_LABELS,
   FALLBACK_VN_PRICES,
@@ -14,6 +16,30 @@ type SortDir = 'asc' | 'desc'
 
 const SPARKLINE_WIDTH = 160
 const SPARKLINE_HEIGHT = 30
+
+function normalizeLookupKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
+  return pricePages.reduce<Map<string, GeneratedPricePageSummary>>((acc, page) => {
+    const provinceKey = page.provinceCode ? `${page.commoditySlug}::${page.provinceCode}` : null
+    const labelKey = `${page.commoditySlug}::${normalizeLookupKey(page.locationLabel)}`
+
+    if (provinceKey && !acc.has(provinceKey)) {
+      acc.set(provinceKey, page)
+    }
+
+    if (!acc.has(labelKey)) {
+      acc.set(labelKey, page)
+    }
+
+    return acc
+  }, new Map())
+}
 
 function getTrendVariant(direction: TrendDirection) {
   if (direction === 'Tăng') {
@@ -79,10 +105,12 @@ function RegionChange({ change }: { change: number | null }) {
 
 export default function PriceTable({
   data = FALLBACK_VN_PRICES.data,
+  pricePages = [],
   loading = false,
   error = null,
 }: {
   data?: CommoditySummary[]
+  pricePages?: GeneratedPricePageSummary[]
   loading?: boolean
   error?: string | null
 }) {
@@ -93,6 +121,7 @@ export default function PriceTable({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const categories = useMemo(() => ['Tất cả', ...new Set(data.map(item => item.category))], [data])
+  const pricePageLookup = useMemo(() => buildPricePageLookup(pricePages), [pricePages])
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -106,11 +135,14 @@ export default function PriceTable({
 
         return item.commodityName.toLowerCase().includes(query) || item.regions.some(region => region.region.toLowerCase().includes(query))
       })
-      .sort((a, b) => {
-        const av = a[sortKey]
-        const bv = b[sortKey]
-        const cmp = typeof av === 'string' ? av.localeCompare(bv as string, 'vi') : (av as number) - (bv as number)
-        return sortDir === 'asc' ? cmp : -cmp
+      .sort((left, right) => {
+        const leftValue = left[sortKey]
+        const rightValue = right[sortKey]
+        const compare = typeof leftValue === 'string'
+          ? leftValue.localeCompare(rightValue as string, 'vi')
+          : (leftValue as number) - (rightValue as number)
+
+        return sortDir === 'asc' ? compare : -compare
       })
   }, [category, data, search, sortDir, sortKey])
 
@@ -129,6 +161,13 @@ export default function PriceTable({
       ...current,
       [commodity]: !current[commodity],
     }))
+  }
+
+  function resolvePricePage(commoditySlug: string, regionLabel: string) {
+    return (
+      pricePageLookup.get(`${commoditySlug}::${normalizeLookupKey(regionLabel)}`) ??
+      null
+    )
   }
 
   return (
@@ -239,17 +278,30 @@ export default function PriceTable({
                                   <th>Giá</th>
                                   <th>Thay đổi</th>
                                   <th>Cảnh báo</th>
+                                  <th>Trang</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {item.regions.map((region, index) => (
-                                  <tr key={`${item.commodity}-${region.region}-${region.source}-${index}`} className={region.hasConflict ? 'pt-subrow--conflict' : ''}>
-                                    <td>{region.region}</td>
-                                    <td>{formatVnPrice(region.price)}</td>
-                                    <td><RegionChange change={region.change} /></td>
-                                    <td>{region.hasConflict ? `Lệch ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
-                                  </tr>
-                                ))}
+                                {item.regions.map((region, index) => {
+                                  const linkedPage = resolvePricePage(item.commodity, region.region)
+                                  return (
+                                    <tr key={`${item.commodity}-${region.region}-${region.source}-${index}`} className={region.hasConflict ? 'pt-subrow--conflict' : ''}>
+                                      <td>{region.region}</td>
+                                      <td>{formatVnPrice(region.price)}</td>
+                                      <td><RegionChange change={region.change} /></td>
+                                      <td>{region.hasConflict ? `Lệch ${region.conflictPct?.toFixed(2)}%` : '--'}</td>
+                                      <td>
+                                        {linkedPage ? (
+                                          <Link className="pt-region-link" to={linkedPage.path}>
+                                            Xem trang
+                                          </Link>
+                                        ) : (
+                                          '--'
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -310,21 +362,29 @@ export default function PriceTable({
 
                 {isExpanded ? (
                   <div className="pt-mobile-card__detail">
-                    {item.regions.map((region, index) => (
-                      <div
-                        key={`${item.commodity}-mobile-${region.region}-${region.source}-${index}`}
-                        className={`pt-mobile-region${region.hasConflict ? ' pt-mobile-region--conflict' : ''}`}
-                      >
-                        <div className="pt-mobile-region__meta">
-                          <strong>{region.region}</strong>
-                          <span>{region.hasConflict ? 'Chênh lệch nguồn' : 'Ổn định'}</span>
+                    {item.regions.map((region, index) => {
+                      const linkedPage = resolvePricePage(item.commodity, region.region)
+                      return (
+                        <div
+                          key={`${item.commodity}-mobile-${region.region}-${region.source}-${index}`}
+                          className={`pt-mobile-region${region.hasConflict ? ' pt-mobile-region--conflict' : ''}`}
+                        >
+                          <div className="pt-mobile-region__meta">
+                            <strong>{region.region}</strong>
+                            <span>{region.hasConflict ? 'Chênh lệch nguồn' : 'Ổn định'}</span>
+                          </div>
+                          <div className="pt-mobile-region__price">
+                            <strong>{formatVnPrice(region.price)}</strong>
+                            <span><RegionChange change={region.change} /></span>
+                          </div>
+                          {linkedPage ? (
+                            <Link className="pt-region-link" to={linkedPage.path}>
+                              Xem trang phân tích
+                            </Link>
+                          ) : null}
                         </div>
-                        <div className="pt-mobile-region__price">
-                          <strong>{formatVnPrice(region.price)}</strong>
-                          <span><RegionChange change={region.change} /></span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : null}
               </article>

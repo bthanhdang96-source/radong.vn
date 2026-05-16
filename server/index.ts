@@ -7,6 +7,7 @@ import apiRouter from './routes/index.js';
 import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
+import { generatePricePages } from './services/generatedPricePages/service.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
 import { getNewsHealth } from './services/news/service.js';
@@ -17,8 +18,17 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
+let priceContentRefreshRunning = false;
 const appScheduleConfig = getAppScheduleConfig();
-const { timezone: TZ, vnPricesCron: VN_PRICE_CRON, worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED, worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON } =
+const {
+  timezone: TZ,
+  vnPricesCron: VN_PRICE_CRON,
+  priceContentEnabled: PRICE_CONTENT_ENABLED,
+  priceContentCron: PRICE_CONTENT_CRON,
+  priceContentStaleHours: PRICE_CONTENT_STALE_HOURS,
+  worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
+  worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+} =
   appScheduleConfig;
 
 function parseCsv(value: string | undefined, defaultValue: string[]) {
@@ -134,6 +144,28 @@ registerAppCron('vn-prices-refresh', VN_PRICE_CRON, async () => {
     console.error('[VN Prices] Scheduled refresh failed:', error);
   }
 });
+
+if (PRICE_CONTENT_ENABLED) {
+  registerAppCron('price-content-refresh', PRICE_CONTENT_CRON, async () => {
+    if (priceContentRefreshRunning) {
+      console.log('[Price Pages] Scheduled generation skipped: previous run still in progress');
+      return;
+    }
+
+    priceContentRefreshRunning = true;
+    try {
+      console.log(`[Price Pages] Scheduled generation started (${PRICE_CONTENT_CRON})`);
+      await generatePricePages({ staleHours: PRICE_CONTENT_STALE_HOURS });
+      console.log('[Price Pages] Scheduled generation completed');
+    } catch (error) {
+      console.error('[Price Pages] Scheduled generation failed:', error);
+    } finally {
+      priceContentRefreshRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] Generated price page schedule is disabled');
+}
 
 if (WORLD_PRICE_CRAWL_ENABLED) {
   registerAppCron('world-prices-refresh', WORLD_PRICE_CRAWL_CRON, async () => {

@@ -50,6 +50,8 @@ Useful scheduler variables if you want explicit control:
 ```bash
 railway variables set NEWS_CRAWL_ENABLED=true
 railway variables set VN_PRICE_CRON="0 8,14 * * *"
+railway variables set PRICE_CONTENT_ENABLED=true
+railway variables set PRICE_CONTENT_CRON="10 8,14 * * *"
 railway variables set WORLD_PRICE_CRAWL_ENABLED=true
 railway variables set WORLD_PRICE_CRAWL_CRON="30 7,13 * * *"
 railway variables set BHX_CRAWL_ENABLED=true
@@ -78,6 +80,7 @@ Return to the repo root:
 cd ..
 vercel link --yes
 'https://your-railway-domain.up.railway.app' | vercel env add VITE_API_BASE_URL production --force
+'https://your-railway-domain.up.railway.app' | vercel env add PRICE_CONTENT_API_BASE_URL production --force
 vercel deploy --prod
 ```
 
@@ -108,6 +111,7 @@ railway variables set CORS_ALLOWED_ORIGINS=https://new-domain.vercel.app,https:/
 From the deployed frontend domain, verify:
 
 - `/`
+- `/gia-nong-san/<commodity>/<location>`
 - `/bang-gia`
 - `/chuoi-gia`
 - `/thegioi`

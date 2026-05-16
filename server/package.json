@@ -19,7 +19,7 @@
     "ingestion:verify": "tsx scripts/verifySampleIngestion.ts",
     "start": "tsx index.ts",
     "monitor": "tsx services/ingestion/monitor.ts",
-    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/bhxCrawler.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts",
+    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/bhxCrawler.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/generatedPricePages.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts",
     "typecheck": "tsc --noEmit",
     "worker": "tsx services/ingestion/worker.ts",
     "worker:once": "tsx services/ingestion/worker.ts --once"

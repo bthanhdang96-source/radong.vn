@@ -1,17 +1,16 @@
-import { useEffect, useState, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { Link } from 'react-router-dom'
-import type { NewsListItem, NewsListResponse } from '../data/newsTypes'
-import { FALLBACK_NEWS_ITEMS, FALLBACK_NEWS_TOPICS } from '../data/newsFallback'
+import type { ContentFeedItem, ContentFeedResponse } from '../data/contentFeedTypes'
 import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const NEWS_INDEX_CACHE_KEY = 'news-index-cache:v6'
-const NEWS_INDEX_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
+const CONTENT_FEED_CACHE_KEY = 'content-feed-cache:v1'
+const CONTENT_FEED_CACHE_MAX_AGE_MS = 60 * 60 * 1000
 
-type TopicResponse = {
-  success: boolean
-  items: string[]
+type FeedCache = {
+  savedAt: string
+  items: ContentFeedItem[]
 }
 
 type FilterState = {
@@ -19,76 +18,51 @@ type FilterState = {
   q: string
 }
 
-type NewsArticleLocationState = {
-  articlePreview: NewsListItem
-}
-
-type NewsIndexCache = {
-  savedAt: string
-  items: NewsListItem[]
-  topics: string[]
-  cursor: string | null
-  totalApprox: number
-}
-
 const DEFAULT_FILTERS: FilterState = { topic: '', q: '' }
 
-function readNewsIndexCache() {
+function readContentFeedCache() {
   if (typeof window === 'undefined') {
     return null
   }
 
   try {
-    const raw = window.localStorage.getItem(NEWS_INDEX_CACHE_KEY)
+    const raw = window.localStorage.getItem(CONTENT_FEED_CACHE_KEY)
     if (!raw) {
       return null
     }
 
-    const parsed = JSON.parse(raw) as Partial<NewsIndexCache>
-    if (!Array.isArray(parsed.items) || !Array.isArray(parsed.topics) || typeof parsed.savedAt !== 'string') {
+    const parsed = JSON.parse(raw) as Partial<FeedCache>
+    if (!Array.isArray(parsed.items) || typeof parsed.savedAt !== 'string') {
       return null
     }
 
     const ageMs = Date.now() - new Date(parsed.savedAt).getTime()
-    if (!Number.isFinite(ageMs) || ageMs > NEWS_INDEX_CACHE_MAX_AGE_MS) {
+    if (!Number.isFinite(ageMs) || ageMs > CONTENT_FEED_CACHE_MAX_AGE_MS) {
       return null
     }
 
-    return {
-      savedAt: parsed.savedAt,
-      items: parsed.items,
-      topics: parsed.topics,
-      cursor: typeof parsed.cursor === 'string' ? parsed.cursor : null,
-      totalApprox: typeof parsed.totalApprox === 'number' ? parsed.totalApprox : parsed.items.length,
-    } satisfies NewsIndexCache
+    return parsed as FeedCache
   } catch {
     return null
   }
 }
 
-function writeNewsIndexCache(update: Partial<NewsIndexCache>) {
+function writeContentFeedCache(items: ContentFeedItem[]) {
   if (typeof window === 'undefined') {
     return
   }
 
   try {
-    const current = readNewsIndexCache()
-    const next: NewsIndexCache = {
-      savedAt: new Date().toISOString(),
-      items: update.items ?? current?.items ?? [],
-      topics: update.topics ?? current?.topics ?? [],
-      cursor: update.cursor ?? current?.cursor ?? null,
-      totalApprox: update.totalApprox ?? current?.totalApprox ?? 0,
-    }
-
-    window.localStorage.setItem(NEWS_INDEX_CACHE_KEY, JSON.stringify(next))
+    window.localStorage.setItem(
+      CONTENT_FEED_CACHE_KEY,
+      JSON.stringify({
+        savedAt: new Date().toISOString(),
+        items,
+      } satisfies FeedCache),
+    )
   } catch {
-    // Best-effort client cache for faster repeat visits.
+    // Best-effort client cache.
   }
-}
-
-function isDefaultFilterState(filters: FilterState) {
-  return filters.topic === DEFAULT_FILTERS.topic && filters.q.trim() === DEFAULT_FILTERS.q
 }
 
 function formatDate(value: string) {
@@ -101,25 +75,6 @@ function formatDate(value: string) {
   })
 }
 
-function buildNewsUrl(filters: FilterState, cursor?: string | null) {
-  const params = new URLSearchParams()
-  params.set('limit', '12')
-
-  if (filters.topic) {
-    params.set('topic', filters.topic)
-  }
-
-  if (filters.q.trim()) {
-    params.set('q', filters.q.trim())
-  }
-
-  if (cursor) {
-    params.set('cursor', cursor)
-  }
-
-  return buildApiUrl(`/api/news/articles?${params.toString()}`)
-}
-
 function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
   const target = event.currentTarget
   if (target.dataset.fallbackApplied === 'true') {
@@ -130,36 +85,54 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
   target.src = FALLBACK_NEWS_IMAGE
 }
 
-function ArticleCard({ article }: { article: NewsListItem }) {
+function getItemTimestamp(item: ContentFeedItem) {
+  return item.kind === 'price_page' ? item.updatedAt : item.publishedAt
+}
+
+function filterItems(items: ContentFeedItem[], filters: FilterState) {
+  const query = filters.q.trim().toLowerCase()
+
+  return items.filter(item => {
+    if (filters.topic && !item.topicTags.includes(filters.topic)) {
+      return false
+    }
+
+    if (!query) {
+      return true
+    }
+
+    const haystack = [item.title, item.excerpt, item.category, item.topicTags.join(' ')]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(query)
+  })
+}
+
+function ArticleCard({ item }: { item: ContentFeedItem }) {
   return (
     <article className="news-index__stream-card">
-      <Link
-        className="news-index__stream-image-link"
-        to={`/tin-tuc/${article.slug}`}
-        state={{ articlePreview: article } satisfies NewsArticleLocationState}
-      >
+      <Link className="news-index__stream-image-link" to={item.path}>
         <img
           className="news-index__stream-image"
-          src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-          alt={article.title}
+          src={item.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
+          alt={item.title}
           loading="lazy"
           onError={handleImageError}
         />
       </Link>
       <div className="news-index__stream-body">
         <div className="news-index__meta-row">
-          <time>{formatDate(article.publishedAt)}</time>
+          <time>{formatDate(getItemTimestamp(item))}</time>
+          <span className="news-index__tag news-index__tag--badge">{item.badgeLabel}</span>
         </div>
-        <Link
-          className="news-index__stream-title"
-          to={`/tin-tuc/${article.slug}`}
-          state={{ articlePreview: article } satisfies NewsArticleLocationState}
-        >
-          {article.title}
+        <Link className="news-index__stream-title" to={item.path}>
+          {item.title}
         </Link>
-        <p className="news-index__stream-excerpt">{article.excerpt}</p>
+        <p className="news-index__stream-excerpt">{item.excerpt}</p>
         <div className="news-index__tag-row">
-          {article.topicTags.slice(0, 3).map(tag => (
+          {item.topicTags.slice(0, 3).map(tag => (
             <span key={tag} className="news-index__tag">
               #{tag}
             </span>
@@ -170,38 +143,30 @@ function ArticleCard({ article }: { article: NewsListItem }) {
   )
 }
 
-function HeroRailCard({ article }: { article: NewsListItem }) {
+function HeroRailCard({ item }: { item: ContentFeedItem }) {
   return (
-    <Link
-      className="news-index__hero-rail-card"
-      to={`/tin-tuc/${article.slug}`}
-      state={{ articlePreview: article } satisfies NewsArticleLocationState}
-    >
+    <Link className="news-index__hero-rail-card" to={item.path}>
       <div className="news-index__hero-rail-media">
         <img
           className="news-index__hero-rail-image"
-          src={article.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-          alt={article.title}
+          src={item.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
+          alt={item.title}
           loading="lazy"
           onError={handleImageError}
         />
       </div>
       <div className="news-index__hero-rail-body">
-        <strong>{article.title}</strong>
+        <span className="news-index__tag news-index__tag--badge">{item.badgeLabel}</span>
+        <strong>{item.title}</strong>
       </div>
     </Link>
   )
 }
 
 export default function NewsIndexPage() {
-  const [cacheSnapshot] = useState<NewsIndexCache | null>(() => readNewsIndexCache())
-  const hasCachedItems = (cacheSnapshot?.items.length ?? 0) > 0
-  const [items, setItems] = useState<NewsListItem[]>(() => cacheSnapshot?.items ?? FALLBACK_NEWS_ITEMS)
-  const [topics, setTopics] = useState<string[]>(() => cacheSnapshot?.topics ?? FALLBACK_NEWS_TOPICS)
-  const [cursor, setCursor] = useState<string | null>(() => cacheSnapshot?.cursor ?? null)
-  const [totalApprox, setTotalApprox] = useState(() => cacheSnapshot?.totalApprox ?? FALLBACK_NEWS_ITEMS.length)
-  const [loading, setLoading] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
+  const cachedFeed = useMemo(() => readContentFeedCache(), [])
+  const [items, setItems] = useState<ContentFeedItem[]>(() => cachedFeed?.items ?? [])
+  const [loading, setLoading] = useState(!cachedFeed)
   const [error, setError] = useState<string | null>(null)
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
@@ -209,45 +174,12 @@ export default function NewsIndexPage() {
   useEffect(() => {
     let active = true
 
-    async function loadTopics() {
+    async function loadFeed() {
       try {
-        const response = await fetch(buildApiUrl('/api/news/topics'))
-        const json: TopicResponse = await response.json()
+        const response = await fetch(buildApiUrl('/api/content/feed?limit=24'))
+        const json: ContentFeedResponse = await response.json()
         if (!response.ok || !json.success) {
-          throw new Error('Không thể tải danh sách chủ đề')
-        }
-
-        if (active) {
-          setTopics(json.items)
-          writeNewsIndexCache({ topics: json.items })
-        }
-      } catch (fetchError) {
-        if (active) {
-          console.error(fetchError)
-        }
-      }
-    }
-
-    void loadTopics()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-
-    async function loadArticles() {
-      if (!hasCachedItems && isDefaultFilterState(filters)) {
-        setLoading(true)
-      }
-
-      try {
-        const response = await fetch(buildNewsUrl(filters))
-        const json: NewsListResponse = await response.json()
-        if (!response.ok || !json.success) {
-          throw new Error('Không thể tải danh sách tin tức')
+          throw new Error('Không thể tải feed nội dung')
         }
 
         if (!active) {
@@ -255,26 +187,17 @@ export default function NewsIndexPage() {
         }
 
         setItems(json.items)
-        setCursor(json.nextCursor)
-        setTotalApprox(json.totalApprox)
         setError(null)
-
-        if (isDefaultFilterState(filters)) {
-          writeNewsIndexCache({
-            items: json.items,
-            cursor: json.nextCursor,
-            totalApprox: json.totalApprox,
-          })
-        }
+        writeContentFeedCache(json.items)
       } catch (fetchError) {
         if (!active) {
           return
         }
 
-        if (!hasCachedItems && isDefaultFilterState(filters)) {
+        if (!cachedFeed) {
           setItems([])
         }
-        setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải danh sách tin tức')
+        setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải feed nội dung')
       } finally {
         if (active) {
           setLoading(false)
@@ -282,58 +205,36 @@ export default function NewsIndexPage() {
       }
     }
 
-    void loadArticles()
+    void loadFeed()
 
     return () => {
       active = false
     }
-  }, [filters, hasCachedItems])
+  }, [cachedFeed])
 
-  async function handleLoadMore() {
-    if (!cursor) {
-      return
-    }
-
-    setLoadingMore(true)
-    try {
-      const response = await fetch(buildNewsUrl(filters, cursor))
-      const json: NewsListResponse = await response.json()
-      if (!response.ok || !json.success) {
-        throw new Error('Không thể tải thêm bài viết')
-      }
-
-      setItems(current => [...current, ...json.items])
-      setCursor(json.nextCursor)
-      setTotalApprox(json.totalApprox)
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải thêm bài viết')
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  const hero = items[0] ?? null
-  const featured = items.slice(1, 5)
-  const stream = items.slice(5)
+  const topics = useMemo(
+    () => [...new Set(items.flatMap(item => item.topicTags))].sort((left, right) => left.localeCompare(right)),
+    [items],
+  )
+  const filteredItems = useMemo(() => filterItems(items, filters), [filters, items])
+  const hero = filteredItems[0] ?? null
+  const featured = filteredItems.slice(1, 5)
+  const stream = filteredItems.slice(5)
 
   return (
     <main className="news-index">
       <section className="news-index__hero-shell">
         <div className="news-index__hero-frame">
           <div className="news-index__hero-topbar">
-            <span className="news-index__eyebrow">Tin nông sản mới nhất</span>
-            <div className="news-index__hero-stats" aria-label="Tổng quan tin tức">
-              <span>{totalApprox} bài</span>
+            <span className="news-index__eyebrow">Tin tức và phân tích giá tự động</span>
+            <div className="news-index__hero-stats" aria-label="Tổng quan nội dung">
+              <span>{filteredItems.length} mục</span>
               <span>{topics.length} chủ đề</span>
             </div>
           </div>
 
           {hero ? (
-            <Link
-              className="news-index__hero-lead"
-              to={`/tin-tuc/${hero.slug}`}
-              state={{ articlePreview: hero } satisfies NewsArticleLocationState}
-            >
+            <Link className="news-index__hero-lead" to={hero.path}>
               <div className="news-index__hero-lead-media">
                 <img
                   className="news-index__hero-image"
@@ -344,20 +245,21 @@ export default function NewsIndexPage() {
               </div>
               <div className="news-index__hero-lead-body">
                 <div className="news-index__meta-row">
-                  <time>{formatDate(hero.publishedAt)}</time>
+                  <time>{formatDate(getItemTimestamp(hero))}</time>
+                  <span className="news-index__tag news-index__tag--badge">{hero.badgeLabel}</span>
                 </div>
                 <h1 className="news-index__hero-title">{hero.title}</h1>
                 <p className="news-index__hero-excerpt">{hero.excerpt}</p>
               </div>
             </Link>
           ) : (
-            <div className="news-index__hero-placeholder">Đang tải bài viết nổi bật...</div>
+            <div className="news-index__hero-placeholder">Đang tải nội dung nổi bật...</div>
           )}
 
           {featured.length > 0 ? (
-            <div className="news-index__hero-rail" aria-label="Bài viết nổi bật khác">
-              {featured.map(article => (
-                <HeroRailCard key={article.slug} article={article} />
+            <div className="news-index__hero-rail" aria-label="Nội dung nổi bật khác">
+              {featured.map(item => (
+                <HeroRailCard key={`${item.kind}-${item.path}`} item={item} />
               ))}
             </div>
           ) : null}
@@ -400,39 +302,25 @@ export default function NewsIndexPage() {
       <section className="news-index__stream">
         <div className="news-index__section-head">
           <div>
-            <span className="news-index__eyebrow">Dòng tin</span>
-            <h2>Danh sách bài viết</h2>
+            <span className="news-index__eyebrow">Dòng nội dung</span>
+            <h2>Tin tức và trang giá tự động</h2>
           </div>
-          <p>{loading ? 'Đang nạp...' : `Hiện có ${items.length}/${totalApprox} bài đang được hiển thị`}</p>
+          <p>{loading ? 'Đang nạp...' : `Hiện có ${filteredItems.length} mục nội dung`}</p>
         </div>
 
         {error ? <div className="news-index__error">{error}</div> : null}
 
         {loading ? (
-          <div className="news-index__empty">Đang tải tin tức...</div>
-        ) : stream.length > 0 ? (
+          <div className="news-index__empty">Đang tải nội dung...</div>
+        ) : filteredItems.length > 0 ? (
           <div className="news-index__stream-list">
-            {stream.map(article => (
-              <ArticleCard key={article.slug} article={article} />
-            ))}
-          </div>
-        ) : items.length > 0 ? (
-          <div className="news-index__stream-list">
-            {items.map(article => (
-              <ArticleCard key={article.slug} article={article} />
+            {(stream.length > 0 ? stream : filteredItems).map(item => (
+              <ArticleCard key={`${item.kind}-${item.path}`} item={item} />
             ))}
           </div>
         ) : (
-          <div className="news-index__empty">Chưa có bài viết phù hợp với bộ lọc hiện tại.</div>
+          <div className="news-index__empty">Chưa có nội dung phù hợp với bộ lọc hiện tại.</div>
         )}
-
-        {cursor ? (
-          <div className="news-index__more">
-            <button type="button" className="news-index__more-button" onClick={() => void handleLoadMore()} disabled={loadingMore}>
-              {loadingMore ? 'Đang tải thêm...' : 'Xem thêm bài viết'}
-            </button>
-          </div>
-        ) : null}
       </section>
     </main>
   )
