@@ -7,6 +7,7 @@ import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
 import { extractNewsArticle, hasSuspiciousExtractedBody } from './extract/articleExtractor.js'
 import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache, rememberLiveNewsArticles } from './liveCache.js'
 import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
+import { classifyNewsContentFamily, getContentFamilyMeta } from '../contentTaxonomy.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import { retryTransientResult } from '../transientNetwork.js'
 import type {
@@ -144,9 +145,28 @@ function isVisibleSourceRecord(source: Pick<NewsSourceRecord, 'key' | 'active'>)
   return source.active && isNewsSourceVisible(source.key)
 }
 
+function withContentFamilyMetadata(article: NewsArticleRecord): NewsArticleRecord {
+  const familySlug = classifyNewsContentFamily({
+    sourceKey: article.sourceKey,
+    category: article.category,
+    title: article.title,
+    excerpt: article.excerpt,
+    contentText: article.contentText,
+    topicTags: article.topicTags,
+  })
+  const familyMeta = getContentFamilyMeta(familySlug)
+
+  return {
+    ...article,
+    contentFamilySlug: familyMeta.contentFamilySlug,
+    contentFamilyLabel: familyMeta.contentFamilyLabel,
+    familyPath: familyMeta.familyPath,
+  }
+}
+
 function toArticleRecord(row: NewsArticleRow, sources: NewsSourceRecord[]): NewsArticleRecord {
   const source = sources.find(item => item.key === row.source_key)
-  return {
+  return withContentFamilyMetadata({
     id: row.id,
     sourceKey: row.source_key,
     sourceLabel: source?.label ?? getNewsSourceConfig(row.source_key).label,
@@ -165,7 +185,7 @@ function toArticleRecord(row: NewsArticleRow, sources: NewsSourceRecord[]): News
     contentMode: row.content_mode,
     fingerprint: row.fingerprint,
     status: row.status,
-  }
+  })
 }
 
 function toArticleRowPayload(article: NewsArticleRecord) {
@@ -190,17 +210,22 @@ function toArticleRowPayload(article: NewsArticleRecord) {
 }
 
 function toListItem(article: NewsArticleRecord): NewsListItem {
+  const normalizedArticle = article.contentFamilySlug ? article : withContentFamilyMetadata(article)
+
   return {
-    slug: article.slug,
-    title: article.title,
-    excerpt: article.excerpt,
-    thumbnailUrl: article.thumbnailUrl,
-    sourceKey: article.sourceKey,
-    sourceLabel: article.sourceLabel ?? getNewsSourceConfig(article.sourceKey).label,
-    publishedAt: article.publishedAt,
-    category: article.category,
-    topicTags: article.topicTags,
-    contentMode: article.contentMode,
+    slug: normalizedArticle.slug,
+    title: normalizedArticle.title,
+    excerpt: normalizedArticle.excerpt,
+    thumbnailUrl: normalizedArticle.thumbnailUrl,
+    sourceKey: normalizedArticle.sourceKey,
+    sourceLabel: normalizedArticle.sourceLabel ?? getNewsSourceConfig(normalizedArticle.sourceKey).label,
+    publishedAt: normalizedArticle.publishedAt,
+    category: normalizedArticle.category,
+    topicTags: normalizedArticle.topicTags,
+    contentMode: normalizedArticle.contentMode,
+    contentFamilySlug: normalizedArticle.contentFamilySlug ?? 'tin-thi-truong-hang-ngay',
+    contentFamilyLabel: normalizedArticle.contentFamilyLabel ?? getContentFamilyMeta('tin-thi-truong-hang-ngay').contentFamilyLabel,
+    familyPath: normalizedArticle.familyPath ?? getContentFamilyMeta('tin-thi-truong-hang-ngay').familyPath,
   }
 }
 
@@ -236,12 +261,12 @@ async function repairSuspiciousStoredArticles(articles: NewsArticleRecord[], sou
           return null
         }
 
-        return {
+        return withContentFamilyMetadata({
           ...refreshed,
           id: article.id,
           slug: article.slug,
           sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-        }
+        })
       } catch (error) {
         console.error(`[News] Failed to repair suspicious article ${article.canonicalUrl}:`, error)
         return null
@@ -422,28 +447,40 @@ async function loadLiveOrFallbackArticles(sources: NewsSourceRecord[]) {
     cached?.some(article => hasSuspiciousExtractedBody(article.sourceKey, article.canonicalUrl, article.contentHtml)) ?? false
 
   if (cached && cached.length > 0 && !hasSuspiciousCachedArticle) {
-    return cached.map(article => ({
-      ...article,
-      sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-    })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
+    return cached
+      .map(article =>
+        withContentFamilyMetadata({
+          ...article,
+          sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+        }),
+      )
+      .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
   }
 
   try {
     const liveArticles = await refreshLiveNewsArticlesCache()
     if (liveArticles.length > 0) {
-      return liveArticles.map(article => ({
-        ...article,
-        sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-      })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
+      return liveArticles
+        .map(article =>
+          withContentFamilyMetadata({
+            ...article,
+            sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+          }),
+        )
+        .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
     }
   } catch (error) {
     console.error('[News] Failed to build live fallback cache:', error)
   }
 
-  return FALLBACK_NEWS_ARTICLES.map(article => ({
-    ...article,
-    sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
-  })).filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
+  return FALLBACK_NEWS_ARTICLES
+    .map(article =>
+      withContentFamilyMetadata({
+        ...article,
+        sourceLabel: sources.find(source => source.key === article.sourceKey)?.label ?? article.sourceLabel,
+      }),
+    )
+    .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
 }
 
 function filterArticles(articles: NewsArticleRecord[], filters: NewsListFilters) {
@@ -788,7 +825,7 @@ export async function crawlNewsSources(sourceKeys?: NewsSourceKey[]) {
 
 export async function getNewsArticles(filters: NewsListFilters): Promise<NewsListResponse> {
   const [articles, sources] = await Promise.all([loadArticleRecords(), loadSourceRecords()])
-  const limit = Math.min(Math.max(filters.limit ?? 12, 1), 24)
+  const limit = Math.min(Math.max(filters.limit ?? 12, 1), 120)
   const filtered = filterArticles(articles, filters).sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
   const paged = applyCursor(filtered, filters.cursor).slice(0, limit + 1)
   const items = paged.slice(0, limit).map(toListItem)
@@ -827,7 +864,7 @@ export async function getNewsArticle(slug: string): Promise<NewsDetailResponse |
     .map(toListItem)
 
   return {
-    article,
+    article: article.contentFamilySlug ? article : withContentFamilyMetadata(article),
     related,
     latestFromSource,
   }

@@ -1,3 +1,5 @@
+import type { ContentFamilySlug } from './contentFeedTypes'
+
 export type NewsSourceKey =
   | 'vietnambiz'
   | 'congthuong'
@@ -40,6 +42,9 @@ export interface NewsListItem {
   category: string | null
   topicTags: string[]
   contentMode: 'full_html' | 'readability_text' | 'metadata_only'
+  contentFamilySlug: ContentFamilySlug
+  contentFamilyLabel: string
+  familyPath: string
 }
 
 export interface NewsArticle extends NewsListItem {

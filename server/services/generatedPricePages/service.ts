@@ -1,4 +1,5 @@
 import { foldText } from '../crawlers/common.js'
+import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
 import { normalizeDisplayRegion, PROVINCE_NAME_BY_CODE, VN_COMMODITY_META } from '../marketDataMappings.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import { resolveCommodityImage } from './commodityImageResolver.js'
@@ -1227,6 +1228,9 @@ export async function getGeneratedPricePageDetail(
 }
 
 export function toContentFeedItem(page: GeneratedPricePageSummary): ContentFeedItem {
+  const familyMeta = getContentFamilyMeta('tin-gia-nong-san')
+  const priceGroupMeta = getPriceCommodityGroupMeta(page.category)
+
   return {
     kind: 'price_page',
     path: page.path,
@@ -1239,6 +1243,13 @@ export function toContentFeedItem(page: GeneratedPricePageSummary): ContentFeedI
     category: page.category,
     topicTags: page.topicTags,
     badgeLabel: 'Phân tích giá',
+    contentFamilySlug: familyMeta.contentFamilySlug,
+    contentFamilyLabel: familyMeta.contentFamilyLabel,
+    contentFamilyOrder: familyMeta.contentFamilyOrder,
+    familyPath: familyMeta.familyPath,
+    subcategoryPath: priceGroupMeta.subcategoryPath,
+    priceGroupSlug: priceGroupMeta.priceGroupSlug,
+    priceGroupLabel: priceGroupMeta.priceGroupLabel,
     commoditySlug: page.commoditySlug,
     locationLabel: page.locationLabel,
     primaryPriceType: page.primaryPriceType,

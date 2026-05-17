@@ -30,6 +30,8 @@ export default function App() {
       <div className="app-body">
         <Routes>
           <Route path="/" element={<NewsIndexPage />} />
+          <Route path="/tin-tuc/nhom/:familySlug" element={<NewsIndexPage />} />
+          <Route path="/tin-tuc/nhom/:familySlug/:priceGroupSlug" element={<NewsIndexPage />} />
           <Route path="/tin-tuc/:slug" element={<NewsArticlePage />} />
           <Route path="/gia-nong-san/:commoditySlug" element={<GeneratedCommodityPricePage />} />
           <Route path="/gia-nong-san/:commoditySlug/:locationSlug" element={<GeneratedPricePage />} />

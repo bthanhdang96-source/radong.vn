@@ -74,6 +74,11 @@
   color: color-mix(in srgb, var(--color-accent) 75%, black);
 }
 
+.news-article__category--family {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+}
+
 .news-article__header h1 {
   font-size: clamp(1.75rem, 3vw, 2.5rem);
   line-height: 1.1;

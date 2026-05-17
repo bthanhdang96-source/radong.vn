@@ -1,3 +1,5 @@
+import type { ContentFamilySlug } from '../generatedPricePages/types.js'
+
 export type NewsSourceKey =
   | 'vietnambiz'
   | 'congthuong'
@@ -91,6 +93,9 @@ export interface NewsArticleRecord {
   fingerprint: string
   status: NewsArticleStatus
   sourceLabel?: string
+  contentFamilySlug?: ContentFamilySlug
+  contentFamilyLabel?: string
+  familyPath?: string
 }
 
 export interface NewsCrawlRunRecord {
@@ -132,6 +137,9 @@ export interface NewsListItem {
   category: string | null
   topicTags: string[]
   contentMode: NewsContentMode
+  contentFamilySlug: ContentFamilySlug
+  contentFamilyLabel: string
+  familyPath: string
 }
 
 export interface NewsListResponse {

@@ -7,6 +7,7 @@ import {
 } from '../generatedPricePages/service.js'
 import { listGeneratedPricePages } from '../generatedPricePages/service.js'
 import { resolveCommodityImage } from '../generatedPricePages/commodityImageResolver.js'
+import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
 import {
   getSupabaseAdminClient,
   getSupabaseReadClient,
@@ -1401,6 +1402,9 @@ export async function getGeneratedCommodityPricePageDetail(
 }
 
 export function toCommodityContentFeedItem(page: GeneratedCommodityPricePageSummary): ContentFeedItem {
+  const familyMeta = getContentFamilyMeta('tin-gia-nong-san')
+  const priceGroupMeta = getPriceCommodityGroupMeta(page.category)
+
   return {
     kind: 'commodity_price_page',
     path: page.path,
@@ -1413,6 +1417,13 @@ export function toCommodityContentFeedItem(page: GeneratedCommodityPricePageSumm
     category: page.category,
     topicTags: page.topicTags,
     badgeLabel: page.renderMode === 'national_article' ? 'Tin giá hôm nay' : 'Tổng hợp theo vùng',
+    contentFamilySlug: familyMeta.contentFamilySlug,
+    contentFamilyLabel: familyMeta.contentFamilyLabel,
+    contentFamilyOrder: familyMeta.contentFamilyOrder,
+    familyPath: familyMeta.familyPath,
+    subcategoryPath: priceGroupMeta.subcategoryPath,
+    priceGroupSlug: priceGroupMeta.priceGroupSlug,
+    priceGroupLabel: priceGroupMeta.priceGroupLabel,
     commoditySlug: page.commoditySlug,
     primaryPriceType: page.primaryPriceType,
     locationCount: page.locationCount,

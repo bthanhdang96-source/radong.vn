@@ -1,3 +1,4 @@
+import { buildContentFamilyPath } from './contentTaxonomy'
 import type { NewsListItem, NewsSource } from './newsTypes'
 
 function isoHoursAgo(hours: number) {
@@ -109,6 +110,9 @@ export const FALLBACK_NEWS_ITEMS: NewsListItem[] = [
     category: 'Thị trường',
     topicTags: ['nong-san', 'gia-ca', 'xuat-khau'],
     contentMode: 'full_html',
+    contentFamilySlug: 'xuat-khau-va-doanh-nghiep',
+    contentFamilyLabel: 'Xuất khẩu & doanh nghiệp',
+    familyPath: buildContentFamilyPath('xuat-khau-va-doanh-nghiep'),
   },
   {
     slug: 'xuat-khau-gao-giu-nhip-doanh-nghiep-tang-du-tru-nguyen-lieu',
@@ -121,6 +125,9 @@ export const FALLBACK_NEWS_ITEMS: NewsListItem[] = [
     category: 'Xuất khẩu',
     topicTags: ['gao', 'xuat-khau', 'thi-truong'],
     contentMode: 'full_html',
+    contentFamilySlug: 'xuat-khau-va-doanh-nghiep',
+    contentFamilyLabel: 'Xuất khẩu & doanh nghiệp',
+    familyPath: buildContentFamilyPath('xuat-khau-va-doanh-nghiep'),
   },
   {
     slug: 'nhu-cau-nong-san-che-bien-tang-vung-nguyen-lieu-duoc-siet-chat-luong',
@@ -133,6 +140,9 @@ export const FALLBACK_NEWS_ITEMS: NewsListItem[] = [
     category: 'Nông nghiệp',
     topicTags: ['nong-nghiep', 'nong-thon', 'thi-truong'],
     contentMode: 'full_html',
+    contentFamilySlug: 'tin-thi-truong-hang-ngay',
+    contentFamilyLabel: 'Tin thị trường hằng ngày',
+    familyPath: buildContentFamilyPath('tin-thi-truong-hang-ngay'),
   },
   {
     slug: 'ho-tieu-viet-nam-huong-loi-tu-don-hang-gia-vi-cuoi-quy',
@@ -145,6 +155,9 @@ export const FALLBACK_NEWS_ITEMS: NewsListItem[] = [
     category: 'Gia vị',
     topicTags: ['ho-tieu', 'gia-vi', 'xuat-khau'],
     contentMode: 'full_html',
+    contentFamilySlug: 'xuat-khau-va-doanh-nghiep',
+    contentFamilyLabel: 'Xuất khẩu & doanh nghiệp',
+    familyPath: buildContentFamilyPath('xuat-khau-va-doanh-nghiep'),
   },
   {
     slug: 'doanh-nghiep-lua-gao-theo-sat-nhu-cau-mua-hang-o-phan-khuc-chat-luong-cao',
@@ -157,6 +170,9 @@ export const FALLBACK_NEWS_ITEMS: NewsListItem[] = [
     category: 'Lúa gạo',
     topicTags: ['lua-gao', 'thi-truong', 'xuat-khau'],
     contentMode: 'full_html',
+    contentFamilySlug: 'xuat-khau-va-doanh-nghiep',
+    contentFamilyLabel: 'Xuất khẩu & doanh nghiệp',
+    familyPath: buildContentFamilyPath('xuat-khau-va-doanh-nghiep'),
   },
 ]
 

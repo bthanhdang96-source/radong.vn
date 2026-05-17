@@ -2,6 +2,7 @@ import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import type { NewsDetailResponse, NewsListItem } from '../data/newsTypes'
+import { buildContentFamilyPath } from '../data/contentTaxonomy'
 import { buildApiUrl } from '../lib/api'
 import './NewsArticlePage.css'
 
@@ -386,6 +387,7 @@ export default function NewsArticlePage() {
   const sanitizedHtml = currentPayload?.article.contentHtml ? stripArticleNoise(currentPayload.article.contentHtml) : ''
   const sanitizedText = currentPayload?.article.contentText ? stripArticleNoiseFromText(currentPayload.article.contentText) : ''
   const related = currentPayload?.related ?? []
+  const familyPath = article.familyPath ?? buildContentFamilyPath(article.contentFamilySlug)
 
   return (
     <main className="news-article">
@@ -394,13 +396,18 @@ export default function NewsArticlePage() {
           <nav className="news-article__breadcrumb" aria-label="Breadcrumb">
             <Link to="/">Tin tức</Link>
             <span>/</span>
+            <Link to={familyPath}>{article.contentFamilyLabel}</Link>
+            <span>/</span>
             <span>Bài viết</span>
           </nav>
 
           <header className="news-article__header">
-            {article.category ? (
+            {article.contentFamilyLabel || article.category ? (
               <div className="news-article__meta">
-                <span className="news-article__category">{article.category}</span>
+                <Link className="news-article__category news-article__category--family" to={familyPath}>
+                  {article.contentFamilyLabel}
+                </Link>
+                {article.category ? <span className="news-article__category">{article.category}</span> : null}
               </div>
             ) : null}
             <h1>{article.title}</h1>
