@@ -12,10 +12,10 @@
 
 .generated-commodity-price-page__main,
 .generated-commodity-price-page__rail {
-  background: rgba(9, 18, 34, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 24px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow-md);
 }
 
 .generated-commodity-price-page__main {
@@ -27,7 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  color: rgba(226, 235, 244, 0.64);
+  color: var(--color-text-muted);
   font-size: 0.82rem;
 }
 
@@ -52,7 +52,7 @@
 
 .generated-commodity-price-page__excerpt {
   margin: 0;
-  color: rgba(226, 235, 244, 0.82);
+  color: var(--color-text-muted);
   font-size: 1.05rem;
   line-height: 1.7;
 }
@@ -61,8 +61,8 @@
   margin: 1.5rem 0 0;
   border-radius: 22px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
 }
 
 .generated-commodity-price-page__hero img {
@@ -77,9 +77,9 @@
   align-items: center;
   padding: 0.25rem 0.7rem;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.24);
-  color: hsl(142, 65%, 60%);
+  background: var(--color-up-bg);
+  border: 1px solid var(--color-up-border);
+  color: var(--color-up);
 }
 
 .generated-commodity-price-page__facts {
@@ -93,8 +93,8 @@
 .generated-commodity-price-page__faq-item,
 .generated-commodity-price-page__table,
 .generated-commodity-price-page__rail-item {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: 18px;
 }
 
@@ -105,14 +105,14 @@
 
 .generated-commodity-price-page__facts span {
   display: block;
-  color: rgba(226, 235, 244, 0.62);
+  color: var(--color-text-muted);
   font-size: 0.82rem;
 }
 
 .generated-commodity-price-page__facts strong {
   display: block;
   margin-top: 0.5rem;
-  color: #f5f9ff;
+  color: var(--color-text);
   line-height: 1.4;
 }
 
@@ -142,13 +142,13 @@
 .generated-commodity-price-page__table th,
 .generated-commodity-price-page__table td {
   padding: 0.85rem 0.9rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--color-border);
   text-align: left;
 }
 
 .generated-commodity-price-page__body {
   margin-top: 1.5rem;
-  color: rgba(233, 240, 247, 0.86);
+  color: var(--color-text);
   line-height: 1.75;
 }
 
@@ -165,7 +165,13 @@
 .generated-commodity-price-page__cta-link,
 .generated-commodity-price-page__detail-link,
 .generated-commodity-price-page__rail-item strong {
-  color: hsl(35, 95%, 64%);
+  color: var(--color-primary);
+}
+
+.generated-commodity-price-page__body a:hover,
+.generated-commodity-price-page__detail-link:hover,
+.generated-commodity-price-page__rail-item strong:hover {
+  color: var(--color-primary-light);
 }
 
 .generated-commodity-price-page__faq {
@@ -185,7 +191,7 @@
 .generated-commodity-price-page__faq-item p,
 .generated-commodity-price-page__rail-item p {
   margin: 0;
-  color: rgba(233, 240, 247, 0.8);
+  color: var(--color-text-muted);
 }
 
 .generated-commodity-price-page__cta-row {
@@ -200,14 +206,26 @@
   justify-content: center;
   padding: 0.85rem 1.1rem;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.08));
-  border: 1px solid rgba(34, 197, 94, 0.22);
-  color: #e9f6ec;
+  background: var(--color-up-bg);
+  border: 1px solid var(--color-up-border);
+  color: var(--color-up);
+  transition: all var(--transition-fast);
+}
+
+.generated-commodity-price-page__cta-link:hover {
+  background: var(--color-up);
+  color: var(--color-up-bg);
 }
 
 .generated-commodity-price-page__cta-link--secondary {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--color-bg);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.generated-commodity-price-page__cta-link--secondary:hover {
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 .generated-commodity-price-page__aside {
@@ -223,7 +241,7 @@
 }
 
 .generated-commodity-price-page__rail-head {
-  color: rgba(226, 235, 244, 0.72);
+  color: var(--color-text-muted);
   font-size: 0.82rem;
   margin-bottom: 0.85rem;
 }
@@ -232,10 +250,17 @@
   display: grid;
   gap: 0.35rem;
   padding: 0.95rem;
+  transition: all var(--transition-fast);
+}
+
+.generated-commodity-price-page__rail-item:hover {
+  border-color: var(--color-primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .generated-commodity-price-page__rail-item time {
-  color: rgba(226, 235, 244, 0.55);
+  color: var(--color-text-muted);
   font-size: 0.78rem;
 }
 
@@ -243,7 +268,7 @@
   min-height: 50vh;
   display: grid;
   place-items: center;
-  color: rgba(233, 240, 247, 0.82);
+  color: var(--color-text-muted);
 }
 
 @media (max-width: 1024px) {
