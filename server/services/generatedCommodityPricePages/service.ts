@@ -303,7 +303,7 @@ function getMovementLabel(value: number) {
 function getMovementNarrative(value: number) {
   const label = getMovementLabel(value)
   if (label === 'ổn định') {
-    return 'gần như không thay đổi so với mốc so sánh'
+    return 'gần như không thay đổi so với trước đó'
   }
 
   return `${label} ${Math.abs(roundNumber(value, 2)).toLocaleString('vi-VN')}%`
@@ -668,9 +668,9 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
       : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu theo vùng cho thấy mức cao nhất tại ${topLocationLabel} và thấp nhất tại ${bottomLocationLabel}.`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu từ các nơi đang có cho thấy mức cao nhất tại ${topLocationLabel} và thấp nhất tại ${bottomLocationLabel}.`
   const excerpt = maybeTruncate(
-    `${answerSummary} Bảng giá theo vùng được tổng hợp từ ${page.locationCount.toLocaleString('vi-VN')} khu vực hợp lệ cùng loại giá.`,
+    `${answerSummary} Bảng giá theo vùng được tổng hợp từ ${page.locationCount.toLocaleString('vi-VN')} nơi có đủ dữ liệu cùng loại giá.`,
     180,
   )
 
@@ -680,28 +680,28 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
       answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)} theo dữ liệu cập nhật ngày ${latestDateLabel}.`,
     },
     {
-      question: `Giá ${commodityName} hôm nay chênh lệch giữa các vùng ra sao?`,
-      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo biên độ ${formatCurrency(page.priceSpreadVnd)} giữa các vùng hợp lệ.`,
+      question: `Giá ${commodityName} hôm nay khác nhau giữa các vùng ra sao?`,
+      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo khoảng cách ${formatCurrency(page.priceSpreadVnd)} giữa các vùng có đủ dữ liệu.`,
     },
     {
       question: `Xem bảng giá ${commodityName} theo vùng ở đâu?`,
-      answer: `Ngay trong bài có bảng giá theo vùng với liên kết sang từng trang chi tiết địa bàn để đối chiếu mức giá và biến động.`,
+      answer: `Ngay trong bài có bảng giá theo vùng với liên kết sang từng trang chi tiết để xem giá cụ thể và mức tăng giảm.`,
     },
   ]
 
   const bodyHtml = [
     `<section><h2>Tóm tắt nhanh</h2><p>${answerSummary}</p></section>`,
-    `<section><h2>Bảng giá theo vùng hôm nay</h2><p>Bảng bên dưới tổng hợp ${page.locationCount.toLocaleString('vi-VN')} khu vực đủ điều kiện với ${priceTypeLabel} của ${commodityName}. Các hàng được sắp theo mức giá hiện tại giảm dần để người đọc dễ nhìn ra vùng dẫn đầu và vùng thấp hơn.</p></section>`,
-    `<section><h2>Khu vực nổi bật</h2><p>${topLocationLabel} hiện là nơi có mức giá cao nhất ở ${formatCurrency(page.highestPriceVnd)}, trong khi ${bottomLocationLabel} đang ở ${formatCurrency(page.lowestPriceVnd)}. Chênh lệch giữa hai đầu giá hiện là ${formatCurrency(page.priceSpreadVnd)}.</p></section>`,
-    `<section><h2>So với hôm qua</h2><p>Mặt bằng ${priceTypeLabel} của ${commodityName} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, với mức chênh ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức chênh ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
-    `<section><h2>Xu hướng 7 ngày</h2><p>So với trung bình 7 ngày, giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức chênh ${formatSignedCurrency(page.change7dVnd)}`}. Điều này giúp người đọc nhìn nhanh liệu giá đang thay đổi ở nhiều nơi hay chỉ xuất hiện ở một vài khu vực.</p></section>`,
-    `<section><h2>Chênh lệch giữa các vùng</h2><p>Khoảng giá hiện dao động từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}. Người đọc có thể dùng bảng vùng để nhận diện nơi có giá cạnh tranh hơn hoặc khu vực đang giữ mức giá cao.</p></section>`,
+    `<section><h2>Bảng giá theo vùng hôm nay</h2><p>Bảng bên dưới tổng hợp ${page.locationCount.toLocaleString('vi-VN')} nơi có đủ dữ liệu với ${priceTypeLabel} của ${commodityName}. Các hàng được sắp theo mức giá hiện tại giảm dần để người đọc dễ nhìn ra nơi giá cao hơn và nơi giá thấp hơn.</p></section>`,
+    `<section><h2>Khu vực nổi bật</h2><p>${topLocationLabel} hiện là nơi có mức giá cao nhất ở ${formatCurrency(page.highestPriceVnd)}, trong khi ${bottomLocationLabel} đang ở ${formatCurrency(page.lowestPriceVnd)}. Mức cách nhau giữa nơi cao nhất và thấp nhất hiện là ${formatCurrency(page.priceSpreadVnd)}.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, với mức lệch ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
+    `<section><h2>Giá trong 7 ngày gần đây</h2><p>So với trung bình 7 ngày, giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)}`}. Nhờ vậy người đọc dễ thấy giá đang thay đổi ở nhiều nơi hay chỉ ở một vài nơi.</p></section>`,
+    `<section><h2>Giá giữa các vùng khác nhau ra sao</h2><p>Khoảng giá hiện nằm từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}. Người đọc có thể dùng bảng vùng để nhận diện nơi có giá thấp hơn hoặc nơi đang giữ mức giá cao.</p></section>`,
     `<section><h2>Theo dõi thêm</h2><p>Xem thêm bảng giá tổng hợp tại <a href="/bang-gia">/bang-gia</a> và chuỗi giá tại <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
   ].join('')
 
   const bodyText = [
     answerSummary,
-    `Bảng giá theo vùng hiện có ${page.locationCount.toLocaleString('vi-VN')} khu vực hợp lệ.`,
+    `Bảng giá theo vùng hiện có ${page.locationCount.toLocaleString('vi-VN')} nơi đủ dữ liệu.`,
     `Khu vực giá cao nhất: ${topLocationLabel}. Khu vực giá thấp nhất: ${bottomLocationLabel}.`,
     ...faq.map(item => `${item.question} ${item.answer}`),
   ].join('\n\n')
@@ -737,7 +737,7 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
       : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} theo dữ liệu toàn quốc hiện có ngày ${latestDateLabel} đang ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu hiện phản ánh mặt bằng ${nationalLabel}, chưa đủ vùng để dựng bảng so sánh chi tiết.`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} theo dữ liệu toàn quốc hiện có ngày ${latestDateLabel} đang ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng so sánh chi tiết.`
   const excerpt = maybeTruncate(
     `${answerSummary} Bài viết được cập nhật tự động theo dữ liệu cấp quốc gia hiện có để phục vụ nhu cầu tra cứu nhanh.`,
     180,
@@ -750,25 +750,25 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
     },
     {
       question: `Vì sao bài giá ${commodityName} hôm nay chưa có bảng theo vùng?`,
-      answer: `Hiện hệ thống chỉ có một scope dữ liệu hợp lệ ở cấp ${nationalLabel}, nên bài được xuất bản như tin giá tổng quan thay vì bảng so sánh vùng.`,
+      answer: `Hiện hệ thống mới có dữ liệu đủ dùng ở cấp ${nationalLabel}, nên bài được xuất bản như tin giá tổng quan thay vì bảng so sánh vùng.`,
     },
     {
-      question: `Xu hướng 7 ngày của giá ${commodityName} ra sao?`,
-      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức chênh ${formatSignedCurrency(page.change7dVnd)} theo dữ liệu toàn quốc hiện có.`,
+      question: `Giá ${commodityName} trong 7 ngày gần đây thay đổi ra sao?`,
+      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)} theo dữ liệu toàn quốc hiện có.`,
     },
   ]
 
   const bodyHtml = [
     `<section><h2>Tóm tắt nhanh</h2><p>${answerSummary}</p></section>`,
-    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} tại ${nationalLabel} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, tương ứng mức chênh ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức chênh ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
-    `<section><h2>So với xu hướng 7 ngày</h2><p>So với trung bình 7 ngày, mức giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức chênh ${formatSignedCurrency(page.change7dVnd)}`}. Khoảng giá ghi nhận nằm từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}.</p></section>`,
-    `<section><h2>Bối cảnh dữ liệu hiện có</h2><p>Hiện hệ thống mới ghi nhận một scope dữ liệu hợp lệ ở cấp ${nationalLabel}. Vì vậy trang này được render như một bài tin giá tự động để người đọc vẫn có thể theo dõi mức giá chung của ${commodityName} hôm nay.</p></section>`,
-    `<section><h2>Theo dõi thêm</h2><p>Khi có thêm dữ liệu địa bàn hợp lệ, trang này sẽ tự động nâng cấp sang dạng bảng theo vùng. Trong lúc chờ đợi, người đọc có thể xem thêm tại <a href="/bang-gia">/bang-gia</a> và <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} tại ${nationalLabel} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, tương ứng mức lệch ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
+    `<section><h2>So với 7 ngày gần đây</h2><p>So với trung bình 7 ngày, mức giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)}`}. Khoảng giá ghi nhận nằm từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}.</p></section>`,
+    `<section><h2>Dữ liệu hiện có</h2><p>Hiện hệ thống mới có dữ liệu đủ dùng ở cấp ${nationalLabel}. Vì vậy trang này được hiển thị như một bài tin giá tự động để người đọc vẫn có thể theo dõi mức giá chung của ${commodityName} hôm nay.</p></section>`,
+    `<section><h2>Theo dõi thêm</h2><p>Khi có thêm dữ liệu địa bàn, trang này sẽ tự động có thêm bảng giá theo vùng. Trong lúc chờ đợi, người đọc có thể xem thêm tại <a href="/bang-gia">/bang-gia</a> và <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
   ].join('')
 
   const bodyText = [
     answerSummary,
-    `Dữ liệu hiện phản ánh mặt bằng ${nationalLabel}, chưa đủ vùng để dựng bảng.`,
+    `Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng.`,
     ...faq.map(item => `${item.question} ${item.answer}`),
   ].join('\n\n')
 

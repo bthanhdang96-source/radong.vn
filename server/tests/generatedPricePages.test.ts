@@ -105,6 +105,9 @@ test('buildPageCopy uses phổ quát wording when price is stable', () => {
   assert.match(copy.answerSummary, /gần như không thay đổi/i)
   assert.match(copy.bodyText, /Khoảng giá 7 ngày gần nhất|nằm trong khoảng/i)
   assert.match(copy.title, /giữ mức ổn định/i)
+  assert.match(copy.bodyHtml, /Giá trong 7 ngày gần đây/i)
+  assert.match(copy.bodyHtml, /So với mức giá chung/i)
+  assert.doesNotMatch(copy.bodyText, /xu hướng 7 ngày|mặt bằng chung|điểm quan sát/i)
 })
 
 test('buildCandidatePages requires latest day, yesterday, and at least three observations', () => {

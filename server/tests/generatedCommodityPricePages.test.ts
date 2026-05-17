@@ -287,9 +287,12 @@ test('commodity page copy avoids finance-heavy stable wording', () => {
   assert.doesNotMatch(regionalCopy.answerSummary, /đi ngang/i)
   assert.match(regionalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
   assert.match(regionalCopy.bodyHtml, /giữ mức giá cao/i)
+  assert.match(regionalCopy.bodyHtml, /Giá trong 7 ngày gần đây/i)
+  assert.doesNotMatch(regionalCopy.bodyHtml, /scope|hợp lệ|biên độ|dao động/i)
   assert.doesNotMatch(nationalCopy.answerSummary, /đi ngang/i)
   assert.match(nationalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
   assert.match(nationalCopy.bodyHtml, /Khoảng giá ghi nhận/i)
+  assert.doesNotMatch(nationalCopy.bodyHtml, /scope|mặt bằng/i)
 })
 
 test('location price pages do not publish a Viet Nam region_label route anymore', () => {
