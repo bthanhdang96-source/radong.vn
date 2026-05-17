@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { GeneratedPricePageSummary } from '../data/generatedPricePageTypes'
+import type { GeneratedCommodityPricePageSummary, GeneratedPricePageSummary } from '../data/generatedPricePageTypes'
 import {
   CATEGORY_LABELS,
   FALLBACK_VN_PRICES,
@@ -35,6 +35,16 @@ function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
 
     if (!acc.has(labelKey)) {
       acc.set(labelKey, page)
+    }
+
+    return acc
+  }, new Map())
+}
+
+function buildCommodityPageLookup(commodityPages: GeneratedCommodityPricePageSummary[]) {
+  return commodityPages.reduce<Map<string, GeneratedCommodityPricePageSummary>>((acc, page) => {
+    if (!acc.has(page.commoditySlug)) {
+      acc.set(page.commoditySlug, page)
     }
 
     return acc
@@ -106,11 +116,13 @@ function RegionChange({ change }: { change: number | null }) {
 export default function PriceTable({
   data = FALLBACK_VN_PRICES.data,
   pricePages = [],
+  commodityPages = [],
   loading = false,
   error = null,
 }: {
   data?: CommoditySummary[]
   pricePages?: GeneratedPricePageSummary[]
+  commodityPages?: GeneratedCommodityPricePageSummary[]
   loading?: boolean
   error?: string | null
 }) {
@@ -122,6 +134,7 @@ export default function PriceTable({
 
   const categories = useMemo(() => ['Tất cả', ...new Set(data.map(item => item.category))], [data])
   const pricePageLookup = useMemo(() => buildPricePageLookup(pricePages), [pricePages])
+  const commodityPageLookup = useMemo(() => buildCommodityPageLookup(commodityPages), [commodityPages])
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -236,6 +249,15 @@ export default function PriceTable({
                           <span className="pt-expand__icon">{isExpanded ? '▼' : '▶'}</span>
                           <span className="pt-name__text">
                             <strong>{item.commodityName}</strong>
+                            {commodityPageLookup.get(item.commodity) ? (
+                              <Link
+                                className="pt-region-link"
+                                to={commodityPageLookup.get(item.commodity)!.path}
+                                onClick={event => event.stopPropagation()}
+                              >
+                                Xem bài theo hàng hóa
+                              </Link>
+                            ) : null}
                           </span>
                         </button>
                       </td>
@@ -270,6 +292,11 @@ export default function PriceTable({
                           <div className="pt-detail">
                             <div className="pt-detail__summary">
                               <span>{detailLabel}: {item.regions.length}</span>
+                              {commodityPageLookup.get(item.commodity) ? (
+                                <Link className="pt-region-link" to={commodityPageLookup.get(item.commodity)!.path}>
+                                  Xem bài theo hàng hóa
+                                </Link>
+                              ) : null}
                             </div>
                             <table className="pt-subtable">
                               <thead>
@@ -330,6 +357,15 @@ export default function PriceTable({
                   <div className="pt-mobile-card__title">
                     <div className="pt-mobile-card__name">
                       <strong>{item.commodityName}</strong>
+                      {commodityPageLookup.get(item.commodity) ? (
+                        <Link
+                          className="pt-region-link"
+                          to={commodityPageLookup.get(item.commodity)!.path}
+                          onClick={event => event.stopPropagation()}
+                        >
+                          Xem bài theo hàng hóa
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                   <div className="pt-mobile-card__actions">

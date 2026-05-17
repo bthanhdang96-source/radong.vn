@@ -7,6 +7,7 @@ import apiRouter from './routes/index.js';
 import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
 import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
+import { generateCommodityPricePages } from './services/generatedCommodityPricePages/service.js';
 import { generatePricePages } from './services/generatedPricePages/service.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
@@ -155,7 +156,13 @@ if (PRICE_CONTENT_ENABLED) {
     priceContentRefreshRunning = true;
     try {
       console.log(`[Price Pages] Scheduled generation started (${PRICE_CONTENT_CRON})`);
-      await generatePricePages({ staleHours: PRICE_CONTENT_STALE_HOURS });
+      const locationResult = await generatePricePages({ staleHours: PRICE_CONTENT_STALE_HOURS });
+      if (locationResult.status === 'failed') {
+        console.error('[Price Pages] Skipping commodity page generation because location pages failed');
+        return;
+      }
+
+      await generateCommodityPricePages({ staleHours: PRICE_CONTENT_STALE_HOURS });
       console.log('[Price Pages] Scheduled generation completed');
     } catch (error) {
       console.error('[Price Pages] Scheduled generation failed:', error);

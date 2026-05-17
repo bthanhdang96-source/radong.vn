@@ -6,12 +6,20 @@
       "destination": "/api/gia-nong-san/:commoditySlug/:locationSlug"
     },
     {
+      "source": "/gia-nong-san/:commoditySlug",
+      "destination": "/api/gia-nong-san/:commoditySlug"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },
     {
       "source": "/sitemap-price-pages.xml",
       "destination": "/api/sitemap-price-pages"
+    },
+    {
+      "source": "/sitemap-commodity-price-pages.xml",
+      "destination": "/api/sitemap-commodity-price-pages"
     },
     {
       "source": "/(.*)",

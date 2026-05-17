@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { GeneratedPricePageSummary } from '../../data/generatedPricePageTypes'
+import type { GeneratedCommodityPricePageSummary, GeneratedPricePageSummary } from '../../data/generatedPricePageTypes'
 import type { PriceChainItem } from '../../data/vnPriceTypes'
 import './PriceChainTable.css'
 
 type Props = {
   data: PriceChainItem[]
   pricePages: GeneratedPricePageSummary[]
+  commodityPages: GeneratedCommodityPricePageSummary[]
   loading: boolean
   error: string | null
   lastUpdated: string
@@ -23,10 +24,21 @@ function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
   }, new Map())
 }
 
-export default function PriceChainTable({ data, pricePages, loading, error, lastUpdated }: Props) {
+function buildCommodityPageLookup(commodityPages: GeneratedCommodityPricePageSummary[]) {
+  return commodityPages.reduce<Map<string, GeneratedCommodityPricePageSummary>>((acc, page) => {
+    if (!acc.has(page.commoditySlug)) {
+      acc.set(page.commoditySlug, page)
+    }
+
+    return acc
+  }, new Map())
+}
+
+export default function PriceChainTable({ data, pricePages, commodityPages, loading, error, lastUpdated }: Props) {
   const [activeCategory, setActiveCategory] = useState('Tất cả')
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null)
   const pricePageLookup = useMemo(() => buildPricePageLookup(pricePages), [pricePages])
+  const commodityPageLookup = useMemo(() => buildCommodityPageLookup(commodityPages), [commodityPages])
 
   const categories = ['Tất cả', ...new Set(data.map(item => item.category))]
   const filteredData = activeCategory === 'Tất cả' ? data : data.filter(item => item.category === activeCategory)
@@ -98,6 +110,7 @@ export default function PriceChainTable({ data, pricePages, loading, error, last
               filteredData.flatMap(item => {
                 const isExpanded = expandedCommodity === item.commodity
                 const canExpand = item.retailRegions.length > 0
+                const commodityPage = commodityPageLookup.get(item.commodity) ?? null
 
                 return [
                   <tr key={item.commodity} className="pct__row">
@@ -110,9 +123,14 @@ export default function PriceChainTable({ data, pricePages, loading, error, last
                       >
                         <span className="pct__commodity-name">{item.commodityName}</span>
                         <span className="pct__commodity-meta">
-                          {item.category} · {item.unit}
+                          {item.category} - {item.unit}
                         </span>
                       </button>
+                      {commodityPage ? (
+                        <Link className="pct__detail-link" to={commodityPage.path}>
+                          Xem bài theo hàng hóa
+                        </Link>
+                      ) : null}
                     </td>
                     <td>{formatVnd(item.farmGateVnd)}</td>
                     <td>{formatVnd(item.wholesaleVnd)}</td>
@@ -135,6 +153,11 @@ export default function PriceChainTable({ data, pricePages, loading, error, last
                             <strong>Retail theo vùng</strong>
                             <span>{new Date(item.updatedAt).toLocaleString('vi-VN')}</span>
                           </div>
+                          {commodityPage ? (
+                            <Link className="pct__detail-link" to={commodityPage.path}>
+                              Xem bài theo hàng hóa
+                            </Link>
+                          ) : null}
                           <div className="pct__detail-grid">
                             {item.retailRegions.map(region => {
                               const linkedPage = pricePageLookup.get(`${item.commodity}::${region.provinceCode}`) ?? null

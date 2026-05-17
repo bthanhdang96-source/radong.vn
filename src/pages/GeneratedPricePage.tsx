@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
-import type { GeneratedPricePageDetail, GeneratedPricePageDetailResponse, GeneratedPricePageSummary } from '../data/generatedPricePageTypes'
+import {
+  buildGeneratedCommodityPricePagePath,
+  type GeneratedPricePageDetail,
+  type GeneratedPricePageDetailResponse,
+  type GeneratedPricePageSummary,
+} from '../data/generatedPricePageTypes'
 import { buildApiUrl } from '../lib/api'
 import './GeneratedPricePage.css'
 
@@ -48,6 +53,7 @@ function RelatedList({ title, items }: { title: string; items: GeneratedPricePag
 
 export default function GeneratedPricePage() {
   const { commoditySlug, locationSlug } = useParams()
+  const navigate = useNavigate()
   const [page, setPage] = useState<GeneratedPricePageDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +62,11 @@ export default function GeneratedPricePage() {
     if (!commoditySlug || !locationSlug) {
       setLoading(false)
       setError('Không tìm thấy trang giá')
+      return
+    }
+
+    if (locationSlug === 'viet-nam') {
+      navigate(buildGeneratedCommodityPricePagePath(commoditySlug), { replace: true })
       return
     }
 
@@ -100,7 +111,7 @@ export default function GeneratedPricePage() {
       active = false
       controller.abort()
     }
-  }, [commoditySlug, locationSlug])
+  }, [commoditySlug, locationSlug, navigate])
 
   if (loading) {
     return <main className="generated-price-page generated-price-page--state">Đang tải trang phân tích giá...</main>
@@ -182,6 +193,9 @@ export default function GeneratedPricePage() {
           </section>
 
           <section className="generated-price-page__cta-row">
+            <Link to={buildGeneratedCommodityPricePagePath(page.commoditySlug)} className="generated-price-page__cta-link">
+              Xem bài theo hàng hóa
+            </Link>
             <Link to="/bang-gia" className="generated-price-page__cta-link">
               Xem bảng giá tổng hợp
             </Link>

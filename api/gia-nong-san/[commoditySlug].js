@@ -1,4 +1,4 @@
-import { escapeHtml, fetchBackendJson, toAbsoluteUrl } from '../../_shared.js'
+import { escapeHtml, fetchBackendJson, toAbsoluteUrl } from '../_shared.js'
 
 function formatDateTime(value) {
   return new Date(value).toLocaleString('vi-VN')
@@ -37,7 +37,7 @@ function renderWebPageJsonLd(pageUrl, page) {
     url: pageUrl,
     dateModified: page.updatedAt,
     datePublished: page.publishedAt || page.updatedAt,
-    about: [page.commoditySlug, page.locationLabel],
+    about: page.renderMode === 'national_article' ? [page.commoditySlug, page.nationalScopeLabel || 'Việt Nam'] : [page.commoditySlug, 'Việt Nam'],
     image: page.thumbnailUrl || undefined,
   }
 }
@@ -62,10 +62,29 @@ function renderBreadcrumbJsonLd(pageUrl, page) {
       {
         '@type': 'ListItem',
         position: 3,
-        name: page.locationLabel,
+        name: page.title,
         item: pageUrl,
       },
     ],
+  }
+}
+
+function renderItemListJsonLd(pageUrl, page) {
+  if (page.renderMode !== 'regional_table' || !Array.isArray(page.regionRows) || page.regionRows.length === 0) {
+    return null
+  }
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    url: pageUrl,
+    name: `Bảng giá ${page.title}`,
+    itemListElement: page.regionRows.map(row => ({
+      '@type': 'ListItem',
+      position: row.sortRank,
+      name: row.locationLabel,
+      url: new URL(row.path, pageUrl).toString(),
+    })),
   }
 }
 
@@ -93,34 +112,59 @@ function renderRelated(title, items) {
   `
 }
 
-async function maybeRedirectNational(req, res) {
-  const { commoditySlug, locationSlug } = req.query
-  if (locationSlug !== 'viet-nam') {
-    return false
+function renderRegionTable(page) {
+  if (page.renderMode !== 'regional_table' || !Array.isArray(page.regionRows) || page.regionRows.length === 0) {
+    return ''
   }
 
-  try {
-    const json = await fetchBackendJson(`/api/commodity-price-pages/${commoditySlug}?allowStale=true`)
-    if (!json?.page?.path) {
-      return false
-    }
-
-    res.setHeader('Location', toAbsoluteUrl(req, json.page.path))
-    res.status(301).send('')
-    return true
-  } catch {
-    return false
-  }
+  return `
+    <section class="table-block">
+      <div class="table-head">
+        <h2>Bảng giá theo vùng hôm nay</h2>
+        <p>Sắp xếp theo mức giá hiện tại giảm dần.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Khu vực</th>
+              <th>Giá hiện tại</th>
+              <th>So với hôm qua</th>
+              <th>So với 7 ngày</th>
+              <th>So với bình quân</th>
+              <th>Cập nhật</th>
+              <th>Chi tiết</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${page.regionRows
+              .map(
+                row => `
+                  <tr>
+                    <td>${row.sortRank}</td>
+                    <td>${escapeHtml(row.locationLabel)}</td>
+                    <td>${escapeHtml(formatCurrency(row.latestPriceVnd))}</td>
+                    <td>${escapeHtml(formatPercent(row.dayChangePct))}</td>
+                    <td>${escapeHtml(formatPercent(row.change7dPct))}</td>
+                    <td>${row.vsNationalAvgPct === null ? '--' : escapeHtml(formatPercent(row.vsNationalAvgPct))}</td>
+                    <td>${escapeHtml(row.latestObservedOn)}</td>
+                    <td><a href="${escapeHtml(row.path)}">Xem trang</a></td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `
 }
 
 export default async function handler(req, res) {
   try {
-    if (await maybeRedirectNational(req, res)) {
-      return
-    }
-
-    const { commoditySlug, locationSlug } = req.query
-    const json = await fetchBackendJson(`/api/price-pages/${commoditySlug}/${locationSlug}?allowStale=true`)
+    const { commoditySlug } = req.query
+    const json = await fetchBackendJson(`/api/commodity-price-pages/${commoditySlug}?allowStale=true`)
     const page = json.page
     const pageUrl = toAbsoluteUrl(req, page.path)
     const noindex = page.seo.noindex || page.status === 'stale'
@@ -128,7 +172,8 @@ export default async function handler(req, res) {
       renderBreadcrumbJsonLd(pageUrl, page),
       renderWebPageJsonLd(pageUrl, page),
       renderFaqJsonLd(pageUrl, page),
-    ]
+      renderItemListJsonLd(pageUrl, page),
+    ].filter(Boolean)
 
     const html = `<!doctype html>
 <html lang="vi">
@@ -147,23 +192,28 @@ export default async function handler(req, res) {
     ${jsonLd.map(item => `<script type="application/ld+json">${JSON.stringify(item)}</script>`).join('\n')}
     <style>
       :root { color-scheme: dark; }
-      body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: linear-gradient(180deg, #08111f, #102137); color: #eef4fb; }
-      main { max-width: 1180px; margin: 0 auto; padding: 32px 20px 64px; }
+      body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: radial-gradient(circle at top, #1f3f2b, #08111f 62%); color: #eef4fb; }
+      main { max-width: 1220px; margin: 0 auto; padding: 32px 20px 64px; }
       .shell { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 24px; }
-      .panel { background: rgba(8, 15, 30, 0.88); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.24); padding: 24px; }
+      .panel { background: rgba(8, 15, 30, 0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.24); padding: 24px; }
       .meta, .crumbs { display: flex; flex-wrap: wrap; gap: 8px; font: 500 13px/1.4 Arial, sans-serif; color: rgba(237,244,250,0.68); }
-      .badge { display: inline-flex; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(34,197,94,0.22); background: rgba(34,197,94,0.12); color: #5ee38e; }
-      h1 { margin: 16px 0; font-size: clamp(2.1rem, 4vw, 3.25rem); line-height: 1.04; }
-      .lede { margin: 0; color: rgba(237,244,250,0.86); font: 400 18px/1.8 Arial, sans-serif; }
+      .badge { display: inline-flex; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(245,181,79,0.3); background: rgba(245,181,79,0.12); color: #f5d188; }
+      h1 { margin: 16px 0; font-size: clamp(2.1rem, 4vw, 3.3rem); line-height: 1.04; }
+      .lede { margin: 0; color: rgba(237,244,250,0.88); font: 400 18px/1.8 Arial, sans-serif; }
       .hero { margin: 24px 0 0; overflow: hidden; border-radius: 22px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
       .hero img { display: block; width: 100%; max-height: 360px; object-fit: cover; }
       .facts { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin: 24px 0; }
       .facts article, .faq article, .rail-item { border-radius: 18px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.04); padding: 16px; }
-      .facts span, .rail-item p { display: block; font: 500 13px/1.5 Arial, sans-serif; color: rgba(237,244,250,0.64); }
+      .facts span, .rail-item p, .table-head p { display: block; font: 500 13px/1.5 Arial, sans-serif; color: rgba(237,244,250,0.64); }
       .facts strong { display: block; margin-top: 8px; line-height: 1.45; }
       .body { font: 400 17px/1.85 Georgia, serif; color: rgba(237,244,250,0.88); }
       .body section + section { margin-top: 18px; }
-      .body h2, .faq h2, .rail h2 { font: 700 22px/1.2 Arial, sans-serif; }
+      .body h2, .faq h2, .rail h2, .table-head h2 { font: 700 22px/1.2 Arial, sans-serif; }
+      .table-block { margin: 28px 0; }
+      .table-wrap { overflow-x: auto; border-radius: 18px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+      table { width: 100%; border-collapse: collapse; min-width: 760px; }
+      th, td { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; font: 500 14px/1.5 Arial, sans-serif; }
+      th { color: rgba(237,244,250,0.7); }
       a { color: #f5b54f; }
       .cta { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
       .cta a { display: inline-flex; align-items: center; justify-content: center; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); text-decoration: none; font: 600 15px/1 Arial, sans-serif; }
@@ -182,11 +232,11 @@ export default async function handler(req, res) {
             <span>/</span>
             <a href="/bang-gia">Bảng giá</a>
             <span>/</span>
-            <span>${escapeHtml(page.locationLabel)}</span>
+            <span>${escapeHtml(page.title)}</span>
           </nav>
           <header>
             <div class="meta">
-              <span class="badge">Phân tích giá tự động</span>
+              <span class="badge">${escapeHtml(page.renderMode === 'national_article' ? 'Tin giá hôm nay' : 'Tổng hợp theo vùng')}</span>
               ${page.category ? `<span>${escapeHtml(page.category)}</span>` : ''}
               <span>Cập nhật: ${escapeHtml(formatDateTime(page.updatedAt))}</span>
             </div>
@@ -195,11 +245,12 @@ export default async function handler(req, res) {
           </header>
           ${page.thumbnailUrl ? `<figure class="hero"><img src="${escapeHtml(page.thumbnailUrl)}" alt="${escapeHtml(page.title)}" /></figure>` : ''}
           <section class="facts">
-            <article><span>Giá hiện tại</span><strong>${escapeHtml(formatCurrency(page.latestPriceVnd))}</strong></article>
+            <article><span>Giá hiện tại</span><strong>${escapeHtml(formatCurrency(page.headlineLatestPriceVnd))}</strong></article>
             <article><span>So với hôm qua</span><strong>${escapeHtml(formatPercent(page.dayChangePct))}</strong></article>
             <article><span>So với 7 ngày</span><strong>${escapeHtml(formatPercent(page.change7dPct))}</strong></article>
-            <article><span>Biên độ 7 ngày</span><strong>${escapeHtml(formatCurrency(page.minPrice7dVnd))} - ${escapeHtml(formatCurrency(page.maxPrice7dVnd))}</strong></article>
+            <article><span>${escapeHtml(page.renderMode === 'national_article' ? 'Phạm vi dữ liệu' : 'Số khu vực')}</span><strong>${escapeHtml(page.renderMode === 'national_article' ? page.nationalScopeLabel || 'Việt Nam' : `${page.locationCount} khu vực`)}</strong></article>
           </section>
+          ${renderRegionTable(page)}
           <article class="body">${page.bodyHtml}</article>
           <section class="faq">
             <h2>Câu hỏi thường gặp</h2>
@@ -208,14 +259,13 @@ export default async function handler(req, res) {
             </div>
           </section>
           <section class="cta">
-            <a href="/gia-nong-san/${escapeHtml(page.commoditySlug)}">Xem bài theo hàng hóa</a>
             <a href="/bang-gia">Xem bảng giá tổng hợp</a>
             <a href="/chuoi-gia">Xem chuỗi giá</a>
           </section>
         </div>
         <aside>
-          ${renderRelated('Cùng nông sản', page.relatedByCommodity)}
-          ${renderRelated('Cùng địa bàn', page.relatedByLocation)}
+          ${renderRelated('Trang theo địa bàn', page.relatedLocationPages)}
+          ${renderRelated('Cùng nhóm hàng', page.relatedCommodityPages)}
         </aside>
       </div>
     </main>
@@ -225,6 +275,6 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.status(200).send(html)
   } catch (error) {
-    res.status(500).send(error instanceof Error ? error.message : 'Failed to render generated price page')
+    res.status(500).send(error instanceof Error ? error.message : 'Failed to render generated commodity price page')
   }
 }

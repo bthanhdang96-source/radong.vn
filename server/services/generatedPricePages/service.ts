@@ -290,21 +290,25 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-function normalizeDisplayLabel(value: string) {
+export function normalizeDisplayLabel(value: string) {
   const normalized = normalizeDisplayRegion(value.trim())
   return DISPLAY_LABEL_ALIASES[foldText(normalized)] ?? normalized
 }
 
-function getCommodityDisplayName(slug: string, fallbackName: string) {
+export function getCommodityDisplayName(slug: string, fallbackName: string) {
   return VN_COMMODITY_META[slug]?.commodityName ?? normalizeDisplayLabel(fallbackName)
 }
 
-function getCommodityCategory(slug: string, fallbackCategory: string | null) {
+export function getCommodityCategory(slug: string, fallbackCategory: string | null) {
   return VN_COMMODITY_META[slug]?.category ?? fallbackCategory
 }
 
-function getCommodityThumbnailUrl(slug: string) {
+export function getCommodityThumbnailUrl(slug: string) {
   return COMMODITY_THUMBNAILS[slug] ?? DEFAULT_PRICE_PAGE_THUMBNAIL
+}
+
+function isNationalScope(scope: ScopeInfo) {
+  return scope.scopeType === 'region_label' && scope.provinceCode === null && scope.scopeKey === 'viet nam'
 }
 
 function buildScopeCacheKey(commoditySlug: string, scopeType: PricePageScopeType, scopeKey: string) {
@@ -357,7 +361,7 @@ function maybeTruncate(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`
 }
 
-function deriveScope(row: {
+export function deriveScope(row: {
   province_code: string | null
   variety: string | null
   market_name: string | null
@@ -677,6 +681,10 @@ function buildCandidatePages(
 
     const scope = deriveScope(row, provinceLookup)
     if (!scope) {
+      continue
+    }
+
+    if (isNationalScope(scope)) {
       continue
     }
 
