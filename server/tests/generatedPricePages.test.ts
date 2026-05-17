@@ -200,5 +200,8 @@ test('buildCandidatePages normalizes commodity and location labels for public ti
 
   assert.equal(pages[0]?.commodityName, 'Cam sành')
   assert.equal(pages[0]?.scope.locationLabel, 'Vĩnh Long')
-  assert.match(__generatedPricePagesTestUtils.getCommodityThumbnailUrl('cam-sanh'), /images\.unsplash\.com/i)
+  assert.match(
+    __generatedPricePagesTestUtils.getCommodityThumbnailUrl('cam-sanh'),
+    /^\/images\/commodities\/cam-sanh\//,
+  )
 })

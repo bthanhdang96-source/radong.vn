@@ -4,6 +4,14 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString('vi-VN')
 }
 
+function toPublicImageUrl(req, value) {
+  if (!value) {
+    return null
+  }
+
+  return value.startsWith('/') ? toAbsoluteUrl(req, value) : value
+}
+
 function formatCurrency(value) {
   return `${Math.round(value).toLocaleString('vi-VN')} đồng/kg`
 }
@@ -123,10 +131,14 @@ export default async function handler(req, res) {
     const json = await fetchBackendJson(`/api/price-pages/${commoditySlug}/${locationSlug}?allowStale=true`)
     const page = json.page
     const pageUrl = toAbsoluteUrl(req, page.path)
+    const pageImageUrl = toPublicImageUrl(req, page.thumbnailUrl)
     const noindex = page.seo.noindex || page.status === 'stale'
     const jsonLd = [
       renderBreadcrumbJsonLd(pageUrl, page),
-      renderWebPageJsonLd(pageUrl, page),
+      {
+        ...renderWebPageJsonLd(pageUrl, page),
+        image: pageImageUrl || undefined,
+      },
       renderFaqJsonLd(pageUrl, page),
     ]
 
@@ -142,7 +154,7 @@ export default async function handler(req, res) {
     <meta property="og:title" content="${escapeHtml(page.seo.ogTitle)}" />
     <meta property="og:description" content="${escapeHtml(page.seo.ogDescription)}" />
     <meta property="og:url" content="${escapeHtml(pageUrl)}" />
-    ${page.thumbnailUrl ? `<meta property="og:image" content="${escapeHtml(page.thumbnailUrl)}" />` : ''}
+    ${pageImageUrl ? `<meta property="og:image" content="${escapeHtml(pageImageUrl)}" />` : ''}
     ${noindex ? '<meta name="robots" content="noindex,follow" />' : '<meta name="robots" content="index,follow,max-image-preview:large" />'}
     ${jsonLd.map(item => `<script type="application/ld+json">${JSON.stringify(item)}</script>`).join('\n')}
     <style>
@@ -193,7 +205,7 @@ export default async function handler(req, res) {
             <h1>${escapeHtml(page.title)}</h1>
             <p class="lede">${escapeHtml(page.answerSummary)}</p>
           </header>
-          ${page.thumbnailUrl ? `<figure class="hero"><img src="${escapeHtml(page.thumbnailUrl)}" alt="${escapeHtml(page.title)}" /></figure>` : ''}
+          ${page.thumbnailUrl ? `<figure class="hero"><img src="${escapeHtml(page.thumbnailUrl)}" alt="${escapeHtml(page.thumbnailAlt || page.title)}" /></figure>` : ''}
           <section class="facts">
             <article><span>Giá hiện tại</span><strong>${escapeHtml(formatCurrency(page.latestPriceVnd))}</strong></article>
             <article><span>So với hôm qua</span><strong>${escapeHtml(formatPercent(page.dayChangePct))}</strong></article>

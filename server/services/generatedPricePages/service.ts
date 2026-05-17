@@ -1,6 +1,7 @@
 import { foldText } from '../crawlers/common.js'
 import { normalizeDisplayRegion, PROVINCE_NAME_BY_CODE, VN_COMMODITY_META } from '../marketDataMappings.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
+import { resolveCommodityImage } from './commodityImageResolver.js'
 import type {
   ContentFeedItem,
   GeneratedPricePageDetail,
@@ -144,68 +145,6 @@ type CandidatePage = {
 const PRICE_PAGE_PREFIX = '/gia-nong-san'
 const PRICE_TYPE_PRIORITY: PricePagePrimaryPriceType[] = ['farm_gate', 'wholesale', 'retail', 'export']
 const STALE_STATUS = 'stale' satisfies PricePageStatus
-const DEFAULT_PRICE_PAGE_THUMBNAIL =
-  'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const COMMODITY_THUMBNAILS: Record<string, string> = {
-  'ca-phe-robusta':
-    'https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=1200&q=80',
-  'ho-tieu':
-    'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80',
-  'heo-hoi':
-    'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=1200&q=80',
-  'gao-noi-dia':
-    'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=1200&q=80',
-  cashew:
-    'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=80',
-  cocoa:
-    'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=1200&q=80',
-  'ca-tra':
-    'https://images.unsplash.com/photo-1544943910-4c1dc44aab44?auto=format&fit=crop&w=1200&q=80',
-  'cam-sanh':
-    'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?auto=format&fit=crop&w=1200&q=80',
-  'buoi-nam-roi':
-    'https://images.unsplash.com/photo-1577234286642-fc512a5f8f11?auto=format&fit=crop&w=1200&q=80',
-  'ca-chua':
-    'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=1200&q=80',
-  'hanh-tay':
-    'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=1200&q=80',
-  toi:
-    'https://images.unsplash.com/photo-1615477550927-6ecbea4c983b?auto=format&fit=crop&w=1200&q=80',
-  'khoai-tay':
-    'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=1200&q=80',
-  'bap-cai':
-    'https://images.unsplash.com/photo-1615485925873-924ea8f8ec96?auto=format&fit=crop&w=1200&q=80',
-  'rau-muong':
-    'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80',
-  'cai-xanh':
-    'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=1200&q=80',
-  ot:
-    'https://images.unsplash.com/photo-1525609004556-c46c7d6cf023?auto=format&fit=crop&w=1200&q=80',
-  'bi-do':
-    'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=80',
-  'khoai-lang':
-    'https://images.unsplash.com/photo-1596097635121-14b38c5d4d8b?auto=format&fit=crop&w=1200&q=80',
-  xoai:
-    'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=1200&q=80',
-  chuoi:
-    'https://images.unsplash.com/photo-1603833665858-e61d17a86224?auto=format&fit=crop&w=1200&q=80',
-  mit:
-    'https://images.unsplash.com/photo-1621961458348-f013d219b50c?auto=format&fit=crop&w=1200&q=80',
-  'thit-heo':
-    'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=1200&q=80',
-  shrimp:
-    'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?auto=format&fit=crop&w=1200&q=80',
-  pangasius:
-    'https://images.unsplash.com/photo-1510130387422-82bed34b37e9?auto=format&fit=crop&w=1200&q=80',
-  corn:
-    'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=1200&q=80',
-  soybeans:
-    'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=1200&q=80',
-  'rubber-rss3':
-    'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=1200&q=80',
-  'rubber-tsr20':
-    'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=1200&q=80',
-}
 const DISPLAY_LABEL_ALIASES: Record<string, string> = {
   'viet nam': 'Việt Nam',
   cam: 'Cám',
@@ -304,7 +243,12 @@ export function getCommodityCategory(slug: string, fallbackCategory: string | nu
 }
 
 export function getCommodityThumbnailUrl(slug: string) {
-  return COMMODITY_THUMBNAILS[slug] ?? DEFAULT_PRICE_PAGE_THUMBNAIL
+  return resolveCommodityImage({
+    commoditySlug: slug,
+    commodityDisplayName: getCommodityDisplayName(slug, slug),
+    category: VN_COMMODITY_META[slug]?.category ?? null,
+    pageKind: 'commodity_price_page',
+  }).url
 }
 
 function isNationalScope(scope: ScopeInfo) {
@@ -459,6 +403,15 @@ function parseSeoJson(input: unknown, fallback: PricePageSeoMeta): PricePageSeoM
 
 function toSummary(row: GeneratedPricePageRow): GeneratedPricePageSummary {
   const locationLabel = row.metrics_json?.locationLabel ?? row.region_label ?? row.province_code ?? row.scope_key
+  const resolvedImage = resolveCommodityImage({
+    commoditySlug: row.commodity_slug,
+    commodityDisplayName: getCommodityDisplayName(row.commodity_slug, row.commodity_slug),
+    category: row.category,
+    locationSlug: row.location_slug,
+    locationLabel,
+    scopeType: row.scope_type,
+    pageKind: 'location_price_page',
+  })
 
   return {
     id: row.id,
@@ -476,7 +429,8 @@ function toSummary(row: GeneratedPricePageRow): GeneratedPricePageSummary {
     excerpt: row.excerpt,
     answerSummary: row.answer_summary,
     topicTags: row.topic_tags ?? [],
-    thumbnailUrl: row.thumbnail_url,
+    thumbnailUrl: row.thumbnail_url ?? resolvedImage.url,
+    thumbnailAlt: resolvedImage.alt,
     primaryPriceType: row.primary_price_type,
     latestPriceVnd: row.latest_price_vnd,
     latestPriceUnit: row.latest_price_unit,
@@ -965,6 +919,15 @@ export async function generatePricePages(
       touchedPageKeys.add(pageKey)
 
       const copy = buildPageCopy(page)
+      const resolvedImage = resolveCommodityImage({
+        commoditySlug: page.commoditySlug,
+        commodityDisplayName: page.commodityName,
+        category: page.category,
+        locationSlug: page.scope.locationSlug,
+        locationLabel: page.scope.locationLabel,
+        scopeType: page.scope.scopeType,
+        pageKind: 'location_price_page',
+      })
       const existing = existingByKey.get(pageKey)
       const payload = {
         slug: `${page.commoditySlug}/${page.scope.locationSlug}`,
@@ -983,7 +946,7 @@ export async function generatePricePages(
         faq_json: copy.faq,
         seo_json: copy.seo,
         topic_tags: [page.commoditySlug, page.scope.scopeType, page.category ?? 'gia-ca'],
-        thumbnail_url: getCommodityThumbnailUrl(page.commoditySlug),
+        thumbnail_url: resolvedImage.url,
         primary_price_type: page.primaryPriceType,
         latest_price_vnd: page.latestPriceVnd,
         latest_price_unit: 'VND/kg',
@@ -1256,6 +1219,7 @@ export function toContentFeedItem(page: GeneratedPricePageSummary): ContentFeedI
     title: page.title,
     excerpt: page.excerpt,
     thumbnailUrl: page.thumbnailUrl,
+    thumbnailAlt: page.thumbnailAlt,
     publishedAt: page.publishedAt ?? page.updatedAt,
     updatedAt: page.updatedAt,
     category: page.category,
@@ -1274,4 +1238,5 @@ export const __generatedPricePagesTestUtils = {
   getCommodityDisplayName,
   getCommodityThumbnailUrl,
   normalizeDisplayLabel,
+  resolveCommodityImage,
 }

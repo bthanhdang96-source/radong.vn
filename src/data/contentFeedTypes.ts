@@ -5,6 +5,7 @@ export type ContentFeedItem =
       title: string
       excerpt: string | null
       thumbnailUrl: string | null
+      thumbnailAlt?: string | null
       publishedAt: string
       updatedAt: string
       category: string | null
@@ -19,6 +20,7 @@ export type ContentFeedItem =
       title: string
       excerpt: string
       thumbnailUrl: string | null
+      thumbnailAlt: string | null
       publishedAt: string
       updatedAt: string
       category: string | null
@@ -34,6 +36,7 @@ export type ContentFeedItem =
       title: string
       excerpt: string
       thumbnailUrl: string | null
+      thumbnailAlt: string | null
       publishedAt: string
       updatedAt: string
       category: string | null

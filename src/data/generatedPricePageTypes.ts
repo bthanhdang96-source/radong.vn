@@ -34,6 +34,7 @@ export type GeneratedPricePageSummary = {
   answerSummary: string
   topicTags: string[]
   thumbnailUrl: string | null
+  thumbnailAlt: string | null
   primaryPriceType: PricePagePrimaryPriceType
   latestPriceVnd: number
   latestPriceUnit: string
@@ -93,6 +94,7 @@ export type GeneratedCommodityPricePageSummary = {
   answerSummary: string
   topicTags: string[]
   thumbnailUrl: string | null
+  thumbnailAlt: string | null
   primaryPriceType: PricePagePrimaryPriceType
   renderMode: CommodityPricePageRenderMode
   headlineLatestPriceVnd: number

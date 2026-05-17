@@ -152,7 +152,7 @@ export default function GeneratedPricePage() {
 
           {page.thumbnailUrl ? (
             <figure className="generated-price-page__hero">
-              <img src={page.thumbnailUrl} alt={page.title} loading="eager" />
+              <img src={page.thumbnailUrl} alt={page.thumbnailAlt ?? page.title} loading="eager" />
             </figure>
           ) : null}
 

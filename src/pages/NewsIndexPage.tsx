@@ -89,6 +89,10 @@ function getItemTimestamp(item: ContentFeedItem) {
   return item.kind === 'price_page' ? item.updatedAt : item.publishedAt
 }
 
+function getItemImageAlt(item: ContentFeedItem) {
+  return 'thumbnailAlt' in item && item.thumbnailAlt ? item.thumbnailAlt : item.title
+}
+
 function filterItems(items: ContentFeedItem[], filters: FilterState) {
   const query = filters.q.trim().toLowerCase()
 
@@ -117,7 +121,7 @@ function ArticleCard({ item }: { item: ContentFeedItem }) {
         <img
           className="news-index__stream-image"
           src={item.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-          alt={item.title}
+          alt={getItemImageAlt(item)}
           loading="lazy"
           onError={handleImageError}
         />
@@ -150,7 +154,7 @@ function HeroRailCard({ item }: { item: ContentFeedItem }) {
         <img
           className="news-index__hero-rail-image"
           src={item.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-          alt={item.title}
+          alt={getItemImageAlt(item)}
           loading="lazy"
           onError={handleImageError}
         />
@@ -239,7 +243,7 @@ export default function NewsIndexPage() {
                 <img
                   className="news-index__hero-image"
                   src={hero.thumbnailUrl ?? FALLBACK_NEWS_IMAGE}
-                  alt={hero.title}
+                  alt={getItemImageAlt(hero)}
                   onError={handleImageError}
                 />
               </div>

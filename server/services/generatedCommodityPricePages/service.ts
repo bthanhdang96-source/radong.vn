@@ -3,10 +3,10 @@ import {
   deriveScope,
   getCommodityCategory,
   getCommodityDisplayName,
-  getCommodityThumbnailUrl,
   normalizeDisplayLabel,
 } from '../generatedPricePages/service.js'
 import { listGeneratedPricePages } from '../generatedPricePages/service.js'
+import { resolveCommodityImage } from '../generatedPricePages/commodityImageResolver.js'
 import {
   getSupabaseAdminClient,
   getSupabaseReadClient,
@@ -954,6 +954,13 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
 }
 
 function toSummary(row: GeneratedCommodityPricePageRow): GeneratedCommodityPricePageSummary {
+  const resolvedImage = resolveCommodityImage({
+    commoditySlug: row.commodity_slug,
+    commodityDisplayName: getCommodityDisplayName(row.commodity_slug, row.commodity_slug),
+    category: row.category,
+    pageKind: 'commodity_price_page',
+  })
+
   return {
     id: row.id,
     slug: row.slug,
@@ -964,7 +971,8 @@ function toSummary(row: GeneratedCommodityPricePageRow): GeneratedCommodityPrice
     excerpt: row.excerpt,
     answerSummary: row.answer_summary,
     topicTags: row.topic_tags ?? [],
-    thumbnailUrl: row.thumbnail_url,
+    thumbnailUrl: row.thumbnail_url ?? resolvedImage.url,
+    thumbnailAlt: resolvedImage.alt,
     primaryPriceType: row.primary_price_type,
     renderMode: row.render_mode,
     headlineLatestPriceVnd: row.headline_latest_price_vnd,
@@ -1125,6 +1133,12 @@ export async function generateCommodityPricePages(
         page.renderMode === 'national_article'
           ? buildNationalArticleCopy(page, page.commodityName)
           : buildRegionalTableCopy(page, page.commodityName)
+      const resolvedImage = resolveCommodityImage({
+        commoditySlug: page.commoditySlug,
+        commodityDisplayName: page.commodityName,
+        category: page.category,
+        pageKind: 'commodity_price_page',
+      })
 
       const payload = {
         slug: page.commoditySlug,
@@ -1138,7 +1152,7 @@ export async function generateCommodityPricePages(
         faq_json: copy.faq,
         seo_json: copy.seo,
         topic_tags: [page.commoditySlug, page.renderMode, page.category ?? 'gia-ca'],
-        thumbnail_url: getCommodityThumbnailUrl(page.commoditySlug),
+        thumbnail_url: resolvedImage.url,
         primary_price_type: page.primaryPriceType,
         render_mode: page.renderMode,
         headline_latest_price_vnd: page.headlineLatestPriceVnd,
@@ -1379,6 +1393,7 @@ export function toCommodityContentFeedItem(page: GeneratedCommodityPricePageSumm
     title: page.title,
     excerpt: page.excerpt,
     thumbnailUrl: page.thumbnailUrl,
+    thumbnailAlt: page.thumbnailAlt,
     publishedAt: page.publishedAt ?? page.updatedAt,
     updatedAt: page.updatedAt,
     category: page.category,
