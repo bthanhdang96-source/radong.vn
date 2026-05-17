@@ -280,9 +280,13 @@ function getPriceTypeLabel(value: PricePagePrimaryPriceType) {
   }
 }
 
+function isStableMovement(value: number) {
+  return Math.abs(value) < 0.3
+}
+
 function getMovementLabel(value: number) {
-  if (Math.abs(value) < 0.3) {
-    return 'đi ngang'
+  if (isStableMovement(value)) {
+    return 'ổn định'
   }
 
   return value > 0 ? 'tăng' : 'giảm'
@@ -290,8 +294,8 @@ function getMovementLabel(value: number) {
 
 function getMovementNarrative(value: number) {
   const label = getMovementLabel(value)
-  if (label === 'đi ngang') {
-    return 'đi ngang so với mốc đối chiếu'
+  if (label === 'ổn định') {
+    return 'gần như không thay đổi so với mốc so sánh'
   }
 
   return `${label} ${Math.abs(roundNumber(value, 2)).toLocaleString('vi-VN')}%`
@@ -342,8 +346,8 @@ export function deriveScope(row: {
 }
 
 function summarizeDirection(dayChangePct: number, change7dPct: number) {
-  if (getMovementLabel(dayChangePct) !== 'đi ngang' && getMovementLabel(change7dPct) !== 'đi ngang' && dayChangePct * change7dPct < 0) {
-    return 'Biến động trong ngày đang đi ngược nhịp 7 ngày, cho thấy dấu hiệu đảo chiều ngắn hạn.'
+  if (!isStableMovement(dayChangePct) && !isStableMovement(change7dPct) && dayChangePct * change7dPct < 0) {
+    return 'Mức thay đổi trong ngày đang ngược với xu hướng 7 ngày gần đây, cho thấy giá có dấu hiệu đổi chiều trong ngắn hạn.'
   }
 
   return null
@@ -454,6 +458,14 @@ function buildPageCopy(page: CandidatePage) {
   const latestDateLabel = formatFullDate(page.latestDate)
   const dayDirection = getMovementLabel(page.dayChangePct)
   const sevenDayDirection = getMovementLabel(page.change7dPct)
+  const daySummaryPhrase =
+    dayDirection === 'ổn định'
+      ? 'gần như không thay đổi so với hôm qua'
+      : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua`
+  const sevenDaySummaryPhrase =
+    sevenDayDirection === 'ổn định'
+      ? 'giữ mức khá ổn định so với trung bình 7 ngày'
+      : `${sevenDayDirection} ${Math.abs(Math.round(page.change7dVnd)).toLocaleString('vi-VN')} đồng/kg so với trung bình 7 ngày`
   const nationalComparison =
     typeof page.vsNationalAvgPct === 'number'
       ? page.vsNationalAvgPct > 0
@@ -465,20 +477,22 @@ function buildPageCopy(page: CandidatePage) {
   const shortReversalNote = summarizeDirection(page.dayChangePct, page.change7dPct)
 
   const title = maybeTruncate(
-    `Giá ${page.commodityName} ${page.scope.locationLabel} hôm nay: ${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg`,
+    dayDirection === 'ổn định'
+      ? `Giá ${page.commodityName} ${page.scope.locationLabel} hôm nay: giữ mức ổn định`
+      : `Giá ${page.commodityName} ${page.scope.locationLabel} hôm nay: ${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg`,
     150,
   )
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${page.commodityName} tại ${page.scope.locationLabel} ngày ${latestDateLabel} ở mức ${formatCurrency(page.latestPriceVnd)}, ${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua (${formatSignedPercent(page.dayChangePct)}). So với mức trung bình 7 ngày, giá hiện ${sevenDayDirection === 'đi ngang' ? 'gần như đi ngang' : `${sevenDayDirection} ${Math.abs(Math.round(page.change7dVnd)).toLocaleString('vi-VN')} đồng/kg`} (${formatSignedPercent(page.change7dPct)}).`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${page.commodityName} tại ${page.scope.locationLabel} ngày ${latestDateLabel} ở mức ${formatCurrency(page.latestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). So với mức trung bình 7 ngày, giá hiện ${sevenDaySummaryPhrase.replace(' so với trung bình 7 ngày', '')} (${formatSignedPercent(page.change7dPct)}).`
   const excerpt = maybeTruncate(
-    `${answerSummary} Biên độ 7 ngày đang nằm trong khoảng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`,
+    `${answerSummary} Khoảng giá trong 7 ngày gần nhất đang nằm trong khoảng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`,
     180,
   )
 
   const paragraphs = [
     answerSummary,
-    `Trong phiên cập nhật ${latestDateLabel}, ${priceTypeLabel} của ${page.commodityName} tại ${page.scope.locationLabel} ghi nhận ${formatCurrency(page.latestPriceVnd)}. So với phiên trước đó, mức giá hiện ${getMovementNarrative(page.dayChangePct)} với chênh lệch tuyệt đối ${formatSignedCurrency(page.dayChangeVnd)}.`,
-    `Nhìn trong cửa sổ 7 ngày gần nhất, mức giá hiện ${getMovementNarrative(page.change7dPct)} so với trung bình 7 ngày và dao động trong vùng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}. Tổng số điểm quan sát dùng cho phép tính là ${page.observationCount7d.toLocaleString('vi-VN')}.`,
-    `Nếu so theo vị thế nội vùng, ${page.commodityName} tại ${page.scope.locationLabel} ${nationalComparison}`,
+    `Trong lần cập nhật ${latestDateLabel}, ${priceTypeLabel} của ${page.commodityName} tại ${page.scope.locationLabel} ghi nhận ${formatCurrency(page.latestPriceVnd)}. So với hôm qua, mức giá hiện ${dayDirection === 'ổn định' ? `gần như không thay đổi với chênh lệch ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} với chênh lệch ${formatSignedCurrency(page.dayChangeVnd)}`}.`,
+    `Trong 7 ngày gần nhất, mức giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định so với trung bình 7 ngày' : `${getMovementNarrative(page.change7dPct)} so với trung bình 7 ngày`} và nằm trong khoảng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}. Tổng số điểm quan sát dùng cho phép tính là ${page.observationCount7d.toLocaleString('vi-VN')}.`,
+    `Nếu so với mức chung của cùng loại ở các nơi khác, ${page.commodityName} tại ${page.scope.locationLabel} ${nationalComparison}`,
     shortReversalNote,
   ].filter((paragraph): paragraph is string => Boolean(paragraph))
 
@@ -490,16 +504,16 @@ function buildPageCopy(page: CandidatePage) {
     {
       question: `Giá ${page.commodityName} ${page.scope.locationLabel} tăng hay giảm so với hôm qua?`,
       answer:
-        dayDirection === 'đi ngang'
-          ? `Giá gần như đi ngang so với hôm qua, chênh lệch ${formatSignedCurrency(page.dayChangeVnd)} tương đương ${formatSignedPercent(page.dayChangePct)}.`
+        dayDirection === 'ổn định'
+          ? `Giá gần như không thay đổi so với hôm qua, chênh lệch ${formatSignedCurrency(page.dayChangeVnd)} tương đương ${formatSignedPercent(page.dayChangePct)}.`
           : `Giá đang ${dayDirection} ${formatSignedCurrency(page.dayChangeVnd)} so với hôm qua, tương đương ${formatSignedPercent(page.dayChangePct)}.`,
     },
     {
       question: `Xu hướng 7 ngày của giá ${page.commodityName} tại ${page.scope.locationLabel} ra sao?`,
       answer:
-        sevenDayDirection === 'đi ngang'
-          ? `So với trung bình 7 ngày, giá hiện gần như đi ngang. Biên độ 7 ngày đang nằm trong khoảng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`
-          : `So với trung bình 7 ngày, giá hiện ${sevenDayDirection} ${formatSignedCurrency(page.change7dVnd)} (${formatSignedPercent(page.change7dPct)}). Biên độ 7 ngày là ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`,
+        sevenDayDirection === 'ổn định'
+          ? `So với trung bình 7 ngày, giá hiện giữ mức khá ổn định. Khoảng giá 7 ngày gần nhất đang nằm trong khoảng ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`
+          : `So với trung bình 7 ngày, giá hiện ${sevenDayDirection} ${formatSignedCurrency(page.change7dVnd)} (${formatSignedPercent(page.change7dPct)}). Khoảng giá 7 ngày gần nhất là ${formatCurrency(page.minPrice7dVnd)} đến ${formatCurrency(page.maxPrice7dVnd)}.`,
     },
   ]
 

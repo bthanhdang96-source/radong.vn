@@ -68,8 +68,43 @@ test('buildPageCopy includes reversal note when daily and 7d movement diverge', 
     volatilityPct: 2.11,
   })
 
-  assert.match(copy.bodyText, /đảo chiều ngắn hạn/i)
+  assert.match(copy.bodyText, /đổi chiều trong ngắn hạn/i)
   assert.match(copy.title, /Giá Cà phê Robusta Đắk Lắk hôm nay/i)
+})
+
+test('buildPageCopy uses phổ quát wording when price is stable', () => {
+  const copy = __generatedPricePagesTestUtils.buildPageCopy({
+    commoditySlug: 'cam-sanh',
+    commodityName: 'Cam sành',
+    category: 'Trái cây',
+    scope: {
+      scopeType: 'province',
+      scopeKey: 'VLO',
+      provinceCode: 'VLO',
+      regionLabel: null,
+      locationLabel: 'Vĩnh Long',
+      locationSlug: 'vinh-long',
+    },
+    primaryPriceType: 'wholesale',
+    latestDate: '2026-05-16',
+    latestPriceVnd: 32000,
+    dayChangeVnd: 50,
+    dayChangePct: 0.16,
+    change7dVnd: 70,
+    change7dPct: 0.22,
+    minPrice7dVnd: 31500,
+    maxPrice7dVnd: 32400,
+    observationCount7d: 5,
+    vsNationalAvgPct: 0.1,
+    trend7dPct: 0.22,
+    trend30dPct: 0.8,
+    volatilityPct: 0.4,
+  })
+
+  assert.doesNotMatch(copy.answerSummary, /đi ngang/i)
+  assert.match(copy.answerSummary, /gần như không thay đổi/i)
+  assert.match(copy.bodyText, /Khoảng giá 7 ngày gần nhất|nằm trong khoảng/i)
+  assert.match(copy.title, /giữ mức ổn định/i)
 })
 
 test('buildCandidatePages requires latest day, yesterday, and at least three observations', () => {

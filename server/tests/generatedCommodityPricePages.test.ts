@@ -227,6 +227,71 @@ test('buildCommodityCandidatePages publishes national_article when only Viet Nam
   assert.deepEqual(pages[0]?.regionRows, [])
 })
 
+test('commodity page copy avoids finance-heavy stable wording', () => {
+  const regionalCopy = __generatedCommodityPricePagesTestUtils.buildRegionalTableCopy(
+    {
+      commoditySlug: 'ho-tieu',
+      commodityName: 'Hồ tiêu',
+      category: 'Cây công nghiệp',
+      primaryPriceType: 'farm_gate',
+      renderMode: 'regional_table',
+      headlineLatestPriceVnd: 148500,
+      headlineLatestPriceUnit: 'VND/kg',
+      dayChangeVnd: 100,
+      dayChangePct: 0.07,
+      change7dVnd: 80,
+      change7dPct: 0.05,
+      lowestPriceVnd: 147000,
+      highestPriceVnd: 150000,
+      priceSpreadVnd: 3000,
+      locationCount: 2,
+      provinceCount: 2,
+      regionLabelCount: 0,
+      latestDate: '2026-05-16',
+      nationalScopeLabel: null,
+      regionRows: [],
+      metricsJson: {
+        topLocationLabel: 'Đắk Lắk',
+        bottomLocationLabel: 'Đắk Nông',
+      },
+    },
+    'Hồ tiêu',
+  )
+  const nationalCopy = __generatedCommodityPricePagesTestUtils.buildNationalArticleCopy(
+    {
+      commoditySlug: 'cocoa',
+      commodityName: 'Ca cao',
+      category: 'Cây công nghiệp',
+      primaryPriceType: 'wholesale',
+      renderMode: 'national_article',
+      headlineLatestPriceVnd: 72000,
+      headlineLatestPriceUnit: 'VND/kg',
+      dayChangeVnd: 50,
+      dayChangePct: 0.07,
+      change7dVnd: 90,
+      change7dPct: 0.12,
+      lowestPriceVnd: 71000,
+      highestPriceVnd: 72500,
+      priceSpreadVnd: 1500,
+      locationCount: 1,
+      provinceCount: 0,
+      regionLabelCount: 1,
+      latestDate: '2026-05-16',
+      nationalScopeLabel: 'Việt Nam',
+      regionRows: [],
+      metricsJson: {},
+    },
+    'Ca cao',
+  )
+
+  assert.doesNotMatch(regionalCopy.answerSummary, /đi ngang/i)
+  assert.match(regionalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
+  assert.match(regionalCopy.bodyHtml, /giữ mức giá cao/i)
+  assert.doesNotMatch(nationalCopy.answerSummary, /đi ngang/i)
+  assert.match(nationalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
+  assert.match(nationalCopy.bodyHtml, /Khoảng giá ghi nhận/i)
+})
+
 test('location price pages do not publish a Viet Nam region_label route anymore', () => {
   const pages = __generatedPricePagesTestUtils.buildCandidatePages(
     {
