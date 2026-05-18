@@ -9,6 +9,41 @@ export type RetailCommodityMatcher = {
 }
 
 export const RETAIL_PRODUCT_MATCHERS: RetailCommodityMatcher[] = [
+  {
+    slug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+    keywords: ['sau rieng', 'ri6'],
+    excludeKeywords: ['banh pia', 'kem', 'say', 'mut', 'snack', 'keo', 'sua chua'],
+  },
+  {
+    slug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+    keywords: ['sau rieng', 'thai'],
+    excludeKeywords: ['banh pia', 'kem', 'say', 'mut', 'snack', 'keo', 'sua chua'],
+  },
+  {
+    slug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+    keywords: ['sau rieng', 'monthong'],
+    excludeKeywords: ['banh pia', 'kem', 'say', 'mut', 'snack', 'keo', 'sua chua'],
+  },
+  {
+    slug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+    keywords: ['sau rieng', 'dona'],
+    excludeKeywords: ['banh pia', 'kem', 'say', 'mut', 'snack', 'keo', 'sua chua'],
+  },
+  {
+    slug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+    keywords: ['sau rieng'],
+    excludeKeywords: ['banh pia', 'kem', 'say', 'mut', 'snack', 'keo', 'sua chua'],
+  },
   { slug: 'cam-sanh', commodityName: 'Cam sanh', category: 'Trai cay', keywords: ['cam sanh'] },
   { slug: 'buoi-nam-roi', commodityName: 'Buoi Nam Roi', category: 'Trai cay', keywords: ['buoi nam roi'] },
   { slug: 'xoai', commodityName: 'Xoai', category: 'Trai cay', keywords: ['xoai'], excludeKeywords: ['say', 'mut'] },

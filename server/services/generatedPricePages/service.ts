@@ -1,5 +1,6 @@
 import { foldText } from '../crawlers/common.js'
 import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
+import { DURIAN_COMMODITY_SLUG } from '../durianPricing.js'
 import { normalizeDisplayRegion, PROVINCE_NAME_BY_CODE, VN_COMMODITY_META } from '../marketDataMappings.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import { resolveCommodityImage } from './commodityImageResolver.js'
@@ -648,6 +649,10 @@ function buildCandidatePages(
       continue
     }
 
+    if (row.commodity_slug === DURIAN_COMMODITY_SLUG) {
+      continue
+    }
+
     const scope = deriveScope(row, provinceLookup)
     if (!scope) {
       continue
@@ -678,6 +683,10 @@ function buildCandidatePages(
   const windowObservationCounts = new Map<string, number>()
   for (const row of inputs.observations) {
     if (!isPriceType(row.price_type) || row.price_vnd === null) {
+      continue
+    }
+
+    if (row.commodity_slug === DURIAN_COMMODITY_SLUG) {
       continue
     }
 

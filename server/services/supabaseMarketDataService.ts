@@ -5,6 +5,7 @@ import {
   getVnPrices as getLegacyVnPrices,
   getVnPricesHistory as getLegacyVnPricesHistory,
 } from './priceAggregator.js'
+import { DURIAN_COMMODITY_SLUG, isDurianHeadlineQualityGrade } from './durianPricing.js'
 import type { CrawledPriceItem, SourceId, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
 import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
@@ -188,6 +189,8 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'nongnghiep',
   'vietnambiz',
   'congthuong',
+  'chogia',
+  'daklak_sct',
   'dongnai_sct_daugiay',
   'vpsaspice',
   'banggianongsan',
@@ -197,6 +200,7 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'coop',
   'shopee',
   'customs',
+  'agroinfo_fruit_report',
 ]
 
 function roundNumber(value: number) {
@@ -811,16 +815,48 @@ function buildPriceChainTrendLookup(rows: CommodityTrendRow[]) {
   return byCommodity
 }
 
+function preferDurianHeadlineObservationRows(rows: LatestObservationRow[]) {
+  const premiumByPriceType = new Set<PriceType>()
+  for (const row of rows) {
+    if (row.commodity_slug !== DURIAN_COMMODITY_SLUG) {
+      continue
+    }
+
+    const priceType = getObservationPriceType(row)
+    if (isDurianHeadlineQualityGrade(row.quality_grade)) {
+      premiumByPriceType.add(priceType)
+    }
+  }
+
+  if (premiumByPriceType.size === 0) {
+    return rows
+  }
+
+  return rows.filter(row => {
+    if (row.commodity_slug !== DURIAN_COMMODITY_SLUG) {
+      return true
+    }
+
+    const priceType = getObservationPriceType(row)
+    if (!premiumByPriceType.has(priceType)) {
+      return true
+    }
+
+    return isDurianHeadlineQualityGrade(row.quality_grade)
+  })
+}
+
 function buildVnResponseFromRows(
   observationRows: LatestObservationRow[],
   dailySummaryRows: DailySummaryRow[],
   trendRows: CommodityTrendRow[],
   sourceSnapshots: SourceSnapshot[],
 ): VnPricesResponse {
+  const filteredObservationRows = preferDurianHeadlineObservationRows(observationRows)
   const byCommodity = new Map<string, LatestObservationRow[]>()
-  const activeSourceSnapshots = filterSourceSnapshotsForObservationRows(sourceSnapshots, observationRows)
+  const activeSourceSnapshots = filterSourceSnapshotsForObservationRows(sourceSnapshots, filteredObservationRows)
   const sourcePriorityLookup = buildSourcePriorityLookup(activeSourceSnapshots)
-  for (const row of observationRows) {
+  for (const row of filteredObservationRows) {
     const entries = byCommodity.get(row.commodity_slug) ?? []
     entries.push(row)
     byCommodity.set(row.commodity_slug, entries)
@@ -830,7 +866,7 @@ function buildVnResponseFromRows(
   const trendByCommodity = new Map(trendRows.map(row => [row.commodity_slug, row]))
   const latestSourceFetchedAt = activeSourceSnapshots.reduce(
     (latest, snapshot) => (snapshot.fetchedAt > latest ? snapshot.fetchedAt : latest),
-    observationRows[0]?.recorded_at ?? new Date().toISOString(),
+    filteredObservationRows[0]?.recorded_at ?? new Date().toISOString(),
   )
 
   const summaries = [...byCommodity.entries()]
@@ -1115,18 +1151,23 @@ function buildPriceChainResponseFromObservationRows(
 
       const getAveragePrice = (priceType: PriceType) => {
         const entries = rowsByType.get(priceType) ?? []
-        if (entries.length === 0) {
+        const filteredEntries =
+          commoditySlug === DURIAN_COMMODITY_SLUG ? preferDurianHeadlineObservationRows(entries) : entries
+        if (filteredEntries.length === 0) {
           return null
         }
 
-        return roundNumber(entries.reduce((sum, entry) => sum + entry.price_vnd, 0) / entries.length)
+        return roundNumber(filteredEntries.reduce((sum, entry) => sum + entry.price_vnd, 0) / filteredEntries.length)
       }
 
       const farmGateVnd = getAveragePrice('farm_gate')
       const wholesaleVnd = getAveragePrice('wholesale')
       const retailVnd = getAveragePrice('retail')
       const exportVnd = getAveragePrice('export')
-      const exportEntries = rowsByType.get('export') ?? []
+      const exportEntries =
+        commoditySlug === DURIAN_COMMODITY_SLUG
+          ? preferDurianHeadlineObservationRows(rowsByType.get('export') ?? [])
+          : (rowsByType.get('export') ?? [])
       const exportUsd =
         exportEntries.length > 0
           ? roundNumber(
@@ -1134,7 +1175,10 @@ function buildPriceChainResponseFromObservationRows(
                 exportEntries.length,
             )
           : null
-      const retailRows = rowsByType.get('retail') ?? []
+      const retailRows =
+        commoditySlug === DURIAN_COMMODITY_SLUG
+          ? preferDurianHeadlineObservationRows(rowsByType.get('retail') ?? [])
+          : (rowsByType.get('retail') ?? [])
       const nationalRetailAvg =
         retailRows.length > 0
           ? retailRows.reduce((sum, row) => sum + row.price_vnd, 0) / retailRows.length
@@ -1260,17 +1304,6 @@ async function buildPriceChainResponseFromSupabase() {
     })),
   )
   const sourceSnapshots = await getLatestSourceSnapshots(sourceIds)
-
-  try {
-    const [summaryRows, regionalRows] = await Promise.all([getPriceChainSummaryRows(), getRetailRegionalPriceRows()])
-    if (summaryRows && summaryRows.length > 0) {
-      return buildPriceChainResponse(summaryRows, regionalRows ?? [], trendRows ?? [], sourceSnapshots)
-    }
-  } catch (error) {
-    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
-      console.warn('[Supabase VN] price_chain_summary unavailable, falling back to observation aggregation:', error)
-    }
-  }
 
   return buildPriceChainResponseFromObservationRows(
     dedupedObservationRows,

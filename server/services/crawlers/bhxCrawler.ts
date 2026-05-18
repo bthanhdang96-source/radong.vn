@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
+import { parseDurianLabel } from '../durianPricing.js'
 import {
   closeBhxApiSession,
   fetchBhxCategoryProducts,
@@ -387,6 +388,7 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
   }
 
   const listingUrl = typeof product.url === 'string' && product.url.length > 0 ? `https://www.bachhoaxanh.com${product.url}` : null
+  const durianLabel = commodity.slug === 'sau-rieng' ? parseDurianLabel(productName) : { variety: null, qualityGrade: null }
 
   return {
     commodity: commodity.slug,
@@ -400,6 +402,8 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
     timestamp: new Date().toISOString(),
     source: 'bhx',
     priceType: 'retail',
+    variety: durianLabel.variety,
+    qualityGrade: durianLabel.qualityGrade,
     marketName: 'Bach Hoa Xanh',
     articleTitle: productName,
     countryCode: 'VNM',

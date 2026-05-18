@@ -1,5 +1,6 @@
 import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { parseDurianLabel } from '../durianPricing.js'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
 import { ensureFreshShopeeSession, readShopeeSessionMetadata, refreshShopeeSession, runShopeeBrowserSearch } from './shopeeSession.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
@@ -73,6 +74,24 @@ const SHOPEE_TARGETS: ShopeeTarget[] = [
     category: 'Thuy san',
   },
   {
+    keyword: 'sau rieng ri6',
+    commoditySlug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+  },
+  {
+    keyword: 'sau rieng thai monthong',
+    commoditySlug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+  },
+  {
+    keyword: 'sau rieng dona',
+    commoditySlug: 'sau-rieng',
+    commodityName: 'Sau rieng',
+    category: 'Trai cay',
+  },
+  {
     keyword: 'hat dieu tuoi',
     commoditySlug: 'cashew',
     commodityName: 'Hat dieu',
@@ -87,6 +106,7 @@ const SHOPEE_EXCLUDE_KEYWORDS = [
   'che bien',
   'dong hop',
   'banh',
+  'banh pia',
   'keo',
   'mut',
   'xi ro',
@@ -102,6 +122,8 @@ const SHOPEE_EXCLUDE_KEYWORDS = [
   'bot',
   'kem',
   'sua',
+  'sua chua',
+  'say',
   'set qua',
   'hop qua',
   'combo',
@@ -117,6 +139,7 @@ const SHOPEE_PRICE_BOUNDS: Record<string, { min: number; max: number }> = {
   cashew: { min: 100_000, max: 500_000 },
   'ca-tra': { min: 50_000, max: 150_000 },
   shrimp: { min: 100_000, max: 800_000 },
+  'sau-rieng': { min: 60_000, max: 600_000 },
 }
 
 function getEnabledSlugs(options: CrawlShopeeOptions) {
@@ -288,6 +311,7 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
 
   const region = item?.shop_location?.trim() || 'Viet Nam'
   const timestamp = new Date().toISOString()
+  const durianLabel = target.commoditySlug === 'sau-rieng' ? parseDurianLabel(name) : { variety: null, qualityGrade: null }
 
   return {
     commodity: target.commoditySlug,
@@ -301,6 +325,8 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
     timestamp,
     source: 'shopee',
     priceType: 'retail',
+    variety: durianLabel.variety,
+    qualityGrade: durianLabel.qualityGrade,
     marketName: region,
     articleTitle: name,
     countryCode: 'VNM',

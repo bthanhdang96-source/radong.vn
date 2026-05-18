@@ -27,6 +27,13 @@ test('matchRetailCommodity still keeps in-scope produce matches', () => {
   assert.equal(matchRetailCommodity('Cải xanh Đà Lạt Co.op Select 300g – TNX')?.slug, 'cai-xanh')
 })
 
+test('matchRetailCommodity keeps fresh durian but excludes processed durian products', () => {
+  assert.equal(matchRetailCommodity('Sầu riêng Ri6 tách múi 500g')?.slug, 'sau-rieng')
+  assert.equal(matchRetailCommodity('Bánh pía sầu riêng 480g'), null)
+  assert.equal(matchRetailCommodity('Kem sầu riêng hộp 450ml'), null)
+  assert.equal(matchRetailCommodity('Sầu riêng sấy giòn 120g'), null)
+})
+
 test('isDomesticCoffeeLabel only keeps domestic VND per kg rows', () => {
   assert.equal(isDomesticCoffeeLabel('Cà phê Đắk Lắk (đ/kg)'), true)
   assert.equal(isDomesticCoffeeLabel('Cà phê Robusta London Tháng 5/2026 (USD/tấn)'), false)

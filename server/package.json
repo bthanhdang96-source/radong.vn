@@ -7,6 +7,7 @@
     "crawler:bhx": "tsx scripts/runBhxCrawler.ts",
     "crawler:coop": "tsx scripts/runCoopCrawler.ts",
     "crawler:customs": "tsx scripts/runCustomsCrawler.ts",
+    "crawler:durian-export": "tsx scripts/runDurianExportCrawler.ts",
     "crawler:dongnai-daugiay": "tsx scripts/runDongnaiDauGiayCrawler.ts",
     "crawler:news": "tsx scripts/runNewsCrawler.ts",
     "crawler:news:cache": "tsx scripts/refreshNewsLiveCache.ts",
@@ -20,7 +21,7 @@
     "images:check": "tsx scripts/checkCommodityImages.ts",
     "start": "tsx index.ts",
     "monitor": "tsx services/ingestion/monitor.ts",
-    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/bhxCrawler.test.ts ./tests/commodityImageResolver.test.ts ./tests/contentTaxonomy.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/generatedCommodityPricePages.test.ts ./tests/generatedPricePages.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts",
+    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/bhxCrawler.test.ts ./tests/commodityImageResolver.test.ts ./tests/contentTaxonomy.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/durianCrawlers.test.ts ./tests/generatedCommodityPricePages.test.ts ./tests/generatedPricePages.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts",
     "typecheck": "tsc --noEmit",
     "worker": "tsx services/ingestion/worker.ts",
     "worker:once": "tsx services/ingestion/worker.ts --once"

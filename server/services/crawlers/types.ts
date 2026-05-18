@@ -2,6 +2,8 @@ export type SourceId =
   | 'nongnghiep'
   | 'vietnambiz'
   | 'congthuong'
+  | 'chogia'
+  | 'daklak_sct'
   | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
@@ -11,6 +13,7 @@ export type SourceId =
   | 'coop'
   | 'shopee'
   | 'customs'
+  | 'agroinfo_fruit_report'
   | 'fallback';
 
 export interface SourceSnapshot {
@@ -42,6 +45,8 @@ export interface CrawledPriceItem {
   timestamp: string;
   source: SourceId;
   priceType?: 'farm_gate' | 'wholesale' | 'retail' | 'export';
+  variety?: string | null;
+  qualityGrade?: string | null;
   marketName?: string | null;
   articleTitle?: string | null;
   countryCode?: string | null;

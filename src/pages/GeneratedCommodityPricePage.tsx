@@ -28,6 +28,39 @@ function formatPercent(value: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
+function formatChainValue(value: number | null) {
+  return value === null ? '--' : formatCurrency(value)
+}
+
+function formatQualityGrade(value: string | null) {
+  switch (value) {
+  case 'loai-1':
+    return 'Loai 1'
+  case 'loai-a':
+    return 'Loai A'
+  case 'loai-b':
+    return 'Loai B'
+  case 'loai-c':
+    return 'Loai C'
+  case 'loai-cd':
+    return 'Loai C-D'
+  case 'loai-tuyen':
+    return 'Loai tuyen'
+  case 'loai-dep':
+    return 'Loai dep'
+  case 'hang-xo':
+    return 'Hang xo'
+  case 'kem':
+    return 'Kem'
+  case 'dat':
+    return 'Dat'
+  case 'dat-nang':
+    return 'Dat nang'
+  default:
+    return value ?? '--'
+  }
+}
+
 function RelatedCommodityList({ items }: { items: GeneratedCommodityPricePageSummary[] }) {
   if (items.length === 0) {
     return null
@@ -194,7 +227,82 @@ export default function GeneratedCommodityPricePage() {
             </article>
           </section>
 
-          {page.renderMode === 'regional_table' && page.regionRows.length > 0 ? (
+          {page.chainCards.length > 0 ? (
+            <section className="generated-commodity-price-page__chain">
+              <div className="generated-commodity-price-page__section-head">
+                <h2>Chuoi gia tri</h2>
+                <p>Tom tat theo 4 lop gia cua cung mat hang neu nguon da co du lieu.</p>
+              </div>
+              <div className="generated-commodity-price-page__chain-grid">
+                {page.chainCards.map(card => (
+                  <article key={card.priceType} className="generated-commodity-price-page__chain-card">
+                    <span>{card.label}</span>
+                    <strong>{formatChainValue(card.latestPriceVnd)}</strong>
+                    <small>{card.latestObservedOn ?? 'Chua co du lieu'}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {page.varietySections.length > 0 ? (
+            <section className="generated-commodity-price-page__varieties">
+              <div className="generated-commodity-price-page__section-head">
+                <h2>Gia theo giong</h2>
+                <p>Cac section duoi day tach rieng theo giong va giu lai grade de tranh tron gia hang xo vao headline.</p>
+              </div>
+
+              <div className="generated-commodity-price-page__variety-list">
+                {page.varietySections.map(section => (
+                  <article key={section.variety} className="generated-commodity-price-page__variety-card">
+                    <header className="generated-commodity-price-page__variety-head">
+                      <div>
+                        <h3>{section.varietyLabel}</h3>
+                        <p>Headline uu tien nhom grade tham chieu neu co du lieu.</p>
+                      </div>
+                      <strong>{formatCurrency(section.headlineLatestPriceVnd)}</strong>
+                    </header>
+
+                    <div className="generated-commodity-price-page__variety-stats">
+                      <span>Day gia: {formatCurrency(section.lowestPriceVnd)} - {formatCurrency(section.highestPriceVnd)}</span>
+                      <span>So voi 7 ngay: {formatPercent(section.change7dPct)}</span>
+                    </div>
+
+                    <div className="generated-commodity-price-page__table-wrap">
+                      <table className="generated-commodity-price-page__variety-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Khu vuc</th>
+                            <th>Grade</th>
+                            <th>Gia hien tai</th>
+                            <th>So voi hom qua</th>
+                            <th>So voi 7 ngay</th>
+                            <th>Cap nhat</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {section.rows.map(row => (
+                            <tr key={`${section.variety}-${row.scopeType}-${row.scopeKey}-${row.qualityGrade ?? 'na'}`}>
+                              <td>{row.sortRank}</td>
+                              <td>{row.locationLabel}</td>
+                              <td>{formatQualityGrade(row.qualityGrade)}</td>
+                              <td>{formatCurrency(row.latestPriceVnd)}</td>
+                              <td>{formatPercent(row.dayChangePct)}</td>
+                              <td>{formatPercent(row.change7dPct)}</td>
+                              <td>{row.latestObservedOn}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {page.renderMode === 'regional_table' && page.regionRows.length > 0 && page.varietySections.length === 0 ? (
             <section className="generated-commodity-price-page__table">
               <div className="generated-commodity-price-page__section-head">
                 <h2>Bảng giá theo vùng hôm nay</h2>

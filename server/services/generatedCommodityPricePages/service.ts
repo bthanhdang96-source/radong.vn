@@ -9,6 +9,13 @@ import { listGeneratedPricePages } from '../generatedPricePages/service.js'
 import { resolveCommodityImage } from '../generatedPricePages/commodityImageResolver.js'
 import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
 import {
+  DURIAN_COMMODITY_SLUG,
+  DURIAN_SUPPORTED_VARIETIES,
+  getDurianVarietyLabel,
+  isDurianHeadlineQualityGrade,
+  isDurianSupportedVariety,
+} from '../durianPricing.js'
+import {
   getSupabaseAdminClient,
   getSupabaseReadClient,
   getSupabaseRuntimeStatus,
@@ -20,7 +27,10 @@ import type {
   GeneratedCommodityPricePageGenerateOptions,
   GeneratedCommodityPricePageGenerateResult,
   GeneratedCommodityPricePageSummary,
+  GeneratedCommodityPriceChainCard,
   GeneratedCommodityPriceRegionRow,
+  GeneratedCommodityPriceVarietyRow,
+  GeneratedCommodityPriceVarietySection,
   PricePageFaqItem,
   PricePagePrimaryPriceType,
   PricePageScopeType,
@@ -45,6 +55,7 @@ type LatestObservationRow = {
   province_code: string | null
   price_type: PricePagePrimaryPriceType | null
   variety: string | null
+  quality_grade: string | null
   market_name: string | null
   raw_payload: {
     region?: string | null
@@ -59,6 +70,7 @@ type ObservationWindowRow = {
   price_vnd: number | null
   confidence: number
   variety: string | null
+  quality_grade: string | null
   market_name: string | null
   raw_payload: {
     region?: string | null
@@ -164,6 +176,7 @@ type GeneratedCommodityPricePageRow = {
   latest_observed_on: string
   national_scope_label: string | null
   region_rows_json: unknown
+  variety_sections_json: unknown
   metrics_json: Record<string, unknown> | null
   published_at: string | null
   updated_at: string
@@ -191,6 +204,7 @@ type CommodityCandidatePage = {
   regionLabelCount: number
   nationalScopeLabel: string | null
   regionRows: GeneratedCommodityPriceRegionRow[]
+  varietySections: GeneratedCommodityPriceVarietySection[]
   metricsJson: Record<string, unknown>
 }
 
@@ -430,6 +444,121 @@ function parseRegionRowsJson(input: unknown): GeneratedCommodityPriceRegionRow[]
     .filter((row): row is GeneratedCommodityPriceRegionRow => Boolean(row))
 }
 
+function parseVarietySectionsJson(input: unknown): GeneratedCommodityPriceVarietySection[] {
+  if (!Array.isArray(input)) {
+    return []
+  }
+
+  return input
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const section = item as Record<string, unknown>
+      if (
+        typeof section.variety !== 'string' ||
+        typeof section.varietyLabel !== 'string' ||
+        typeof section.headlineLatestPriceVnd !== 'number' ||
+        typeof section.lowestPriceVnd !== 'number' ||
+        typeof section.highestPriceVnd !== 'number' ||
+        typeof section.change7dPct !== 'number' ||
+        !Array.isArray(section.rows)
+      ) {
+        return null
+      }
+
+      const rows = section.rows
+        .map(rowItem => {
+          if (!rowItem || typeof rowItem !== 'object') {
+            return null
+          }
+
+          const row = rowItem as Record<string, unknown>
+          if (
+            typeof row.scopeType !== 'string' ||
+            typeof row.scopeKey !== 'string' ||
+            typeof row.locationLabel !== 'string' ||
+            typeof row.locationSlug !== 'string' ||
+            typeof row.priceType !== 'string' ||
+            typeof row.latestPriceVnd !== 'number' ||
+            typeof row.latestPriceUnit !== 'string' ||
+            typeof row.dayChangeVnd !== 'number' ||
+            typeof row.dayChangePct !== 'number' ||
+            typeof row.change7dVnd !== 'number' ||
+            typeof row.change7dPct !== 'number' ||
+            typeof row.latestObservedOn !== 'string' ||
+            typeof row.sortRank !== 'number'
+          ) {
+            return null
+          }
+
+          return {
+            scopeType: row.scopeType as PricePageScopeType,
+            scopeKey: row.scopeKey,
+            provinceCode: typeof row.provinceCode === 'string' ? row.provinceCode : null,
+            regionLabel: typeof row.regionLabel === 'string' ? row.regionLabel : null,
+            locationLabel: row.locationLabel,
+            locationSlug: row.locationSlug,
+            priceType: row.priceType as PricePagePrimaryPriceType,
+            qualityGrade: typeof row.qualityGrade === 'string' ? row.qualityGrade : null,
+            latestPriceVnd: row.latestPriceVnd,
+            latestPriceUnit: row.latestPriceUnit,
+            dayChangeVnd: row.dayChangeVnd,
+            dayChangePct: row.dayChangePct,
+            change7dVnd: row.change7dVnd,
+            change7dPct: row.change7dPct,
+            latestObservedOn: row.latestObservedOn,
+            sortRank: row.sortRank,
+          } satisfies GeneratedCommodityPriceVarietyRow
+        })
+        .filter((row): row is GeneratedCommodityPriceVarietyRow => Boolean(row))
+
+      return {
+        variety: section.variety,
+        varietyLabel: section.varietyLabel,
+        headlineLatestPriceVnd: section.headlineLatestPriceVnd,
+        lowestPriceVnd: section.lowestPriceVnd,
+        highestPriceVnd: section.highestPriceVnd,
+        change7dPct: section.change7dPct,
+        rows,
+      } satisfies GeneratedCommodityPriceVarietySection
+    })
+    .filter((section): section is GeneratedCommodityPriceVarietySection => Boolean(section))
+}
+
+function parseChainCardsFromMetricsJson(input: Record<string, unknown> | null | undefined): GeneratedCommodityPriceChainCard[] {
+  const chainCards = input?.chainCards
+  if (!Array.isArray(chainCards)) {
+    return []
+  }
+
+  return chainCards
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const card = item as Record<string, unknown>
+      if (
+        typeof card.priceType !== 'string' ||
+        typeof card.label !== 'string' ||
+        typeof card.latestPriceUnit !== 'string'
+      ) {
+        return null
+      }
+
+      return {
+        priceType: card.priceType as PricePagePrimaryPriceType,
+        label: card.label,
+        latestPriceVnd: typeof card.latestPriceVnd === 'number' ? card.latestPriceVnd : null,
+        latestPriceUnit: card.latestPriceUnit,
+        latestObservedOn: typeof card.latestObservedOn === 'string' ? card.latestObservedOn : null,
+      } satisfies GeneratedCommodityPriceChainCard
+    })
+    .filter((card): card is GeneratedCommodityPriceChainCard => Boolean(card))
+}
+
 async function loadGenerationInputs() {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -438,11 +567,11 @@ async function loadGenerationInputs() {
 
   const latestRowsPromise = client
     .from('latest_observation_details')
-    .select('recorded_at, commodity_slug, province_code, price_type, variety, market_name, raw_payload')
+    .select('recorded_at, commodity_slug, province_code, price_type, variety, quality_grade, market_name, raw_payload')
 
   const observationsPromise = client
     .from('price_observations')
-    .select('recorded_at, commodity_slug, province_code, price_type, price_vnd, confidence, variety, market_name, raw_payload')
+    .select('recorded_at, commodity_slug, province_code, price_type, price_vnd, confidence, variety, quality_grade, market_name, raw_payload')
     .gte('recorded_at', new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString())
     .gte('confidence', 0.5)
 
@@ -492,6 +621,227 @@ async function loadGenerationInputs() {
   } satisfies GenerationInputs
 }
 
+function filterDurianHeadlineRows<T extends { commodity_slug: string; price_type: PricePagePrimaryPriceType | null; quality_grade: string | null }>(
+  rows: T[],
+) {
+  const premiumByPriceType = new Set<string>()
+  for (const row of rows) {
+    if (
+      row.commodity_slug === DURIAN_COMMODITY_SLUG &&
+      row.price_type &&
+      isDurianHeadlineQualityGrade(row.quality_grade)
+    ) {
+      premiumByPriceType.add(row.price_type)
+    }
+  }
+
+  if (premiumByPriceType.size === 0) {
+    return rows
+  }
+
+  return rows.filter(row => {
+    if (row.commodity_slug !== DURIAN_COMMODITY_SLUG || !row.price_type) {
+      return true
+    }
+
+    if (!premiumByPriceType.has(row.price_type)) {
+      return true
+    }
+
+    return isDurianHeadlineQualityGrade(row.quality_grade)
+  })
+}
+
+function buildCommodityChainCards(commoditySlug: string, inputs: GenerationInputs): GeneratedCommodityPriceChainCard[] {
+  return PRICE_TYPE_PRIORITY.map(priceType => {
+    const rows = inputs.observations.filter(
+      row => row.commodity_slug === commoditySlug && row.price_type === priceType && row.price_vnd !== null,
+    )
+    const filteredRows = commoditySlug === DURIAN_COMMODITY_SLUG ? filterDurianHeadlineRows(rows) : rows
+    if (filteredRows.length === 0) {
+      return {
+        priceType,
+        label: getPriceTypeLabel(priceType),
+        latestPriceVnd: null,
+        latestPriceUnit: 'VND/kg',
+        latestObservedOn: null,
+      } satisfies GeneratedCommodityPriceChainCard
+    }
+
+    const latestObservedOn = filteredRows.reduce(
+      (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
+      filteredRows[0]?.recorded_at ?? null,
+    )
+    const latestDateKey = latestObservedOn ? dateKeyFromIso(latestObservedOn) : null
+    const latestRows = latestDateKey
+      ? filteredRows.filter(row => dateKeyFromIso(row.recorded_at) === latestDateKey)
+      : filteredRows
+
+    return {
+      priceType,
+      label: getPriceTypeLabel(priceType),
+      latestPriceVnd: roundNumber(latestRows.reduce((sum, row) => sum + (row.price_vnd ?? 0), 0) / latestRows.length),
+      latestPriceUnit: 'VND/kg',
+      latestObservedOn: latestDateKey,
+    } satisfies GeneratedCommodityPriceChainCard
+  })
+}
+
+function buildDurianVarietySections(
+  commoditySlug: string,
+  primaryPriceType: PricePagePrimaryPriceType,
+  inputs: GenerationInputs,
+  latestDateKey: string,
+): GeneratedCommodityPriceVarietySection[] {
+  if (commoditySlug !== DURIAN_COMMODITY_SLUG) {
+    return []
+  }
+
+  const provinceLookup = new Map(inputs.provinces.map(province => [province.code, province.name_vi]))
+  const sevenDayStartKey = addDays(latestDateKey, -6)
+  const bucketLookup = new Map<
+    string,
+    Map<string, { sum: number; count: number }>
+  >()
+  const scopeLookup = new Map<
+    string,
+    {
+      variety: string
+      qualityGrade: string | null
+      scopeType: PricePageScopeType
+      scopeKey: string
+      provinceCode: string | null
+      regionLabel: string | null
+      locationLabel: string
+      locationSlug: string
+    }
+  >()
+
+  for (const row of inputs.observations) {
+    if (
+      row.commodity_slug !== DURIAN_COMMODITY_SLUG ||
+      row.price_type !== primaryPriceType ||
+      row.price_vnd === null ||
+      !isDurianSupportedVariety(row.variety)
+    ) {
+      continue
+    }
+
+    const scope = deriveScope(row, provinceLookup)
+    if (!scope || isNationalScope(scope)) {
+      continue
+    }
+
+    const rowDateKey = dateKeyFromIso(row.recorded_at)
+    if (rowDateKey < sevenDayStartKey || rowDateKey > latestDateKey) {
+      continue
+    }
+
+    const key = [row.variety, scope.scopeType, scope.scopeKey, row.quality_grade ?? 'na'].join('::')
+    scopeLookup.set(key, {
+      variety: row.variety,
+      qualityGrade: row.quality_grade ?? null,
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      provinceCode: scope.provinceCode,
+      regionLabel: scope.regionLabel,
+      locationLabel: scope.locationLabel,
+      locationSlug: scope.locationSlug,
+    })
+
+    const byDate = bucketLookup.get(key) ?? new Map<string, { sum: number; count: number }>()
+    const bucket = byDate.get(rowDateKey) ?? { sum: 0, count: 0 }
+    bucket.sum += row.price_vnd
+    bucket.count += 1
+    byDate.set(rowDateKey, bucket)
+    bucketLookup.set(key, byDate)
+  }
+
+  const rowsByVariety = new Map<string, GeneratedCommodityPriceVarietyRow[]>()
+  for (const [key, byDate] of bucketLookup.entries()) {
+    const scope = scopeLookup.get(key)
+    const latestBucket = byDate.get(latestDateKey)
+    if (!scope || !latestBucket || latestBucket.count === 0) {
+      continue
+    }
+
+    let sevenDaySum = 0
+    let sevenDayCount = 0
+    for (const bucket of byDate.values()) {
+      sevenDaySum += bucket.sum
+      sevenDayCount += bucket.count
+    }
+
+    const latestPriceVnd = latestBucket.sum / latestBucket.count
+    const yesterdayBucket = byDate.get(addDays(latestDateKey, -1))
+    const yesterdayAvg = yesterdayBucket && yesterdayBucket.count > 0 ? yesterdayBucket.sum / yesterdayBucket.count : latestPriceVnd
+    const sevenDayAvg = sevenDayCount > 0 ? sevenDaySum / sevenDayCount : latestPriceVnd
+    const dayChangeVnd = latestPriceVnd - yesterdayAvg
+    const change7dVnd = latestPriceVnd - sevenDayAvg
+
+    const row: GeneratedCommodityPriceVarietyRow = {
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      provinceCode: scope.provinceCode,
+      regionLabel: scope.regionLabel,
+      locationLabel: scope.locationLabel,
+      locationSlug: scope.locationSlug,
+      priceType: primaryPriceType,
+      qualityGrade: scope.qualityGrade,
+      latestPriceVnd: roundNumber(latestPriceVnd),
+      latestPriceUnit: 'VND/kg',
+      dayChangeVnd: roundNumber(dayChangeVnd),
+      dayChangePct: roundNumber(yesterdayAvg > 0 ? (dayChangeVnd / yesterdayAvg) * 100 : 0),
+      change7dVnd: roundNumber(change7dVnd),
+      change7dPct: roundNumber(sevenDayAvg > 0 ? (change7dVnd / sevenDayAvg) * 100 : 0),
+      latestObservedOn: latestDateKey,
+      sortRank: 0,
+    }
+
+    const existing = rowsByVariety.get(scope.variety) ?? []
+    existing.push(row)
+    rowsByVariety.set(scope.variety, existing)
+  }
+
+  const sections = [...DURIAN_SUPPORTED_VARIETIES].map<GeneratedCommodityPriceVarietySection | null>(variety => {
+      const rows = (rowsByVariety.get(variety) ?? [])
+        .sort((left, right) => {
+          if (right.latestPriceVnd !== left.latestPriceVnd) {
+            return right.latestPriceVnd - left.latestPriceVnd
+          }
+
+          return left.locationLabel.localeCompare(right.locationLabel, 'vi')
+        })
+        .map((row, index) => ({
+          ...row,
+          sortRank: index + 1,
+        }))
+
+      if (rows.length === 0) {
+        return null
+      }
+
+      const headlineRows = rows.filter(row => isDurianHeadlineQualityGrade(row.qualityGrade))
+      const baselineRows = headlineRows.length > 0 ? headlineRows : rows
+      const headlineLatestPriceVnd =
+        baselineRows.reduce((sum, row) => sum + row.latestPriceVnd, 0) / baselineRows.length
+
+      return {
+        variety,
+        varietyLabel: getDurianVarietyLabel(variety),
+        headlineLatestPriceVnd: roundNumber(headlineLatestPriceVnd),
+        lowestPriceVnd: Math.min(...rows.map(row => row.latestPriceVnd)),
+        highestPriceVnd: Math.max(...rows.map(row => row.latestPriceVnd)),
+        change7dPct: roundNumber(
+          baselineRows.reduce((sum, row) => sum + row.change7dPct, 0) / baselineRows.length,
+        ),
+        rows,
+      } satisfies GeneratedCommodityPriceVarietySection
+    })
+
+  return sections.filter((section): section is GeneratedCommodityPriceVarietySection => section !== null)
+}
+
 export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commoditySlug?: string) {
   if (inputs.latestRows.length === 0) {
     return [] as ScopeMetric[]
@@ -511,9 +861,11 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
   const yesterdayDateKey = addDays(latestDateKey, -1)
   const sevenDayStartKey = addDays(latestDateKey, -6)
 
+  const filteredLatestRows = filterDurianHeadlineRows(inputs.latestRows)
+  const filteredObservations = filterDurianHeadlineRows(inputs.observations)
   const candidatePageKeys = new Set<string>()
   const pageInfoLookup = new Map<string, { commoditySlug: string; scope: ScopeInfo }>()
-  for (const row of inputs.latestRows.filter(item => dateKeyFromIso(item.recorded_at) === latestDateKey)) {
+  for (const row of filteredLatestRows.filter(item => dateKeyFromIso(item.recorded_at) === latestDateKey)) {
     if (!isPriceType(row.price_type)) {
       continue
     }
@@ -534,7 +886,7 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
 
   const bucketLookup = new Map<string, DailyBucket>()
   const windowObservationCounts = new Map<string, number>()
-  for (const row of inputs.observations) {
+  for (const row of filteredObservations) {
     if (!isPriceType(row.price_type) || row.price_vnd === null) {
       continue
     }
@@ -882,6 +1234,13 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
       const sevenDayAvg = sevenDayCount > 0 ? sevenDaySum / sevenDayCount : 0
       const dayChangeVnd = headlineLatestPriceVnd - yesterdayAvg
       const change7dVnd = headlineLatestPriceVnd - sevenDayAvg
+      const varietySections = buildDurianVarietySections(
+        commoditySlug,
+        localPrimary.best.priceType,
+        inputs,
+        topMetric?.latestDate ?? new Date().toISOString().slice(0, 10),
+      )
+      const chainCards = buildCommodityChainCards(commoditySlug, inputs)
 
       pages.push({
         commoditySlug,
@@ -904,6 +1263,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         regionLabelCount: selectedMetrics.filter(metric => metric.scope.scopeType === 'region_label').length,
         nationalScopeLabel: null,
         regionRows,
+        varietySections,
         metricsJson: {
           topLocationLabel: topMetric?.scope.locationLabel ?? null,
           bottomLocationLabel: bottomMetric?.scope.locationLabel ?? null,
@@ -911,6 +1271,8 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
           bottomLocationPriceVnd: bottomMetric?.latestPriceVnd ?? null,
           isNationalOnly: false,
           nationalOnlyReason: null,
+          varietySectionCount: varietySections.length,
+          chainCards,
           coverageByPriceType,
           updatedAtLabel: formatDateTime(`${topMetric?.latestDate ?? new Date().toISOString().slice(0, 10)}T08:00:00.000Z`),
         },
@@ -951,6 +1313,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         regionLabelCount: 1,
         nationalScopeLabel: selectedMetric.scope.locationLabel,
         regionRows: [],
+        varietySections: [],
         metricsJson: {
           topLocationLabel: selectedMetric.scope.locationLabel,
           bottomLocationLabel: selectedMetric.scope.locationLabel,
@@ -958,6 +1321,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
           bottomLocationPriceVnd: selectedMetric.latestPriceVnd,
           isNationalOnly: true,
           nationalOnlyReason: 'single_national_scope',
+          chainCards: buildCommodityChainCards(commoditySlug, inputs),
           coverageByPriceType: Object.fromEntries(nationalPrimary.counts.map(item => [item.priceType, item.count])),
           updatedAtLabel: formatDateTime(`${selectedMetric.latestDate}T08:00:00.000Z`),
         },
@@ -1185,6 +1549,7 @@ export async function generateCommodityPricePages(
         latest_observed_on: page.latestDate,
         national_scope_label: page.nationalScopeLabel,
         region_rows_json: page.regionRows,
+        variety_sections_json: page.varietySections,
         metrics_json: page.metricsJson,
         status: 'published',
         published_at: existing?.published_at ?? new Date().toISOString(),
@@ -1389,6 +1754,8 @@ export async function getGeneratedCommodityPricePageDetail(
       faq: parseFaqJson(row.faq_json),
       seo: parseSeoJson(row.seo_json, seoFallback),
       regionRows: parseRegionRowsJson(row.region_rows_json),
+      varietySections: parseVarietySectionsJson(row.variety_sections_json),
+      chainCards: parseChainCardsFromMetricsJson(row.metrics_json),
       relatedCommodityPages,
       relatedLocationPages,
     }

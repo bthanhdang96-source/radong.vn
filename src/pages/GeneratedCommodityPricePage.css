@@ -121,6 +121,95 @@
   padding: 1rem;
 }
 
+.generated-commodity-price-page__chain {
+  margin-top: 1.5rem;
+}
+
+.generated-commodity-price-page__chain-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.generated-commodity-price-page__chain-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.generated-commodity-price-page__chain-card span,
+.generated-commodity-price-page__chain-card small {
+  display: block;
+  color: var(--color-text-muted);
+}
+
+.generated-commodity-price-page__chain-card strong {
+  display: block;
+  margin: 0.45rem 0;
+  color: var(--color-text);
+}
+
+.generated-commodity-price-page__varieties {
+  margin-top: 1.5rem;
+}
+
+.generated-commodity-price-page__variety-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.generated-commodity-price-page__variety-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 1rem;
+}
+
+.generated-commodity-price-page__variety-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.generated-commodity-price-page__variety-head h3 {
+  margin: 0;
+}
+
+.generated-commodity-price-page__variety-head p,
+.generated-commodity-price-page__variety-stats {
+  color: var(--color-text-muted);
+}
+
+.generated-commodity-price-page__variety-head strong {
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.generated-commodity-price-page__variety-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.generated-commodity-price-page__variety-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.generated-commodity-price-page__variety-table th,
+.generated-commodity-price-page__variety-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
 .generated-commodity-price-page__section-head {
   display: flex;
   justify-content: space-between;
@@ -291,6 +380,10 @@
   }
 
   .generated-commodity-price-page__facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .generated-commodity-price-page__chain-grid {
     grid-template-columns: 1fr 1fr;
   }
 

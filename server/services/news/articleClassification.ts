@@ -136,6 +136,22 @@ function classifyVietnamBizArticle(input: Omit<ArticleLike, 'sourceKey'>): Artic
     }
   }
 
+  const isDurianPriceRoundup =
+    title.includes('gia sau rieng hom nay') ||
+    canonicalUrl.includes('gia-sau-rieng-hom-nay-') ||
+    contentText.includes('gia sau rieng hom nay') ||
+    contentText.includes('gia thu mua sau rieng')
+
+  if (isDurianPriceRoundup) {
+    return {
+      status: 'archived',
+      hideFromNewsFeed: true,
+      topicTags: ['price-roundup', 'vietnambiz-price', 'vietnambiz-durian'],
+      kind: 'price_roundup',
+      priceDataTarget: null,
+    }
+  }
+
   return createDefaultClassification()
 }
 

@@ -17,6 +17,7 @@ export const BASE_PRICE_BOUNDS: Record<string, Bounds> = {
   'ca-tra': { min: 20_000, max: 70_000 },
   'cam-sanh': { min: 5_000, max: 80_000 },
   'buoi-nam-roi': { min: 10_000, max: 80_000 },
+  'sau-rieng': { min: 10_000, max: 200_000 },
   'ca-chua': { min: 12_000, max: 35_000 },
   'hanh-tay': { min: 15_000, max: 35_000 },
   toi: { min: 30_000, max: 100_000 },
@@ -52,6 +53,8 @@ type DedupeKeyInput = {
   priceType: string
   provinceCode?: string | null
   regionLabel?: string | null
+  variety?: string | null
+  qualityGrade?: string | null
   marketName?: string | null
   articleTitle?: string | null
   sourceUrl?: string | null
@@ -136,6 +139,8 @@ export function buildObservationDedupeKey(input: DedupeKeyInput) {
         input.priceType,
         input.provinceCode ?? input.countryCode ?? 'na',
         input.regionLabel ?? 'na',
+        input.variety ?? 'na',
+        input.qualityGrade ?? 'na',
         input.marketName ?? getExtraFingerprintHint(input.extra) ?? input.articleTitle ?? input.sourceUrl ?? 'na',
         roundPriceForFingerprint(input.priceVnd),
         normalizeRecordedDate(input.recordedAt),

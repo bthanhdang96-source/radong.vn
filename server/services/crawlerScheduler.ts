@@ -1,4 +1,5 @@
 import cron from 'node-cron'
+import { crawlAgroinfoDurianExport } from './crawlers/agroinfoDurianExportCrawler.js'
 import { retryCrawlerResult } from './crawlers/common.js'
 import { crawlBhx } from './crawlers/bhxCrawler.js'
 import { crawlCoop } from './crawlers/coopCrawler.js'
@@ -29,6 +30,9 @@ type CrawlerScheduleConfig = {
   customsEnabled: boolean
   customsCron: string
   customsDryRun: boolean
+  durianExportEnabled: boolean
+  durianExportCron: string
+  durianExportDryRun: boolean
 }
 
 const DEFAULT_BHX_CRAWL_CRON = '15 6,14 * * *'
@@ -36,6 +40,7 @@ const DEFAULT_COOP_CRAWL_CRON = '20 6,14 * * *'
 const DEFAULT_SHOPEE_REFRESH_CRON = '0 */6 * * *'
 const DEFAULT_SHOPEE_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_CUSTOMS_CRON = '0 8 * * 3'
+const DEFAULT_DURIAN_EXPORT_CRON = '0 9 * * 3'
 const DEFAULT_SHOPEE_BLOCK_COOLDOWN_MINUTES = 180
 
 const runningJobs = new Set<string>()
@@ -119,6 +124,9 @@ export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
     customsEnabled: parseBoolean(process.env.CUSTOMS_SCHEDULER_ENABLED, true),
     customsCron: process.env.CUSTOMS_CRAWL_CRON?.trim() || DEFAULT_CUSTOMS_CRON,
     customsDryRun: parseBoolean(process.env.CUSTOMS_SCHEDULE_DRY_RUN, false),
+    durianExportEnabled: parseBoolean(process.env.DURIAN_EXPORT_ENABLED, false),
+    durianExportCron: process.env.DURIAN_EXPORT_CRON?.trim() || DEFAULT_DURIAN_EXPORT_CRON,
+    durianExportDryRun: parseBoolean(process.env.DURIAN_EXPORT_SCHEDULE_DRY_RUN, false),
   }
 }
 
@@ -251,6 +259,15 @@ export async function runCustomsCrawlJob(trigger = 'manual') {
   })
 }
 
+export async function runDurianExportCrawlJob(trigger = 'manual') {
+  const config = getCrawlerScheduleConfig()
+  await runExclusive('durian-export-crawl', async () => {
+    console.log(`[Durian Export Crawl] started (${trigger})`)
+    const result = await retryCrawlerResult(() => crawlAgroinfoDurianExport())
+    await syncCrawlerResult('Durian Export Crawl', config.durianExportDryRun, result)
+  })
+}
+
 function registerSchedule(jobName: string, cronExpression: string, handler: () => Promise<void>) {
   if (!cron.validate(cronExpression)) {
     console.error(`[Crawler Scheduler] Invalid cron for ${jobName}: ${cronExpression}`)
@@ -296,5 +313,13 @@ export function registerCrawlerSchedules() {
     registerSchedule('customs-crawl', config.customsCron, () => runCustomsCrawlJob(`cron:${config.customsCron}`))
   } else {
     console.log('[Crawler Scheduler] Customs crawl schedule is disabled')
+  }
+
+  if (config.durianExportEnabled) {
+    registerSchedule('durian-export-crawl', config.durianExportCron, () =>
+      runDurianExportCrawlJob(`cron:${config.durianExportCron}`),
+    )
+  } else {
+    console.log('[Crawler Scheduler] Durian export crawl schedule is disabled')
   }
 }

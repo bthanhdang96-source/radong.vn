@@ -65,6 +65,11 @@ export const VN_COMMODITY_META: Record<
     category: 'Trái cây',
     unit: 'VND/kg',
   },
+  'sau-rieng': {
+    commodityName: 'Sầu riêng',
+    category: 'Trái cây',
+    unit: 'VND/kg',
+  },
   'ca-chua': {
     commodityName: 'Cà chua',
     category: 'Rau củ',
@@ -171,6 +176,8 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   nongnghiep: 0.78,
   vietnambiz: 0.74,
   congthuong: 0.82,
+  chogia: 0.76,
+  daklak_sct: 0.88,
   dongnai_sct_daugiay: 0.84,
   vietfood: 0.86,
   vpsaspice: 0.8,
@@ -180,6 +187,7 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   coop: 0.72,
   shopee: 0.7,
   customs: 0.95,
+  agroinfo_fruit_report: 0.83,
   fallback: 0.35,
 }
 
@@ -187,6 +195,8 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   nongnghiep: 'crawl_news',
   vietnambiz: 'crawl_news',
   congthuong: 'crawl_gov',
+  chogia: 'crawl_news',
+  daklak_sct: 'crawl_gov',
   dongnai_sct_daugiay: 'crawl_gov',
   vietfood: 'crawl_news',
   vpsaspice: 'crawl_news',
@@ -196,6 +206,7 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   coop: 'crawl_ecom',
   shopee: 'crawl_ecom',
   customs: 'customs',
+  agroinfo_fruit_report: 'crawl_gov',
   fallback: 'api_partner',
 }
 
@@ -227,6 +238,12 @@ export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
   xoai: 'xoai',
   chuoi: 'chuoi',
   mit: 'mit',
+  'sau-rieng': 'sau-rieng',
+  durian: 'sau-rieng',
+  ri6: 'sau-rieng',
+  thai: 'sau-rieng',
+  monthong: 'sau-rieng',
+  dona: 'sau-rieng',
   'thit-heo': 'thit-heo',
   pangasius: 'pangasius',
   'tom-the': 'shrimp',
@@ -242,8 +259,6 @@ export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
 }
 
 // Only a subset of prompt commodities can be mapped safely to current seeded data.
-// Additional commodities like durian, watermelon, dragon fruit, etc. should be added
-// to the database before enabling them in production crawlers.
 export const SAFE_EXTERNAL_COMMODITY_TARGETS = new Set<string>([
   'ca-phe',
   'ca-phe-robusta',
@@ -270,6 +285,12 @@ export const SAFE_EXTERNAL_COMMODITY_TARGETS = new Set<string>([
   'xoai',
   'chuoi',
   'mit',
+  'sau-rieng',
+  'durian',
+  'ri6',
+  'thai',
+  'monthong',
+  'dona',
   'thit-heo',
   'pangasius',
   'tom-the',
@@ -349,6 +370,11 @@ const DISPLAY_REGION_ALIASES: Record<string, string> = {
   'mien bac': 'Miền Bắc',
   'mien trung - tay nguyen': 'Miền Trung - Tây Nguyên',
   'mien nam': 'Miền Nam',
+  'mien tay nam bo': 'Miền Tây Nam Bộ',
+  'tay nam bo': 'Tây Nam Bộ',
+  'mien dong nam bo': 'Miền Đông Nam Bộ',
+  'dong nam bo': 'Đông Nam Bộ',
+  'tay nguyen': 'Tây Nguyên',
   'cam sanh': 'Cam sành',
   'buoi nam roi': 'Bưởi Năm Roi',
   'ca tra': 'Cá tra',
@@ -483,6 +509,10 @@ const AGGREGATE_REGION_LABELS = new Set([
   'dbscl',
   'dong bang song cuu long',
   'mien tay',
+  'tay nam bo',
+  'mien tay nam bo',
+  'dong nam bo',
+  'mien dong nam bo',
   'tay nguyen',
 ])
 

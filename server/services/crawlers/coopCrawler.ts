@@ -1,5 +1,6 @@
 import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { parseDurianLabel } from '../durianPricing.js'
 import { failedSource, finalizeSourceBatch, foldText, roundNumber, USER_AGENT } from './common.js'
 import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
@@ -365,6 +366,7 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
   }
 
   const listingUrl = product.canonical ? `https://cooponline.vn/${product.canonical}` : null
+  const durianLabel = commodity.slug === 'sau-rieng' ? parseDurianLabel(productName) : { variety: null, qualityGrade: null }
 
   return {
     commodity: commodity.slug,
@@ -378,6 +380,8 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
     timestamp: new Date().toISOString(),
     source: 'coop',
     priceType: 'retail',
+    variety: durianLabel.variety,
+    qualityGrade: durianLabel.qualityGrade,
     marketName: region.terminalName,
     articleTitle: productName,
     countryCode: 'VNM',

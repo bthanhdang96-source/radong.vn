@@ -13,6 +13,8 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   nongnghiep: 100,
   vietnambiz: 95,
   congthuong: 90,
+  daklak_sct: 92,
+  chogia: 86,
   dongnai_sct_daugiay: 89,
   vietfood: 88,
   vpsaspice: 84,
@@ -21,6 +23,7 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   bhx: 75,
   coop: 74,
   customs: 96,
+  agroinfo_fruit_report: 85,
   shopee: 70,
   fallback: 0,
 };
@@ -161,6 +164,21 @@ export function createItem(
   change: number | null,
   timestamp: string,
   previousPrice?: number | null,
+  options?: Partial<
+    Pick<
+      CrawledPriceItem,
+      | 'priceType'
+      | 'variety'
+      | 'qualityGrade'
+      | 'marketName'
+      | 'articleTitle'
+      | 'countryCode'
+      | 'exchangeRate'
+      | 'priceUsd'
+      | 'dedupeKey'
+      | 'extra'
+    >
+  >,
 ): CrawledPriceItem {
   const safeChange = change !== null && Number.isFinite(change) ? change : null;
   const safePreviousPrice = previousPrice ?? (safeChange !== null ? price - safeChange : null);
@@ -180,6 +198,16 @@ export function createItem(
     timestamp,
     source,
     previousPrice: safePreviousPrice,
+    priceType: options?.priceType,
+    variety: options?.variety ?? null,
+    qualityGrade: options?.qualityGrade ?? null,
+    marketName: options?.marketName ?? null,
+    articleTitle: options?.articleTitle ?? null,
+    countryCode: options?.countryCode ?? null,
+    exchangeRate: options?.exchangeRate ?? null,
+    priceUsd: options?.priceUsd ?? null,
+    dedupeKey: options?.dedupeKey ?? null,
+    extra: options?.extra,
   };
 }
 

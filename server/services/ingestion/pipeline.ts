@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CrawledPriceItem, SourceId } from '../crawlers/types.js'
+import { DURIAN_COMMODITY_SLUG, parseDurianLabel } from '../durianPricing.js'
 import {
   classifyRiceRegionLabel,
   inferPriceType,
@@ -216,6 +217,18 @@ function calculateConfidence(source: SourceId, penalties: number[]) {
   return Math.max(0.1, roundNumber(base - total))
 }
 
+function getFreshnessWindowHours(record: NormalizedObservation) {
+  if (record.source_name === 'agroinfo_fruit_report') {
+    return 24 * 10
+  }
+
+  if (record.price_type === 'export' && record.source_type === 'crawl_gov') {
+    return 24 * 10
+  }
+
+  return 48
+}
+
 function normalizeObservation(message: IngestionQueueMessage, commodityLookup: Map<string, number>): NormalizationResult {
   const item = message.raw
   const commoditySlug = normalizeExternalCommoditySlug(item.commodity)
@@ -236,8 +249,8 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
   }
 
   let provinceCode: string | null = getProvinceCodeFromRegion(item.region)
-  let variety: string | null = null
-  let qualityGrade: string | null = null
+  let variety: string | null = item.variety ?? null
+  let qualityGrade: string | null = item.qualityGrade ?? null
   let priceType: PriceType = inferPriceType({
     sourceId: message.source,
     articleTitle: item.articleTitle ?? null,
@@ -249,10 +262,18 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
 
   if (commoditySlug === 'gao-noi-dia' && priceType !== 'retail' && priceType !== 'export') {
     const riceClassification = classifyRiceRegionLabel(item.region)
-    variety = riceClassification.variety
-    qualityGrade = riceClassification.qualityGrade
+    variety = item.variety ?? riceClassification.variety
+    qualityGrade = item.qualityGrade ?? riceClassification.qualityGrade
     priceType = riceClassification.marketType
     provinceCode = null
+  } else if (commoditySlug === DURIAN_COMMODITY_SLUG && (!variety || !qualityGrade)) {
+    const durianClassification = parseDurianLabel(
+      [item.marketName, item.region, item.articleTitle]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .join(' '),
+    )
+    variety = variety ?? durianClassification.variety
+    qualityGrade = qualityGrade ?? durianClassification.qualityGrade
   } else if (isAggregateRegionLabel(item.region)) {
     flags.push('aggregate_region')
   } else if (!provinceCode) {
@@ -295,6 +316,8 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         priceType,
         provinceCode,
         regionLabel: item.region,
+        variety,
+        qualityGrade,
         marketName: item.marketName ?? null,
         articleTitle: item.articleTitle ?? null,
         sourceUrl: message.sourceUrl,
@@ -310,6 +333,8 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         ...item,
         commoditySlug,
         provinceCode,
+        variety,
+        qualityGrade,
         dedupeKey: item.dedupeKey ?? null,
       },
     },
@@ -366,6 +391,7 @@ function checkBounds(record: NormalizedObservation): ValidationResult {
 function checkFreshness(record: NormalizedObservation): ValidationResult {
   const crawledAt = new Date(record.recorded_at)
   const ageHours = (Date.now() - crawledAt.getTime()) / (60 * 60 * 1000)
+  const freshnessWindowHours = getFreshnessWindowHours(record)
 
   if (!Number.isFinite(ageHours)) {
     return {
@@ -376,10 +402,10 @@ function checkFreshness(record: NormalizedObservation): ValidationResult {
     }
   }
 
-  if (ageHours > 48) {
+  if (ageHours > freshnessWindowHours) {
     return {
       passed: false,
-      reason: `Data is stale (${Math.round(ageHours)}h old)`,
+      reason: `Data is stale (${Math.round(ageHours)}h old > ${freshnessWindowHours}h window)`,
       flag: 'stale_data',
       confidencePenalty: 0,
     }

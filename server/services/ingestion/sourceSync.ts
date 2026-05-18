@@ -111,6 +111,8 @@ async function filterExistingItems(dayData: CrawledDayData) {
       }),
       provinceCode: getProvinceCodeFromRegion(item.region),
       regionLabel: item.region,
+      variety: item.variety ?? null,
+      qualityGrade: item.qualityGrade ?? null,
       marketName: item.marketName ?? null,
       articleTitle: item.articleTitle ?? null,
       sourceUrl: null,

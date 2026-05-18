@@ -95,6 +95,8 @@ export function validateAndDedupSourceBatch(
       priceType,
       provinceCode: getProvinceCodeFromRegion(item.region),
       regionLabel: item.region,
+      variety: item.variety ?? null,
+      qualityGrade: item.qualityGrade ?? null,
       marketName: item.marketName ?? item.region,
       articleTitle: item.articleTitle ?? null,
       countryCode: item.countryCode ?? 'VNM',

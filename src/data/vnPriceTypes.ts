@@ -2,6 +2,8 @@ export type SourceId =
   | 'nongnghiep'
   | 'vietnambiz'
   | 'congthuong'
+  | 'chogia'
+  | 'daklak_sct'
   | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
@@ -11,6 +13,7 @@ export type SourceId =
   | 'coop'
   | 'shopee'
   | 'customs'
+  | 'agroinfo_fruit_report'
   | 'fallback';
 
 export interface PriceSourceStatus {
@@ -125,6 +128,8 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   nongnghiep: 'nongnghiepmoitruong.vn',
   vietnambiz: 'vietnambiz.vn',
   congthuong: 'congthuong.vn',
+  chogia: 'chogia.vn',
+  daklak_sct: 'socongthuong.daklak.gov.vn',
   dongnai_sct_daugiay: 'sct.dongnai.gov.vn',
   vpsaspice: 'vpsa.org.vn',
   banggianongsan: 'banggianongsan.com',
@@ -134,6 +139,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   coop: 'Co.op Online',
   shopee: 'Shopee',
   customs: 'customs.gov.vn',
+  agroinfo_fruit_report: 'thitruongnongsan.gov.vn',
   fallback: 'Dự phòng',
 };
 

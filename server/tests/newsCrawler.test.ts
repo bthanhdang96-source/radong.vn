@@ -118,6 +118,20 @@ test('classifyNewsArticle hides Vietnambiz coffee, pepper, and pork price roundu
   }
 })
 
+test('classifyNewsArticle hides Vietnambiz durian price roundups from the news feed', () => {
+  const classification = classifyNewsArticle({
+    sourceKey: 'vietnambiz',
+    title: 'Giá sầu riêng hôm nay 17/5: Duy trì ổn định tại Tây Nam Bộ và Tây Nguyên',
+    canonicalUrl: 'https://vietnambiz.vn/gia-sau-rieng-hom-nay-175-duy-tri-on-dinh-202605171234567.htm',
+    contentText: 'Giá thu mua sầu riêng hôm nay tại Tây Nam Bộ và Đông Nam Bộ không biến động lớn.',
+  })
+
+  assert.equal(classification.hideFromNewsFeed, true)
+  assert.equal(classification.status, 'archived')
+  assert.equal(classification.kind, 'price_roundup')
+  assert.ok(classification.topicTags.includes('vietnambiz-durian'))
+})
+
 test('parseVietnambizRiceArticle extracts structured rice rows from the article table', () => {
   const articleHtml = `
     <html>
