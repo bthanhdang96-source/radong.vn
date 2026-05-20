@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { parseExportRegistryRows } from '../services/exportRegistry/crawler.js'
+import { deriveExportRegistryProduct, filterExportRegistryItems, getHarvestState } from '../services/exportRegistry/service.js'
 
 const PRODUCTION_AREA_HTML = `
   <table class="rgMasterTable">
@@ -85,5 +86,95 @@ describe('parseExportRegistryRows', () => {
     assert.equal(rows[0].name, 'Chi nhánh Công ty TNHH Rồng Hoa Thái Đắk Lắk tại Tiền Giang')
     assert.equal(rows[0].approvalPeriods.length, 0)
     assert.equal(rows[0].contentHash.length, 64)
+  })
+})
+
+describe('export registry lookup helpers', () => {
+  it('derives known products from registry names', () => {
+    assert.equal(deriveExportRegistryProduct({ name: 'Vùng trồng Quế xã Phong Dụ', raw_payload: null }), 'Quế')
+    assert.equal(deriveExportRegistryProduct({ name: 'Vùng trồng Công ty TNHH Sầu riêng ABC', raw_payload: null }), 'Sầu riêng')
+    assert.equal(deriveExportRegistryProduct({ name: 'Chi nhánh Công ty TNHH Rồng Hoa', raw_payload: null }), 'Khác')
+    assert.equal(deriveExportRegistryProduct({ name: 'Vùng trồng chưa rõ loại', raw_payload: null }), 'Khác')
+  })
+
+  it('computes harvesting state and progress from approval periods', () => {
+    const state = getHarvestState([
+      {
+        round: 1,
+        startsOn: '2026-05-01',
+        endsOn: '2026-05-31',
+        startRaw: '01/05/2026',
+        endRaw: '31/05/2026',
+      },
+    ], new Date('2026-05-16T00:00:00.000Z'))
+
+    assert.equal(state.status, 'harvesting')
+    assert.equal(state.progressPct, 50)
+  })
+
+  it('filters lookup items by search, province, product, market, and harvesting status', () => {
+    const items = [
+      {
+        id: '1',
+        registryType: 'production_area' as const,
+        sourceUrl: 'https://example.test',
+        sourcePage: 1,
+        sourcePosition: 1,
+        sourceRowNumber: 1,
+        name: 'Vùng trồng Quế Phong Dụ',
+        address: 'Phong Dụ, Huyện Tiên Yên, Tỉnh Quảng Ninh',
+        phone: '0829755528',
+        phoneDisplay: '0829***528',
+        market: 'CHINA',
+        province: 'Tỉnh Quảng Ninh',
+        district: 'Huyện Tiên Yên',
+        commune: null,
+        product: 'Quế',
+        registryCode: 'QN-001',
+        approvalPeriods: [],
+        harvestStatus: 'harvesting' as const,
+        harvestStatusLabel: 'Đang thu hoạch đợt 1',
+        seasonProgressPct: 40,
+        latestCrawledAt: '2026-05-20T00:00:00.000Z',
+        capacity: null,
+        certifications: [],
+      },
+      {
+        id: '2',
+        registryType: 'production_area' as const,
+        sourceUrl: 'https://example.test',
+        sourcePage: 1,
+        sourcePosition: 2,
+        sourceRowNumber: 2,
+        name: 'Vùng trồng Thanh long',
+        address: 'Huyện Cái Bè, Tỉnh Tiền Giang',
+        phone: '0909186179',
+        phoneDisplay: '0909***179',
+        market: 'US',
+        province: 'Tỉnh Tiền Giang',
+        district: 'Huyện Cái Bè',
+        commune: null,
+        product: 'Thanh long',
+        registryCode: 'TG-001',
+        approvalPeriods: [],
+        harvestStatus: 'soon' as const,
+        harvestStatusLabel: 'Sắp thu hoạch đợt 1',
+        seasonProgressPct: 0,
+        latestCrawledAt: '2026-05-20T00:00:00.000Z',
+        capacity: null,
+        certifications: [],
+      },
+    ]
+
+    const filtered = filterExportRegistryItems(items, {
+      q: 'QN-001',
+      province: 'Tỉnh Quảng Ninh',
+      market: 'CHINA',
+      product: 'Quế',
+      status: 'harvesting',
+    })
+
+    assert.equal(filtered.length, 1)
+    assert.equal(filtered[0].id, '1')
   })
 })

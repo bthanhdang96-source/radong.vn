@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import { crawlExportRegistry } from '../services/exportRegistry/crawler.js'
-import { getExportRegistryCategories, syncExportRegistryResultsToSupabase } from '../services/exportRegistry/service.js'
+import { getExportRegistryCategories, getExportRegistryEntries, syncExportRegistryResultsToSupabase } from '../services/exportRegistry/service.js'
 import type { ExportRegistryType } from '../services/exportRegistry/types.js'
 
 const router = Router()
@@ -37,6 +37,32 @@ router.get('/export-registry/categories', async (_req, res) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to load export registry categories',
+    })
+  }
+})
+
+router.get('/export-registry/entries', async (req, res) => {
+  const type = typeof req.query.type === 'string' && REGISTRY_TYPES.includes(req.query.type as ExportRegistryType)
+    ? (req.query.type as ExportRegistryType)
+    : undefined
+
+  try {
+    const payload = await getExportRegistryEntries({
+      type,
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+      province: typeof req.query.province === 'string' ? req.query.province : undefined,
+      market: typeof req.query.market === 'string' ? req.query.market : undefined,
+      product: typeof req.query.product === 'string' ? req.query.product : undefined,
+      status: req.query.status === 'harvesting' ? 'harvesting' : 'all',
+      page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
+      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+    })
+
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load export registry entries',
     })
   }
 })

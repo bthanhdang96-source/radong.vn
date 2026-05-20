@@ -1,79 +1,667 @@
 .lookup-page {
   min-height: calc(100vh - var(--navbar-h));
-  padding: 32px 24px 56px;
   background: var(--color-bg);
   color: var(--color-text);
 }
 
-.lookup-page__header,
-.lookup-page__categories {
-  width: min(1120px, 100%);
-  margin: 0 auto;
+.lookup-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 30vw);
+  min-height: calc(100vh - var(--navbar-h));
 }
 
-.lookup-page__header {
-  padding: 24px 0 20px;
+.lookup-main {
+  min-width: 0;
+  padding: 24px;
 }
 
-.lookup-page__header span {
+.lookup-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  margin: 0 auto 18px;
+  max-width: 1220px;
+}
+
+.lookup-hero__eyebrow {
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--color-primary);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
-.lookup-page__header h1 {
-  margin: 8px 0;
-  font-size: 2rem;
-  line-height: 1.15;
+.lookup-hero__eyebrow::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary-light) 18%, transparent);
 }
 
-.lookup-page__header p {
-  max-width: 720px;
+.lookup-hero h1 {
+  margin: 8px 0 10px;
+  font-size: 2rem;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.lookup-hero p {
+  max-width: 760px;
   margin: 0;
   color: var(--color-text-muted);
 }
 
-.lookup-page__categories {
+.lookup-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(105px, 1fr));
+  gap: 10px;
+}
+
+.lookup-stats article {
+  min-height: 82px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.lookup-stats span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.lookup-stats strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.45rem;
+}
+
+.lookup-controls,
+.lookup-results-head,
+.lookup-card-grid,
+.lookup-pagination,
+.lookup-state {
+  max-width: 1220px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lookup-controls {
+  position: sticky;
+  top: calc(var(--navbar-h) + 8px);
+  z-index: 20;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-sm);
+}
+
+.lookup-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lookup-tabs__tab,
+.lookup-status-filter button,
+.lookup-pagination button,
+.lookup-map__head button,
+.lookup-card__favorite {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lookup-tabs__tab {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.lookup-tabs__tab--active,
+.lookup-status-filter .is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+}
+
+.lookup-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(140px, 0.7fr));
+  gap: 10px;
+}
+
+.lookup-filter-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lookup-filter-grid span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.lookup-filter-grid input,
+.lookup-filter-grid select {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.lookup-filter-grid input:focus,
+.lookup-filter-grid select:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.lookup-status-filter {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.lookup-status-filter button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.lookup-results-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 2px;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.lookup-results-head span:first-child {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.lookup-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.lookup-page__category {
+.lookup-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 128px;
+  gap: 12px;
+  min-height: 282px;
   padding: 18px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
-  color: inherit;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.lookup-card:hover,
+.lookup-card--selected {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.lookup-card h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.lookup-card__topline,
+.lookup-card__meta,
+.lookup-card__actions,
+.lookup-card__season-row,
+.lookup-map__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lookup-card__type,
+.lookup-card__market,
+.lookup-card__meta span,
+.lookup-card__facility-extra span {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.lookup-card__type--production_area {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+}
+
+.lookup-card__type--packing_facility {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+.lookup-card__market {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-hold);
+}
+
+.lookup-card__meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.lookup-card__meta span,
+.lookup-card__facility-extra span {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.lookup-card__address {
+  min-height: 42px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.lookup-card__season {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.lookup-card__season--harvesting {
+  border-color: color-mix(in srgb, var(--color-primary) 26%, var(--color-border));
+}
+
+.lookup-card__season-row {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.lookup-card__season-row strong {
+  color: var(--color-primary);
+}
+
+.lookup-card__progress {
+  height: 8px;
+  overflow: hidden;
+  margin: 8px 0;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+
+.lookup-card__progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+
+.lookup-card__period {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+.lookup-card__facility-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lookup-card__actions {
+  margin-top: auto;
+}
+
+.lookup-card__call,
+.lookup-card__no-phone,
+.lookup-card__favorite {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 800;
   text-decoration: none;
 }
 
-.lookup-page__category:hover,
-.lookup-page__category--active {
-  border-color: var(--color-primary);
+.lookup-card__call {
+  flex: 1;
+  color: white;
 }
 
-.lookup-page__category strong {
-  font-size: 1.05rem;
+.lookup-card__call--production_area {
+  background: var(--color-primary);
 }
 
-.lookup-page__category span {
+.lookup-card__call--packing_facility {
+  background: #2563eb;
+}
+
+.lookup-card__no-phone {
+  flex: 1;
+  background: var(--color-bg);
   color: var(--color-text-muted);
-  line-height: 1.5;
 }
 
-@media (max-width: 720px) {
-  .lookup-page {
-    padding: 24px 16px 40px;
+.lookup-card__favorite {
+  min-width: 78px;
+  color: var(--color-text-muted);
+}
+
+.lookup-card__favorite--active {
+  border-color: var(--color-down);
+  color: var(--color-down);
+  background: var(--color-down-bg);
+}
+
+.lookup-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 22px 0 8px;
+}
+
+.lookup-pagination button {
+  min-height: 38px;
+  padding: 0 14px;
+  font-weight: 800;
+}
+
+.lookup-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lookup-state {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 18px;
+  color: var(--color-text-muted);
+}
+
+.lookup-state--error {
+  border-color: var(--color-down-border);
+  background: var(--color-down-bg);
+  color: var(--color-down);
+}
+
+.lookup-map {
+  position: sticky;
+  top: var(--navbar-h);
+  display: flex;
+  height: calc(100vh - var(--navbar-h));
+  min-width: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.lookup-map__head {
+  min-height: 68px;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lookup-map__head span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+.lookup-map__head strong {
+  font-size: 0.92rem;
+}
+
+.lookup-map__head button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.lookup-map__canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-border) 42%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--color-border) 42%, transparent) 1px, transparent 1px),
+    color-mix(in srgb, var(--color-bg) 84%, var(--color-primary) 6%);
+  background-size: 24px 24px;
+}
+
+.lookup-map__route {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0.45;
+  transform: rotate(-24deg);
+}
+
+.lookup-map__route--one {
+  left: -10%;
+  top: 28%;
+  width: 120%;
+  height: 5px;
+  background: #38bdf8;
+}
+
+.lookup-map__route--two {
+  left: 22%;
+  top: -5%;
+  width: 4px;
+  height: 120%;
+  background: var(--color-border);
+}
+
+.lookup-map__pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.lookup-map__pin--production_area {
+  background: var(--color-primary);
+}
+
+.lookup-map__pin--packing_facility {
+  border-radius: 5px;
+  background: #2563eb;
+}
+
+.lookup-map__pin--selected {
+  z-index: 2;
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-primary) 18%, transparent), 0 14px 28px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%) scale(1.45);
+}
+
+.lookup-map__popup {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-hover);
+}
+
+.lookup-map__popup span {
+  color: var(--color-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.lookup-map__popup strong,
+.lookup-map__popup p {
+  display: block;
+  margin-top: 4px;
+}
+
+.lookup-map__popup p {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.lookup-map__popup a {
+  display: inline-flex;
+  margin-top: 10px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: white;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.lookup-page__map-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: none;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: white;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 800;
+  box-shadow: var(--shadow-hover);
+}
+
+@media (max-width: 1120px) {
+  .lookup-shell {
+    grid-template-columns: minmax(0, 1fr) 320px;
   }
 
-  .lookup-page__categories {
+  .lookup-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .lookup-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .lookup-shell {
+    display: block;
+  }
+
+  .lookup-main {
+    padding: 18px 14px 78px;
+  }
+
+  .lookup-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .lookup-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lookup-controls {
+    position: static;
+  }
+
+  .lookup-tabs,
+  .lookup-status-filter {
+    overflow-x: auto;
+  }
+
+  .lookup-tabs__tab {
+    flex: 0 0 auto;
+  }
+
+  .lookup-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lookup-results-head {
+    flex-direction: column;
+  }
+
+  .lookup-map {
+    display: none;
+  }
+
+  .lookup-page__map-fab {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .lookup-page--map-open .lookup-main {
+    display: none;
+  }
+
+  .lookup-page--map-open .lookup-map {
+    position: fixed;
+    inset: var(--navbar-h) 0 0;
+    z-index: 55;
+    display: flex;
+    height: auto;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .lookup-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .lookup-card__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lookup-card__favorite {
+    width: 100%;
   }
 }
