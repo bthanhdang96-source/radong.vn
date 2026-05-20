@@ -6,6 +6,7 @@ import AssminReportPage from './pages/AssminReportPage'
 import GeneratedCommodityPricePage from './pages/GeneratedCommodityPricePage'
 import GeneratedPricePage from './pages/GeneratedPricePage'
 import HomeDashboard from './pages/HomeDashboard'
+import LookupPage from './pages/LookupPage'
 import NewsArticlePage from './pages/NewsArticlePage'
 import NewsIndexPage from './pages/NewsIndexPage'
 import PriceChainPage from './pages/PriceChainPage'
@@ -37,6 +38,8 @@ export default function App() {
           <Route path="/gia-nong-san/:commoditySlug/:locationSlug" element={<GeneratedPricePage />} />
           <Route path="/bang-gia" element={<HomeDashboard />} />
           <Route path="/chuoi-gia" element={<PriceChainPage />} />
+          <Route path="/tra-cuu" element={<LookupPage />} />
+          <Route path="/tra-cuu/:categorySlug" element={<LookupPage />} />
           <Route path="/thegioi" element={<WorldPricesPage />} />
           <Route path="/thoi-tiet-nong-nghiep" element={<AgriWeatherPage />} />
         </Routes>

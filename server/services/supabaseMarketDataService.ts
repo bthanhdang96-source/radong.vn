@@ -97,32 +97,6 @@ type CommodityTrendRow = {
   updated_at: string
 }
 
-type PriceChainSummaryRow = {
-  commodity_slug: string
-  farm_gate_vnd: number | null
-  wholesale_vnd: number | null
-  retail_vnd: number | null
-  export_vnd: number | null
-  export_usd: number | null
-  world_exchange: string | null
-  world_usd_kg: number | null
-  retail_vs_farmgate_pct: number | null
-  export_vs_farmgate_pct: number | null
-  domestic_updated_at: string | null
-  world_updated_at: string | null
-  summary_updated_at: string | null
-}
-
-type RegionalPriceMapRow = {
-  commodity_slug: string
-  price_type: string
-  province_code: string
-  avg_price: number
-  vs_national_avg_pct: number | null
-  data_points: number
-  latest_record: string
-}
-
 type RawCrawlLogRow = {
   source_name?: string
   source?: string
@@ -601,48 +575,6 @@ async function getAllCommodityTrendRows() {
   return data as CommodityTrendRow[]
 }
 
-async function getPriceChainSummaryRows() {
-  const client = getSupabaseReadClient()
-  if (!client) {
-    return null
-  }
-
-  const { data, error } = await client
-    .from('price_chain_summary')
-    .select(
-      'commodity_slug, farm_gate_vnd, wholesale_vnd, retail_vnd, export_vnd, export_usd, world_exchange, world_usd_kg, retail_vs_farmgate_pct, export_vs_farmgate_pct, domestic_updated_at, world_updated_at, summary_updated_at',
-    )
-    .order('commodity_slug', { ascending: true })
-
-  if (error) {
-    throw error
-  }
-
-  return data as PriceChainSummaryRow[]
-}
-
-async function getRetailRegionalPriceRows() {
-  const client = getSupabaseReadClient()
-  if (!client) {
-    return null
-  }
-
-  const { data, error } = await client
-    .from('regional_price_map')
-    .select('commodity_slug, price_type, province_code, avg_price, vs_national_avg_pct, data_points, latest_record')
-    .eq('price_type', 'retail')
-
-  if (error && isColumnMissing(error, 'price_type')) {
-    return null
-  }
-
-  if (error) {
-    throw error
-  }
-
-  return data as RegionalPriceMapRow[]
-}
-
 async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
   const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
   const requestedSourceIds = resolveSourceSnapshotIds(sourceIds)
@@ -1114,86 +1046,6 @@ function buildFallbackPriceChainResponse(error: string): VnPriceChainResponse {
     sources: [],
     errors: [error],
     data: [],
-  }
-}
-
-function buildPriceChainResponse(
-  summaryRows: PriceChainSummaryRow[],
-  regionalRows: RegionalPriceMapRow[],
-  trendRows: CommodityTrendRow[],
-  sourceSnapshots: SourceSnapshot[],
-): VnPriceChainResponse {
-  const trendByCommodity = buildPriceChainTrendLookup(trendRows)
-  const retailRegionsByCommodity = new Map<string, PriceChainRetailRegion[]>()
-
-  for (const row of regionalRows) {
-    const existing = retailRegionsByCommodity.get(row.commodity_slug) ?? []
-    existing.push({
-      provinceCode: row.province_code,
-      region: getRegionLabelFromObservation(row.province_code, null, null),
-      avgPrice: roundNumber(row.avg_price),
-      vsNationalAvgPct:
-        typeof row.vs_national_avg_pct === 'number' && Number.isFinite(row.vs_national_avg_pct)
-          ? roundNumber(row.vs_national_avg_pct - 100)
-          : null,
-      dataPoints: row.data_points,
-    })
-    retailRegionsByCommodity.set(row.commodity_slug, existing)
-  }
-
-  for (const regions of retailRegionsByCommodity.values()) {
-    regions.sort((left, right) => right.avgPrice - left.avgPrice)
-  }
-
-  const data = summaryRows
-    .map(row => {
-      const meta = VN_COMMODITY_META[row.commodity_slug] ?? {
-        commodityName: row.commodity_slug,
-        category: 'Khác',
-        unit: 'VND/kg',
-      }
-      const trend = trendByCommodity.get(row.commodity_slug)
-      const updatedAtCandidates = [row.domestic_updated_at, row.world_updated_at, trend?.updated_at].filter(
-        (value): value is string => typeof value === 'string' && value.length > 0,
-      )
-      const updatedAt = updatedAtCandidates.sort().at(-1) ?? new Date().toISOString()
-
-      return {
-        commodity: row.commodity_slug,
-        commodityName: meta.commodityName,
-        category: meta.category,
-        unit: meta.unit,
-        farmGateVnd: row.farm_gate_vnd,
-        wholesaleVnd: row.wholesale_vnd,
-        retailVnd: row.retail_vnd,
-        exportVnd: row.export_vnd,
-        exportUsd: row.export_usd,
-        worldUsdKg: row.world_usd_kg,
-        worldExchange: row.world_exchange,
-        retailVsFarmgatePct: row.retail_vs_farmgate_pct,
-        exportVsFarmgatePct: row.export_vs_farmgate_pct,
-        trend7dPct: trend?.trend_7d_pct ?? null,
-        updatedAt,
-        retailRegions: retailRegionsByCommodity.get(row.commodity_slug) ?? [],
-      } satisfies PriceChainItem
-    })
-    .sort((left, right) => {
-      const leftScore = left.retailVnd ?? left.wholesaleVnd ?? left.farmGateVnd ?? 0
-      const rightScore = right.retailVnd ?? right.wholesaleVnd ?? right.farmGateVnd ?? 0
-      return rightScore - leftScore
-    })
-
-  const lastUpdated = data.reduce(
-    (latest, item) => (item.updatedAt > latest ? item.updatedAt : latest),
-    summaryRows[0]?.summary_updated_at ?? new Date().toISOString(),
-  )
-
-  return {
-    status: 'live',
-    lastUpdated,
-    sources: sourceSnapshots,
-    errors: [],
-    data,
   }
 }
 

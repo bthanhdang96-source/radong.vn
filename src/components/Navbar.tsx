@@ -2,15 +2,31 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './Navbar.css'
 
-const NAV_LINKS = [
+type NavLink = {
+  label: string
+  to: string
+  matches: string[]
+  children?: Array<{ label: string; to: string }>
+}
+
+const NAV_LINKS: NavLink[] = [
   { label: 'Tin tức', to: '/', matches: ['/', '/tin-tuc/'] },
   { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia', '/gia-nong-san/'] },
   { label: 'Chuỗi giá', to: '/chuoi-gia', matches: ['/chuoi-gia'] },
+  {
+    label: 'Tra cứu',
+    to: '/tra-cuu',
+    matches: ['/tra-cuu'],
+    children: [
+      { label: 'Vùng trồng', to: '/tra-cuu/vung-trong' },
+      { label: 'Cơ sở đóng gói', to: '/tra-cuu/co-so-dong-goi' },
+    ],
+  },
   { label: 'Thế giới', to: '/thegioi', matches: ['/thegioi'] },
   { label: 'Thời tiết', to: '/thoi-tiet-nong-nghiep', matches: ['/thoi-tiet-nong-nghiep'] },
 ]
 
-function isLinkActive(pathname: string, link: (typeof NAV_LINKS)[number]) {
+function isLinkActive(pathname: string, link: NavLink) {
   if (link.to === '/') {
     return pathname === '/' || pathname.startsWith('/tin-tuc/')
   }
@@ -84,9 +100,20 @@ export default function Navbar() {
           {NAV_LINKS.map(link => {
             const isActive = isLinkActive(location.pathname, link)
             return (
-              <Link key={link.label} to={link.to} className={`navbar__link${isActive ? ' navbar__link--active' : ''}`}>
-                {link.label}
-              </Link>
+              <div key={link.label} className="navbar__nav-item">
+                <Link to={link.to} className={`navbar__link${isActive ? ' navbar__link--active' : ''}`}>
+                  {link.label}
+                </Link>
+                {link.children ? (
+                  <div className="navbar__submenu">
+                    {link.children.map(child => (
+                      <Link key={child.to} to={child.to} className="navbar__submenu-link">
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </nav>
@@ -129,14 +156,25 @@ export default function Navbar() {
           {NAV_LINKS.map(link => {
             const isActive = isLinkActive(location.pathname, link)
             return (
-              <Link
-                key={link.label}
-                to={link.to}
-                className={`navbar__mobile-link${isActive ? ' navbar__mobile-link--active' : ''}`}
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
+              <div key={link.label} className="navbar__mobile-group">
+                <Link
+                  to={link.to}
+                  className={`navbar__mobile-link${isActive ? ' navbar__mobile-link--active' : ''}`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+                {link.children?.map(child => (
+                  <Link
+                    key={child.to}
+                    to={child.to}
+                    className={`navbar__mobile-link navbar__mobile-link--child${location.pathname === child.to ? ' navbar__mobile-link--active' : ''}`}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {child.label}
+                  </Link>
+                ))}
+              </div>
             )
           })}
         </div>
