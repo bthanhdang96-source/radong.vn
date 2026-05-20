@@ -450,10 +450,6 @@ export default function NewsIndexPage() {
         <div className="news-index__hero-frame">
           <div className="news-index__hero-topbar">
             <span className="news-index__eyebrow">Hub tin tức nông sản</span>
-            <div className="news-index__hero-stats" aria-label="Tổng quan nội dung">
-              <span>{payload?.items.length ?? 0} mục đang hiển thị</span>
-              <span>{modules.length} nhóm truy cập nhanh</span>
-            </div>
           </div>
 
           <div className="news-index__tabs-shell">
@@ -477,10 +473,10 @@ export default function NewsIndexPage() {
             </div>
 
             <div className="news-index__search-group">
-              <label htmlFor="news-query">Tìm trong danh sách đang xem</label>
               <input
                 id="news-query"
                 type="search"
+                aria-label="Tìm trong danh sách đang xem"
                 placeholder="Tìm theo tiêu đề, mô tả, nhóm nội dung..."
                 value={searchQuery}
                 onChange={event => setSearchQuery(event.target.value)}
@@ -515,9 +511,15 @@ export default function NewsIndexPage() {
               <h1>{getRouteHeadline(currentFamilyLabel, currentPriceGroupLabel)}</h1>
               <p>{getRouteDescription(currentFamilyLabel, currentPriceGroupLabel)}</p>
             </div>
-            <p className="news-index__hero-copy-meta">
-              {loading ? 'Đang nạp dữ liệu...' : `${filteredItems.length} mục phù hợp trong ngữ cảnh hiện tại`}
-            </p>
+            <div className="news-index__hero-copy-meta">
+              <div className="news-index__hero-stats" aria-label="Tổng quan nội dung">
+                <span>{payload?.items.length ?? 0} mục đang hiển thị</span>
+                <span>{modules.length} nhóm truy cập nhanh</span>
+              </div>
+              <p style={{ marginTop: '0.65rem' }}>
+                {loading ? 'Đang nạp dữ liệu...' : `${filteredItems.length} mục phù hợp trong ngữ cảnh hiện tại`}
+              </p>
+            </div>
           </div>
 
           {hero ? (
