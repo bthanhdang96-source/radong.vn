@@ -10,6 +10,31 @@ type ExportRegistryCategory = {
   latestCrawledAt: string | null
 }
 
+type ExportRegistryRunRow = {
+  id: string
+  registry_type: ExportRegistryType | 'all'
+  source_url: string
+  started_at: string
+  finished_at: string | null
+  status: 'running' | 'success' | 'partial' | 'failed'
+  page_count: number
+  item_count: number
+  inserted_count: number
+  updated_count: number
+  error_message: string | null
+  metadata: {
+    uniqueItemCount?: number
+    duplicateItemCount?: number
+    sources?: Array<{
+      registryType: ExportRegistryType
+      sourceUrl: string
+      pageCount: number
+      itemCount: number
+      errors: string[]
+    }>
+  } | null
+}
+
 const SUPABASE_BATCH_SIZE = 100
 
 function chunkArray<T>(items: T[], size: number) {
@@ -196,29 +221,64 @@ export async function getExportRegistryCategories(): Promise<ExportRegistryCateg
     return defaults
   }
 
+  const categories: ExportRegistryCategory[] = []
+  for (const item of defaults) {
+    const countResponse = await client
+      .from('export_registry_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('registry_type', item.key)
+
+    if (countResponse.error) {
+      throw countResponse.error
+    }
+
+    const latestResponse = await client
+      .from('export_registry_entries')
+      .select('crawled_at')
+      .eq('registry_type', item.key)
+      .order('crawled_at', { ascending: false })
+      .limit(1)
+
+    if (latestResponse.error) {
+      throw latestResponse.error
+    }
+
+    const latest = (latestResponse.data ?? [])[0] as { crawled_at?: string } | undefined
+    categories.push({
+      ...item,
+      count: countResponse.count ?? 0,
+      latestCrawledAt: latest?.crawled_at ?? null,
+    })
+  }
+
+  return categories
+}
+
+export async function getExportRegistryHealth() {
+  const categories = await getExportRegistryCategories()
+  const client = getSupabaseAdminClient()
+
+  if (!client) {
+    return {
+      categories,
+      latestRun: null,
+    }
+  }
+
   const { data, error } = await client
-    .from('export_registry_entries')
-    .select('registry_type, crawled_at')
-    .order('crawled_at', { ascending: false })
-    .limit(20000)
+    .from('export_registry_crawl_runs')
+    .select(
+      'id, registry_type, source_url, started_at, finished_at, status, page_count, item_count, inserted_count, updated_count, error_message, metadata',
+    )
+    .order('started_at', { ascending: false })
+    .limit(1)
 
   if (error) {
     throw error
   }
 
-  const byType = new Map<ExportRegistryType, { count: number; latestCrawledAt: string | null }>()
-  for (const row of (data ?? []) as Array<{ registry_type: ExportRegistryType; crawled_at: string }>) {
-    const current = byType.get(row.registry_type) ?? { count: 0, latestCrawledAt: null }
-    current.count += 1
-    if (!current.latestCrawledAt || row.crawled_at > current.latestCrawledAt) {
-      current.latestCrawledAt = row.crawled_at
-    }
-    byType.set(row.registry_type, current)
+  return {
+    categories,
+    latestRun: ((data ?? []) as ExportRegistryRunRow[])[0] ?? null,
   }
-
-  return defaults.map(item => ({
-    ...item,
-    count: byType.get(item.key)?.count ?? 0,
-    latestCrawledAt: byType.get(item.key)?.latestCrawledAt ?? null,
-  }))
 }

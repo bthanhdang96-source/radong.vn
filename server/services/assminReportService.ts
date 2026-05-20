@@ -9,6 +9,7 @@ import type {
 } from './assminReportTypes.js'
 import { getCrawlerScheduleConfig } from './crawlerScheduler.js'
 import { readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
+import { getExportRegistryHealth } from './exportRegistry/service.js'
 import { getNewsSchedulerConfig } from './news/scheduler.js'
 import { getNewsHealth, getNewsRuns, getNewsSources } from './news/service.js'
 import { getSupabaseRuntimeStatus } from './supabaseClient.js'
@@ -20,6 +21,7 @@ const FRESH_SOURCE_WINDOW_MS = 18 * 60 * 60 * 1000
 const AGING_SOURCE_WINDOW_MS = 36 * 60 * 60 * 1000
 const HIGH_LATENCY_MS = 5_000
 const MIN_WEATHER_HORIZON_DAYS = 3
+const EXPORT_REGISTRY_STALE_MS = 36 * 60 * 60 * 1000
 
 const WEATHER_PROVIDER_META: Record<WeatherProviderId, { label: string; url: string }> = {
   open_meteo: {
@@ -330,6 +332,104 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
   })
 }
 
+function buildExportRegistrySourceRows(health: Awaited<ReturnType<typeof getExportRegistryHealth>>) {
+  const sourceMeta = new Map(
+    health.latestRun?.metadata?.sources?.map(source => [source.registryType, source]) ?? [],
+  )
+
+  return health.categories.map<ReportSourceRow>(category => {
+    const warnings: ReportWarning[] = []
+    const freshnessLabel = toFreshnessLabel(category.latestCrawledAt)
+    const source = sourceMeta.get(category.key)
+
+    if (category.count === 0) {
+      warnings.push(makeWarning('export_registry_empty', 'critical', `${category.label} chua co du lieu trong Supabase.`))
+    }
+
+    if (!category.latestCrawledAt) {
+      warnings.push(makeWarning('export_registry_no_crawl', 'critical', `${category.label} chua co timestamp crawl.`))
+    } else if (Date.now() - new Date(category.latestCrawledAt).getTime() > EXPORT_REGISTRY_STALE_MS) {
+      warnings.push(
+        makeWarning('export_registry_stale', 'warning', `${category.label} da cu tu ${formatTimestamp(category.latestCrawledAt)}.`),
+      )
+    }
+
+    if (source?.errors?.length) {
+      warnings.push(makeWarning('export_registry_source_errors', 'warning', `${category.label} co ${source.errors.length} loi trong run gan nhat.`))
+    }
+
+    return {
+      key: `export-registry-${category.key}`,
+      label: category.label,
+      group: 'export_registry',
+      kind: 'crawler',
+      status: maxSeverity(['ok', ...warnings.map(warning => warning.severity)]),
+      freshnessLabel,
+      lastUpdated: category.latestCrawledAt,
+      checkedAt: health.latestRun?.finished_at ?? health.latestRun?.started_at ?? null,
+      sourceUrl: source?.sourceUrl ?? null,
+      details: [
+        `Ban ghi: ${category.count}`,
+        `Trang crawl gan nhat: ${source?.pageCount ?? '--'}`,
+        `Dong nguon gan nhat: ${source?.itemCount ?? '--'}`,
+      ],
+      warnings,
+    }
+  })
+}
+
+function buildExportRegistryJob(
+  health: Awaited<ReturnType<typeof getExportRegistryHealth>>,
+  crawlerSchedule: ReturnType<typeof getCrawlerScheduleConfig>,
+): ReportJobRow {
+  const warnings: ReportWarning[] = []
+  const latestRun = health.latestRun
+  const lastUpdated = latestRun?.finished_at ?? latestRun?.started_at ?? null
+
+  if (!crawlerSchedule.exportRegistryEnabled) {
+    warnings.push(makeWarning('export_registry_scheduler_disabled', 'warning', 'Export registry crawler hien dang tat.'))
+  }
+
+  if (!latestRun) {
+    warnings.push(makeWarning('export_registry_no_run', 'critical', 'Export registry crawler chua co crawl run.'))
+  } else {
+    if (latestRun.status === 'failed') {
+      warnings.push(makeWarning('export_registry_run_failed', 'critical', `Run gan nhat that bai: ${latestRun.error_message ?? 'khong ro loi'}.`))
+    } else if (latestRun.status === 'partial') {
+      warnings.push(makeWarning('export_registry_run_partial', 'warning', 'Run gan nhat o trang thai partial.'))
+    } else if (latestRun.status === 'running') {
+      warnings.push(makeWarning('export_registry_run_running', 'warning', 'Export registry crawler dang chay.'))
+    }
+
+    if (lastUpdated && Date.now() - new Date(lastUpdated).getTime() > EXPORT_REGISTRY_STALE_MS) {
+      warnings.push(makeWarning('export_registry_run_stale', 'warning', `Run gan nhat da cu tu ${formatTimestamp(lastUpdated)}.`))
+    }
+  }
+
+  const details = latestRun
+    ? [
+        `Run: ${latestRun.status}`,
+        `Nguon: ${latestRun.item_count}`,
+        `Unique: ${latestRun.metadata?.uniqueItemCount ?? '--'}`,
+        `Trung: ${latestRun.metadata?.duplicateItemCount ?? '--'}`,
+        `Inserted: ${latestRun.inserted_count}`,
+        `Updated: ${latestRun.updated_count}`,
+      ]
+    : ['Chua co run']
+
+  return {
+    key: 'export-registry-crawl',
+    label: 'Export Registry Crawl',
+    group: 'scheduler',
+    status: schedulerStatus(crawlerSchedule.exportRegistryEnabled, lastUpdated, warnings),
+    enabled: crawlerSchedule.exportRegistryEnabled,
+    cron: crawlerSchedule.exportRegistryCron,
+    lastUpdated,
+    details,
+    warnings,
+  }
+}
+
 function buildDatasetJobs(
   vnPrices: Awaited<ReturnType<typeof getVnPrices>>,
   priceChain: Awaited<ReturnType<typeof getVnPriceChainResponse>>,
@@ -591,6 +691,7 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     worldPricesResult,
     weatherResult,
     shopeeSessionResult,
+    exportRegistryHealthResult,
   ] = await Promise.allSettled([
     getNewsSources(),
     getNewsHealth(),
@@ -601,6 +702,7 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     getWorldPricesResponse(false),
     getAgriWeather(null),
     readShopeeSessionMetadata(),
+    getExportRegistryHealth(),
   ])
 
   const sources: ReportSourceRow[] = []
@@ -628,6 +730,12 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     globalWarnings.push(makeWarning('weather_report_unavailable', 'warning', 'Không thể tải trạng thái weather providers.'))
   }
 
+  if (exportRegistryHealthResult.status === 'fulfilled') {
+    sources.push(...buildExportRegistrySourceRows(exportRegistryHealthResult.value))
+  } else {
+    globalWarnings.push(makeWarning('export_registry_report_unavailable', 'warning', 'Khong the tai trang thai export registry.'))
+  }
+
   if (
     newsSourcesResult.status === 'fulfilled' &&
     newsRunsResult.status === 'fulfilled' &&
@@ -640,6 +748,10 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     }))
   } else {
     globalWarnings.push(makeWarning('scheduler_report_partial', 'warning', 'Không thể dựng đầy đủ scheduler/runtime report.'))
+  }
+
+  if (exportRegistryHealthResult.status === 'fulfilled') {
+    jobs.push(buildExportRegistryJob(exportRegistryHealthResult.value, getCrawlerScheduleConfig()))
   }
 
   if (

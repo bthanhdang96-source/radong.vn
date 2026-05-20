@@ -7,6 +7,8 @@ import { crawlCustoms } from './crawlers/customsCrawler.js'
 import { crawlShopee } from './crawlers/shopeeCrawler.js'
 import type { CrawlerResult } from './crawlers/types.js'
 import { ensureFreshShopeeSession, readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
+import { crawlExportRegistry } from './exportRegistry/crawler.js'
+import { syncExportRegistryResultsToSupabase } from './exportRegistry/service.js'
 import { syncCrawlerResultToSupabase } from './ingestion/sourceSync.js'
 import { hasSupabaseAdminConfig } from './supabaseClient.js'
 
@@ -30,6 +32,10 @@ type CrawlerScheduleConfig = {
   customsEnabled: boolean
   customsCron: string
   customsDryRun: boolean
+  exportRegistryEnabled: boolean
+  exportRegistryCron: string
+  exportRegistryDryRun: boolean
+  exportRegistryMaxPagesPerType: number
   durianExportEnabled: boolean
   durianExportCron: string
   durianExportDryRun: boolean
@@ -40,6 +46,7 @@ const DEFAULT_COOP_CRAWL_CRON = '20 6,14 * * *'
 const DEFAULT_SHOPEE_REFRESH_CRON = '0 */6 * * *'
 const DEFAULT_SHOPEE_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_CUSTOMS_CRON = '0 8 * * 3'
+const DEFAULT_EXPORT_REGISTRY_CRON = '30 2 * * *'
 const DEFAULT_DURIAN_EXPORT_CRON = '0 9 * * 3'
 const DEFAULT_SHOPEE_BLOCK_COOLDOWN_MINUTES = 180
 
@@ -124,6 +131,10 @@ export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
     customsEnabled: parseBoolean(process.env.CUSTOMS_SCHEDULER_ENABLED, true),
     customsCron: process.env.CUSTOMS_CRAWL_CRON?.trim() || DEFAULT_CUSTOMS_CRON,
     customsDryRun: parseBoolean(process.env.CUSTOMS_SCHEDULE_DRY_RUN, false),
+    exportRegistryEnabled: parseBoolean(process.env.EXPORT_REGISTRY_CRAWL_ENABLED, true),
+    exportRegistryCron: process.env.EXPORT_REGISTRY_CRAWL_CRON?.trim() || DEFAULT_EXPORT_REGISTRY_CRON,
+    exportRegistryDryRun: parseBoolean(process.env.EXPORT_REGISTRY_SCHEDULE_DRY_RUN, false),
+    exportRegistryMaxPagesPerType: parsePositiveInteger(process.env.EXPORT_REGISTRY_MAX_PAGES_PER_TYPE, 0),
     durianExportEnabled: parseBoolean(process.env.DURIAN_EXPORT_ENABLED, false),
     durianExportCron: process.env.DURIAN_EXPORT_CRON?.trim() || DEFAULT_DURIAN_EXPORT_CRON,
     durianExportDryRun: parseBoolean(process.env.DURIAN_EXPORT_SCHEDULE_DRY_RUN, false),
@@ -259,6 +270,31 @@ export async function runCustomsCrawlJob(trigger = 'manual') {
   })
 }
 
+export async function runExportRegistryCrawlJob(trigger = 'manual') {
+  const config = getCrawlerScheduleConfig()
+  await runExclusive('export-registry-crawl', async () => {
+    console.log(`[Export Registry Crawl] started (${trigger})`)
+    const results = await crawlExportRegistry({
+      maxPagesPerType: config.exportRegistryMaxPagesPerType > 0 ? config.exportRegistryMaxPagesPerType : undefined,
+    })
+    const itemCount = results.reduce((sum, result) => sum + result.items.length, 0)
+    const pageCount = results.reduce((sum, result) => sum + result.pageCount, 0)
+    console.log(`[Export Registry Crawl] pages=${pageCount} items=${itemCount}`)
+
+    if (config.exportRegistryDryRun || !hasSupabaseAdminConfig) {
+      console.log(
+        `[Export Registry Crawl] sync=${config.exportRegistryDryRun ? 'skipped (dry-run)' : 'skipped (missing service role key)'}`,
+      )
+      return
+    }
+
+    const sync = await syncExportRegistryResultsToSupabase(results)
+    console.log(
+      `[Export Registry Crawl] sync run=${sync.runId} items=${sync.itemCount} inserted=${sync.insertedCount} updated=${sync.updatedCount}`,
+    )
+  })
+}
+
 export async function runDurianExportCrawlJob(trigger = 'manual') {
   const config = getCrawlerScheduleConfig()
   await runExclusive('durian-export-crawl', async () => {
@@ -313,6 +349,14 @@ export function registerCrawlerSchedules() {
     registerSchedule('customs-crawl', config.customsCron, () => runCustomsCrawlJob(`cron:${config.customsCron}`))
   } else {
     console.log('[Crawler Scheduler] Customs crawl schedule is disabled')
+  }
+
+  if (config.exportRegistryEnabled) {
+    registerSchedule('export-registry-crawl', config.exportRegistryCron, () =>
+      runExportRegistryCrawlJob(`cron:${config.exportRegistryCron}`),
+    )
+  } else {
+    console.log('[Crawler Scheduler] Export registry crawl schedule is disabled')
   }
 
   if (config.durianExportEnabled) {

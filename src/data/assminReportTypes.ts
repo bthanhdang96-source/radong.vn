@@ -10,7 +10,7 @@ export interface ReportWarning {
 export interface ReportSourceRow {
   key: string
   label: string
-  group: 'news' | 'vn_prices' | 'weather'
+  group: 'news' | 'vn_prices' | 'weather' | 'export_registry'
   kind: 'feed' | 'crawler' | 'provider'
   status: ReportSeverity
   freshnessLabel: ReportFreshnessLabel

@@ -43,6 +43,8 @@ function groupLabel(value: ReportSourceRow['group'] | ReportJobRow['group']) {
       return 'Nguồn giá Việt Nam'
     case 'weather':
       return 'Weather providers'
+    case 'export_registry':
+      return 'Tra cứu xuất khẩu'
     case 'scheduler':
       return 'Scheduler / runtime'
     case 'dataset':
@@ -326,6 +328,7 @@ export default function AssminReportPage() {
           <JobTable rows={report.jobs} />
           <SourceTable title={groupLabel('news')} rows={sourcesByGroup.news ?? []} />
           <SourceTable title={groupLabel('vn_prices')} rows={sourcesByGroup.vn_prices ?? []} />
+          <SourceTable title={groupLabel('export_registry')} rows={sourcesByGroup.export_registry ?? []} />
           <SourceTable title={groupLabel('weather')} rows={sourcesByGroup.weather ?? []} />
 
           <section className="assmin__panel">
