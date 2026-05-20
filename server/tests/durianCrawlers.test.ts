@@ -1,8 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseAgroinfoDurianExportText } from '../services/crawlers/agroinfoDurianExportCrawler.js'
+import { parseAgroinfoFruitReportText } from '../services/crawlers/agroinfoFruitReportCrawler.js'
 import { parseChogiaDurianHtml } from '../services/crawlers/chogiaDurianCrawler.js'
 import { parseDaklakSctDurianHtml } from '../services/crawlers/daklakSctDurianCrawler.js'
+import { parseGiahotieuAgricultureHtml } from '../services/crawlers/giahotieuAgricultureCrawler.js'
+import { parseKimhungTeaHtml } from '../services/crawlers/kimhungTeaCrawler.js'
 import { parseVietnambizDurianArticle } from '../services/crawlers/vietnambizDurianCrawler.js'
 import { buildObservationDedupeKey } from '../services/ingestion/observationRules.js'
 
@@ -131,6 +134,103 @@ test('parseAgroinfoDurianExportText extracts Vietnam proxy value from ordered co
   assert.equal(parseAgroinfoDurianExportText(text), 4561)
 })
 
+test('parseGiahotieuAgricultureHtml parses cassava provinces and midpoint correctly', () => {
+  const html = `
+    <html>
+      <body>
+        <h1>Gia nong san hom nay</h1>
+        <table>
+          <tr>
+            <th>Khu Vuc</th>
+            <th>Gia san tuoi hom nay</th>
+            <th>Tang/Giam</th>
+          </tr>
+          <tr>
+            <td>Tay Ninh</td>
+            <td>3.250 - 3.350</td>
+            <td>+50</td>
+          </tr>
+          <tr>
+            <td>Gia Lai</td>
+            <td>2.800 - 3.000</td>
+            <td>-</td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const parsed = parseGiahotieuAgricultureHtml(html, '2026-05-19T01:00:00.000Z')
+  assert.equal(parsed.items.length, 2)
+  assert.deepEqual(
+    parsed.items.map(item => ({ region: item.region, price: item.price, priceType: item.priceType })),
+    [
+      { region: 'Tay Ninh', price: 3300, priceType: 'farm_gate' },
+      { region: 'Gia Lai', price: 2900, priceType: 'farm_gate' },
+    ],
+  )
+})
+
+test('parseKimhungTeaHtml parses fresh and dry tea tables', () => {
+  const html = `
+    <html>
+      <body>
+        <h1>Gia che hom nay</h1>
+        <table>
+          <tr>
+            <th>Phan loai</th>
+            <th>Gia/kg</th>
+          </tr>
+          <tr>
+            <td>Che bup tuoi (che Shan Tuyet)</td>
+            <td>4.500 - 8.000</td>
+          </tr>
+          <tr>
+            <td>Cup che Kim Tuyen</td>
+            <td>10.000</td>
+          </tr>
+        </table>
+        <table>
+          <tr>
+            <th>Ten loai tra</th>
+            <th>Gia tien 1kg</th>
+          </tr>
+          <tr>
+            <td>Tra Moc Cau dac biet</td>
+            <td>250.000 - 320.000</td>
+          </tr>
+          <tr>
+            <td>Tra Dinh thuong hang</td>
+            <td>2.400.000 - 3.400.000</td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const parsed = parseKimhungTeaHtml(html, '2026-05-19T01:00:00.000Z')
+  assert.equal(parsed.items.length, 4)
+  assert.equal(parsed.items.filter(item => item.priceType === 'farm_gate').length, 2)
+  assert.equal(parsed.items.filter(item => item.priceType === 'wholesale').length, 2)
+})
+
+test('parseAgroinfoFruitReportText preserves coconut chuc unit and dragon fruit kg unit', () => {
+  const text = `
+    Gia thanh long ruot trang trung binh dat 15.167 VND/kg, giam 167 VND/kg.
+    Tai Viet Nam, gia dua tuoi o Dong bang song Cuu Long da dat 180.000-210.000 VND/chuc (12 qua).
+  `
+
+  const parsed = parseAgroinfoFruitReportText(text, '2026-05-19T01:00:00.000Z')
+  const dragonFruit = parsed.items.find(item => item.commodity === 'thanh-long')
+  const coconut = parsed.items.find(item => item.commodity === 'dua-tuoi')
+
+  assert.equal(dragonFruit?.price, 15167)
+  assert.equal(dragonFruit?.unit, 'VND/kg')
+  assert.equal(coconut?.price, 195000)
+  assert.equal(coconut?.unit, 'VND/chuc')
+  assert.equal(coconut?.normalizedUnitKey, 'chuc')
+})
+
 test('buildObservationDedupeKey keeps durian varieties and grades separate', () => {
   const common = {
     sourceName: 'chogia',
@@ -160,4 +260,39 @@ test('buildObservationDedupeKey keeps durian varieties and grades separate', () 
   })
 
   assert.notEqual(ri6Key, thaiKey)
+})
+
+test('buildObservationDedupeKey keeps coconut unit clusters separate', () => {
+  const common = {
+    sourceName: 'agroinfo_fruit_report',
+    commoditySlug: 'dua-tuoi',
+    priceType: 'farm_gate',
+    provinceCode: null,
+    regionLabel: 'Dong bang song Cuu Long',
+    variety: null,
+    qualityGrade: null,
+    marketName: 'AGROINFO fruit report',
+    articleTitle: 'Bao cao rau qua',
+    sourceUrl: 'https://thitruongnongsan.gov.vn/report.pdf',
+    countryCode: 'VNM',
+    priceVnd: 195000,
+    recordedAt: '2026-05-19T01:00:00.000Z',
+    explicitKey: null,
+    extra: null,
+  } as const
+
+  const perFruitKey = buildObservationDedupeKey({
+    ...common,
+    unit: 'VND/trai',
+    normalizedUnitKey: 'trai',
+    unitQuantity: 12,
+  })
+  const perChucKey = buildObservationDedupeKey({
+    ...common,
+    unit: 'VND/chuc',
+    normalizedUnitKey: 'chuc',
+    unitQuantity: 1,
+  })
+
+  assert.notEqual(perFruitKey, perChucKey)
 })

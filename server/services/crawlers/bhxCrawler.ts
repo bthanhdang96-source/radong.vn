@@ -9,8 +9,9 @@ import {
   type BhxApiSession,
   type BhxResolvedRegion,
 } from './bhxBrowser.js'
-import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
-import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
+import { failedSource, finalizeSourceBatch } from './common.js'
+import { matchRetailCommodity } from './retailCommodityMatcher.js'
+import { parseRetailUnitPricing } from './retailUnitPricing.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
 
 type BhxApiPriceOption = {
@@ -306,37 +307,25 @@ async function resolveBhxRegions(regionCodes: string[], session?: BhxApiSession 
   }
 }
 
-function getQuantityKg(product: BhxApiProduct, priceOption: BhxApiPriceOption) {
-  if (typeof priceOption.netUnitValue === 'number' && Number.isFinite(priceOption.netUnitValue) && priceOption.netUnitValue > 0) {
-    return priceOption.netUnitValue
-  }
-
-  if (foldText(product.unit ?? '') === 'kg') {
-    return 1
-  }
-
-  const candidates = [product.canonical, product.unit, product.fullName]
-  for (const candidate of candidates) {
-    const quantity = parseQuantityKgFromText(candidate)
-    if (quantity && Number.isFinite(quantity) && quantity > 0) {
-      return quantity
-    }
-  }
-
-  return null
-}
-
-function getPricePerKg(product: BhxApiProduct) {
+function getRetailPricing(product: BhxApiProduct, commoditySlug: string) {
   for (const priceOption of product.productPrices ?? []) {
-    const quantityKg = getQuantityKg(product, priceOption)
-    if (!quantityKg || !priceOption.price || !Number.isFinite(priceOption.price) || priceOption.price <= 0) {
+    if (!priceOption.price || !Number.isFinite(priceOption.price) || priceOption.price <= 0) {
       continue
     }
 
-    return {
-      pricePerKg: roundNumber(priceOption.price / quantityKg),
-      quantityKg,
-      priceOriginalVnd: priceOption.price,
+    const pricing = parseRetailUnitPricing(
+      commoditySlug,
+      priceOption.price,
+      typeof priceOption.netUnitValue === 'number' && Number.isFinite(priceOption.netUnitValue) && priceOption.netUnitValue > 0
+        ? `${priceOption.netUnitValue} kg`
+        : null,
+      product.unit,
+      product.canonical,
+      product.fullName,
+      product.name,
+    )
+    if (pricing) {
+      return pricing
     }
   }
 
@@ -377,7 +366,7 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
     return null
   }
 
-  const pricing = getPricePerKg(product)
+  const pricing = getRetailPricing(product, commodity.slug)
   if (!pricing) {
     return null
   }
@@ -395,8 +384,11 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
     commodityName: commodity.commodityName,
     category: commodity.category,
     region: region.nameVi,
-    price: pricing.pricePerKg,
-    unit: 'VND/kg',
+    price: pricing.price,
+    unit: pricing.unit,
+    unitRaw: pricing.unitRaw,
+    normalizedUnitKey: pricing.normalizedUnitKey,
+    unitQuantity: pricing.unitQuantity,
     change: null,
     changePct: null,
     timestamp: new Date().toISOString(),
@@ -407,15 +399,14 @@ function toCrawledItem(product: BhxApiProduct, region: BhxResolvedRegion, catego
     marketName: 'Bach Hoa Xanh',
     articleTitle: productName,
     countryCode: 'VNM',
-    dedupeKey: `bhx:${region.code}:${productId}:${pricing.quantityKg}`,
+    dedupeKey: `bhx:${region.code}:${productId}:${pricing.normalizedUnitKey}:${pricing.unitQuantity ?? pricing.unit}`,
     previousPrice: null,
     extra: {
       categoryUrl,
       regionCode: region.code,
       productId,
       productCode: product.productCode ?? null,
-      quantityKg: pricing.quantityKg,
-      priceOriginalVnd: pricing.priceOriginalVnd,
+      ...pricing.extra,
       brandName: product.brandName ?? null,
       unitRaw: product.unit ?? null,
       canonical: product.canonical ?? null,

@@ -20,16 +20,16 @@ function formatDateTime(value: string) {
   })
 }
 
-function formatCurrency(value: number) {
-  return `${Math.round(value).toLocaleString('vi-VN')} đồng/kg`
+function formatCurrency(value: number, unit = 'VND/kg') {
+  return `${Math.round(value).toLocaleString('vi-VN')} ${unit.replace(/^VND\//, 'đồng/')}`
 }
 
 function formatPercent(value: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
-function formatChainValue(value: number | null) {
-  return value === null ? '--' : formatCurrency(value)
+function formatChainValue(value: number | null, unit = 'VND/kg') {
+  return value === null ? '--' : formatCurrency(value, unit)
 }
 
 function formatQualityGrade(value: string | null) {
@@ -211,7 +211,7 @@ export default function GeneratedCommodityPricePage() {
           <section className="generated-commodity-price-page__facts">
             <article>
               <span>Giá hiện tại</span>
-              <strong>{formatCurrency(page.headlineLatestPriceVnd)}</strong>
+              <strong>{formatCurrency(page.headlineLatestPriceVnd, page.headlineLatestPriceUnit)}</strong>
             </article>
             <article>
               <span>So với hôm qua</span>
@@ -237,7 +237,7 @@ export default function GeneratedCommodityPricePage() {
                 {page.chainCards.map(card => (
                   <article key={card.priceType} className="generated-commodity-price-page__chain-card">
                     <span>{card.label}</span>
-                    <strong>{formatChainValue(card.latestPriceVnd)}</strong>
+                    <strong>{formatChainValue(card.latestPriceVnd, card.latestPriceUnit)}</strong>
                     <small>{card.latestObservedOn ?? 'Chua co du lieu'}</small>
                   </article>
                 ))}
@@ -260,11 +260,14 @@ export default function GeneratedCommodityPricePage() {
                         <h3>{section.varietyLabel}</h3>
                         <p>Headline uu tien nhom grade tham chieu neu co du lieu.</p>
                       </div>
-                      <strong>{formatCurrency(section.headlineLatestPriceVnd)}</strong>
+                      <strong>{formatCurrency(section.headlineLatestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)}</strong>
                     </header>
 
                     <div className="generated-commodity-price-page__variety-stats">
-                      <span>Day gia: {formatCurrency(section.lowestPriceVnd)} - {formatCurrency(section.highestPriceVnd)}</span>
+                      <span>
+                        Day gia: {formatCurrency(section.lowestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)} -{' '}
+                        {formatCurrency(section.highestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)}
+                      </span>
                       <span>So voi 7 ngay: {formatPercent(section.change7dPct)}</span>
                     </div>
 
@@ -287,7 +290,7 @@ export default function GeneratedCommodityPricePage() {
                               <td>{row.sortRank}</td>
                               <td>{row.locationLabel}</td>
                               <td>{formatQualityGrade(row.qualityGrade)}</td>
-                              <td>{formatCurrency(row.latestPriceVnd)}</td>
+                              <td>{formatCurrency(row.latestPriceVnd, row.latestPriceUnit)}</td>
                               <td>{formatPercent(row.dayChangePct)}</td>
                               <td>{formatPercent(row.change7dPct)}</td>
                               <td>{row.latestObservedOn}</td>
@@ -302,7 +305,67 @@ export default function GeneratedCommodityPricePage() {
             </section>
           ) : null}
 
-          {page.renderMode === 'regional_table' && page.regionRows.length > 0 && page.varietySections.length === 0 ? (
+          {page.unitSections.length > 0 ? (
+            <section className="generated-commodity-price-page__varieties">
+              <div className="generated-commodity-price-page__section-head">
+                <h2>Gia theo don vi</h2>
+                <p>Cac bang duoi day tach rieng theo cum don vi de tranh tron gia dua tuoi giua trai, chuc va kg.</p>
+              </div>
+
+              <div className="generated-commodity-price-page__variety-list">
+                {page.unitSections.map(section => (
+                  <article key={section.unitKey} className="generated-commodity-price-page__variety-card">
+                    <header className="generated-commodity-price-page__variety-head">
+                      <div>
+                        <h3>{section.unitLabel}</h3>
+                        <p>Headline chi tong hop cac dong cung don vi.</p>
+                      </div>
+                      <strong>{formatCurrency(section.headlineLatestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)}</strong>
+                    </header>
+
+                    <div className="generated-commodity-price-page__variety-stats">
+                      <span>
+                        Day gia: {formatCurrency(section.lowestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)} -{' '}
+                        {formatCurrency(section.highestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)}
+                      </span>
+                      <span>So voi 7 ngay: {formatPercent(section.change7dPct)}</span>
+                    </div>
+
+                    <div className="generated-commodity-price-page__table-wrap">
+                      <table className="generated-commodity-price-page__variety-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Khu vuc</th>
+                            <th>Loai gia</th>
+                            <th>Gia hien tai</th>
+                            <th>So voi hom qua</th>
+                            <th>So voi 7 ngay</th>
+                            <th>Cap nhat</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {section.rows.map(row => (
+                            <tr key={`${section.unitKey}-${row.scopeType}-${row.scopeKey}-${row.priceType}`}>
+                              <td>{row.sortRank}</td>
+                              <td>{row.locationLabel}</td>
+                              <td>{row.priceType}</td>
+                              <td>{formatCurrency(row.latestPriceVnd, row.latestPriceUnit)}</td>
+                              <td>{formatPercent(row.dayChangePct)}</td>
+                              <td>{formatPercent(row.change7dPct)}</td>
+                              <td>{row.latestObservedOn}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {page.renderMode === 'regional_table' && page.regionRows.length > 0 && page.varietySections.length === 0 && page.unitSections.length === 0 ? (
             <section className="generated-commodity-price-page__table">
               <div className="generated-commodity-price-page__section-head">
                 <h2>Bảng giá theo vùng hôm nay</h2>
@@ -327,7 +390,7 @@ export default function GeneratedCommodityPricePage() {
                       <tr key={`${row.scopeType}-${row.scopeKey}`}>
                         <td>{row.sortRank}</td>
                         <td>{row.locationLabel}</td>
-                        <td>{formatCurrency(row.latestPriceVnd)}</td>
+                        <td>{formatCurrency(row.latestPriceVnd, row.latestPriceUnit)}</td>
                         <td>{formatPercent(row.dayChangePct)}</td>
                         <td>{formatPercent(row.change7dPct)}</td>
                         <td>{row.vsNationalAvgPct === null ? '--' : formatPercent(row.vsNationalAvgPct)}</td>

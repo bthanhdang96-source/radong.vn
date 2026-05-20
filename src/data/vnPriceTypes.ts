@@ -7,6 +7,8 @@ export type SourceId =
   | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
+  | 'giahotieu'
+  | 'kimhungmarket'
   | 'vietfood'
   | 'giaca_nsvl'
   | 'bhx'
@@ -133,6 +135,8 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   dongnai_sct_daugiay: 'sct.dongnai.gov.vn',
   vpsaspice: 'vpsa.org.vn',
   banggianongsan: 'banggianongsan.com',
+  giahotieu: 'giahotieu.com',
+  kimhungmarket: 'kimhungmarket.com',
   vietfood: 'vietfood.org.vn',
   giaca_nsvl: 'giacansvl.vn',
   bhx: 'Bách Hóa Xanh',

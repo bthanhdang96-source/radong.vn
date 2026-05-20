@@ -17,7 +17,11 @@ export const BASE_PRICE_BOUNDS: Record<string, Bounds> = {
   'ca-tra': { min: 20_000, max: 70_000 },
   'cam-sanh': { min: 5_000, max: 80_000 },
   'buoi-nam-roi': { min: 10_000, max: 80_000 },
+  cassava: { min: 1_000, max: 25_000 },
+  'tea-avg': { min: 4_000, max: 3_500_000 },
   'sau-rieng': { min: 10_000, max: 200_000 },
+  'thanh-long': { min: 4_000, max: 40_000 },
+  'dua-tuoi': { min: 6_000, max: 250_000 },
   'ca-chua': { min: 12_000, max: 35_000 },
   'hanh-tay': { min: 15_000, max: 35_000 },
   toi: { min: 30_000, max: 100_000 },
@@ -60,6 +64,9 @@ type DedupeKeyInput = {
   sourceUrl?: string | null
   countryCode?: string | null
   priceVnd?: number | null
+  unit?: string | null
+  normalizedUnitKey?: string | null
+  unitQuantity?: number | null
   recordedAt: string
   explicitKey?: string | null
   extra?: Record<string, unknown> | null
@@ -141,6 +148,11 @@ export function buildObservationDedupeKey(input: DedupeKeyInput) {
         input.regionLabel ?? 'na',
         input.variety ?? 'na',
         input.qualityGrade ?? 'na',
+        input.unit ?? 'na',
+        input.normalizedUnitKey ?? 'na',
+        typeof input.unitQuantity === 'number' && Number.isFinite(input.unitQuantity)
+          ? String(input.unitQuantity)
+          : 'na',
         input.marketName ?? getExtraFingerprintHint(input.extra) ?? input.articleTitle ?? input.sourceUrl ?? 'na',
         roundPriceForFingerprint(input.priceVnd),
         normalizeRecordedDate(input.recordedAt),

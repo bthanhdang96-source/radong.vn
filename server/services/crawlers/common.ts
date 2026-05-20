@@ -20,6 +20,8 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   vpsaspice: 84,
   giaca_nsvl: 82,
   banggianongsan: 76,
+  giahotieu: 77,
+  kimhungmarket: 71,
   bhx: 75,
   coop: 74,
   customs: 96,
@@ -168,6 +170,10 @@ export function createItem(
     Pick<
       CrawledPriceItem,
       | 'priceType'
+      | 'unit'
+      | 'unitRaw'
+      | 'normalizedUnitKey'
+      | 'unitQuantity'
       | 'variety'
       | 'qualityGrade'
       | 'marketName'
@@ -189,7 +195,10 @@ export function createItem(
     category,
     region,
     price,
-    unit: 'VND/kg',
+    unit: options?.unit ?? 'VND/kg',
+    unitRaw: options?.unitRaw ?? options?.unit ?? 'VND/kg',
+    normalizedUnitKey: options?.normalizedUnitKey ?? null,
+    unitQuantity: options?.unitQuantity ?? null,
     change: safeChange,
     changePct:
       safeChange !== null && safePreviousPrice && safePreviousPrice > 0

@@ -7,6 +7,8 @@ export type SourceId =
   | 'dongnai_sct_daugiay'
   | 'vpsaspice'
   | 'banggianongsan'
+  | 'giahotieu'
+  | 'kimhungmarket'
   | 'vietfood'
   | 'giaca_nsvl'
   | 'bhx'
@@ -40,6 +42,9 @@ export interface CrawledPriceItem {
   region: string;
   price: number;
   unit: string;
+  unitRaw?: string | null;
+  normalizedUnitKey?: 'kg' | 'trai' | 'chuc' | 'ton' | null;
+  unitQuantity?: number | null;
   change: number | null;
   changePct: number | null;
   timestamp: string;

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { isDomesticCoffeeLabel } from '../services/crawlers/banggianongsanCrawler.js'
 import { matchRetailCommodity } from '../services/crawlers/retailCommodityMatcher.js'
+import { parseRetailUnitPricing } from '../services/crawlers/retailUnitPricing.js'
 
 test('matchRetailCommodity avoids substring false positives in retail crawlers', () => {
   assert.equal(matchRetailCommodity('Rau mồng tơi 400gr'), null)
@@ -32,6 +33,54 @@ test('matchRetailCommodity keeps fresh durian but excludes processed durian prod
   assert.equal(matchRetailCommodity('Bánh pía sầu riêng 480g'), null)
   assert.equal(matchRetailCommodity('Kem sầu riêng hộp 450ml'), null)
   assert.equal(matchRetailCommodity('Sầu riêng sấy giòn 120g'), null)
+})
+
+test('matchRetailCommodity keeps new phase-1 commodities and excludes processed variants', () => {
+  assert.equal(matchRetailCommodity('San tuoi huu co 1kg')?.slug, 'cassava')
+  assert.equal(matchRetailCommodity('Tinh bot san 400g'), null)
+  assert.equal(matchRetailCommodity('Tra Thai Nguyen 500g')?.slug, 'tea-avg')
+  assert.equal(matchRetailCommodity('Tra sua tran chau vi tra xanh'), null)
+  assert.equal(matchRetailCommodity('Thanh long ruot do 1kg')?.slug, 'thanh-long')
+  assert.equal(matchRetailCommodity('Thanh long say deo 120g'), null)
+  assert.equal(matchRetailCommodity('Dua tuoi 1 trai')?.slug, 'dua-tuoi')
+  assert.equal(matchRetailCommodity('Keo dua Ben Tre 250g'), null)
+})
+
+test('parseRetailUnitPricing preserves coconut trai and chuc clusters', () => {
+  const perFruit = parseRetailUnitPricing('dua-tuoi', 72000, 'Dua tuoi 3 trai')
+  const perChuc = parseRetailUnitPricing('dua-tuoi', 185000, 'Dua xiem 1 chuc')
+  const perKg = parseRetailUnitPricing('thanh-long', 48000, 'Thanh long ruot trang 2kg')
+
+  assert.deepEqual(
+    perFruit && {
+      price: perFruit.price,
+      unit: perFruit.unit,
+      normalizedUnitKey: perFruit.normalizedUnitKey,
+      unitQuantity: perFruit.unitQuantity,
+    },
+    {
+      price: 24000,
+      unit: 'VND/trai',
+      normalizedUnitKey: 'trai',
+      unitQuantity: 3,
+    },
+  )
+  assert.deepEqual(
+    perChuc && {
+      price: perChuc.price,
+      unit: perChuc.unit,
+      normalizedUnitKey: perChuc.normalizedUnitKey,
+      unitQuantity: perChuc.unitQuantity,
+    },
+    {
+      price: 185000,
+      unit: 'VND/chuc',
+      normalizedUnitKey: 'chuc',
+      unitQuantity: 1,
+    },
+  )
+  assert.equal(perKg?.price, 24000)
+  assert.equal(perKg?.unit, 'VND/kg')
 })
 
 test('isDomesticCoffeeLabel only keeps domestic VND per kg rows', () => {

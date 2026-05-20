@@ -112,6 +112,34 @@ export type GeneratedCommodityPriceVarietySection = {
   rows: GeneratedCommodityPriceVarietyRow[]
 }
 
+export type GeneratedCommodityPriceUnitRow = {
+  scopeType: PricePageScopeType
+  scopeKey: string
+  provinceCode: string | null
+  regionLabel: string | null
+  locationLabel: string
+  locationSlug: string
+  priceType: PricePagePrimaryPriceType
+  latestPriceVnd: number
+  latestPriceUnit: string
+  dayChangeVnd: number
+  dayChangePct: number
+  change7dVnd: number
+  change7dPct: number
+  latestObservedOn: string
+  sortRank: number
+}
+
+export type GeneratedCommodityPriceUnitSection = {
+  unitKey: string
+  unitLabel: string
+  headlineLatestPriceVnd: number
+  lowestPriceVnd: number
+  highestPriceVnd: number
+  change7dPct: number
+  rows: GeneratedCommodityPriceUnitRow[]
+}
+
 export type GeneratedCommodityPriceChainCard = {
   priceType: PricePagePrimaryPriceType
   label: string
@@ -158,6 +186,7 @@ export type GeneratedCommodityPricePageDetail = GeneratedCommodityPricePageSumma
   seo: PricePageSeoMeta
   regionRows: GeneratedCommodityPriceRegionRow[]
   varietySections: GeneratedCommodityPriceVarietySection[]
+  unitSections: GeneratedCommodityPriceUnitSection[]
   chainCards: GeneratedCommodityPriceChainCard[]
   relatedLocationPages: GeneratedPricePageSummary[]
   relatedCommodityPages: GeneratedCommodityPricePageSummary[]

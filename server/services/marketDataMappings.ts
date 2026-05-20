@@ -65,10 +65,30 @@ export const VN_COMMODITY_META: Record<
     category: 'Trái cây',
     unit: 'VND/kg',
   },
+  cassava: {
+    commodityName: 'Sắn',
+    category: 'Lương thực',
+    unit: 'VND/kg',
+  },
+  'tea-avg': {
+    commodityName: 'Chè',
+    category: 'Cây công nghiệp',
+    unit: 'VND/kg',
+  },
   'sau-rieng': {
     commodityName: 'Sầu riêng',
     category: 'Trái cây',
     unit: 'VND/kg',
+  },
+  'thanh-long': {
+    commodityName: 'Thanh long',
+    category: 'Trái cây',
+    unit: 'VND/kg',
+  },
+  'dua-tuoi': {
+    commodityName: 'Dừa tươi',
+    category: 'Trái cây',
+    unit: 'VND/chuc',
   },
   'ca-chua': {
     commodityName: 'Cà chua',
@@ -179,10 +199,12 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   chogia: 0.76,
   daklak_sct: 0.88,
   dongnai_sct_daugiay: 0.84,
-  vietfood: 0.86,
   vpsaspice: 0.8,
-  giaca_nsvl: 0.79,
   banggianongsan: 0.73,
+  giahotieu: 0.74,
+  kimhungmarket: 0.69,
+  vietfood: 0.86,
+  giaca_nsvl: 0.79,
   bhx: 0.72,
   coop: 0.72,
   shopee: 0.7,
@@ -198,10 +220,12 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   chogia: 'crawl_news',
   daklak_sct: 'crawl_gov',
   dongnai_sct_daugiay: 'crawl_gov',
-  vietfood: 'crawl_news',
   vpsaspice: 'crawl_news',
-  giaca_nsvl: 'crawl_news',
   banggianongsan: 'crawl_news',
+  giahotieu: 'crawl_news',
+  kimhungmarket: 'crawl_news',
+  vietfood: 'crawl_news',
+  giaca_nsvl: 'crawl_news',
   bhx: 'crawl_ecom',
   coop: 'crawl_ecom',
   shopee: 'crawl_ecom',
@@ -210,8 +234,6 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   fallback: 'api_partner',
 }
 
-// External crawlers may use business-friendly slugs from prompts or source systems.
-// Normalize them to the current seeded commodity slugs before ingestion.
 export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
   'ca-phe': 'ca-phe-robusta',
   'ca-phe-robusta': 'ca-phe-robusta',
@@ -220,7 +242,7 @@ export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
   'lua-gao': 'gao-noi-dia',
   'gao-xuat-khau': 'rice-5pct',
   'gao-noi-dia': 'gao-noi-dia',
-  'tieu': 'ho-tieu',
+  tieu: 'ho-tieu',
   'ho-tieu': 'ho-tieu',
   dieu: 'cashew',
   cashew: 'cashew',
@@ -238,12 +260,31 @@ export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
   xoai: 'xoai',
   chuoi: 'chuoi',
   mit: 'mit',
+  san: 'cassava',
+  cassava: 'cassava',
+  'khoai-mi': 'cassava',
+  'khoai mi': 'cassava',
+  'mi-nguyen-lieu': 'cassava',
+  'mi nguyen lieu': 'cassava',
+  che: 'tea-avg',
+  tra: 'tea-avg',
+  'tea-avg': 'tea-avg',
   'sau-rieng': 'sau-rieng',
   durian: 'sau-rieng',
   ri6: 'sau-rieng',
   thai: 'sau-rieng',
   monthong: 'sau-rieng',
   dona: 'sau-rieng',
+  'thanh-long': 'thanh-long',
+  'thanh long': 'thanh-long',
+  'dragon-fruit': 'thanh-long',
+  'dragon fruit': 'thanh-long',
+  'dua-tuoi': 'dua-tuoi',
+  'dua tuoi': 'dua-tuoi',
+  coconut: 'dua-tuoi',
+  dua: 'dua-tuoi',
+  'dua xiem': 'dua-tuoi',
+  'dua uong nuoc': 'dua-tuoi',
   'thit-heo': 'thit-heo',
   pangasius: 'pangasius',
   'tom-the': 'shrimp',
@@ -258,7 +299,6 @@ export const EXTERNAL_COMMODITY_ALIASES: Record<string, string> = {
   soybeans: 'soybeans',
 }
 
-// Only a subset of prompt commodities can be mapped safely to current seeded data.
 export const SAFE_EXTERNAL_COMMODITY_TARGETS = new Set<string>([
   'ca-phe',
   'ca-phe-robusta',
@@ -285,12 +325,31 @@ export const SAFE_EXTERNAL_COMMODITY_TARGETS = new Set<string>([
   'xoai',
   'chuoi',
   'mit',
+  'san',
+  'cassava',
+  'khoai-mi',
+  'khoai mi',
+  'mi-nguyen-lieu',
+  'mi nguyen lieu',
+  'che',
+  'tra',
+  'tea-avg',
   'sau-rieng',
   'durian',
   'ri6',
   'thai',
   'monthong',
   'dona',
+  'thanh-long',
+  'thanh long',
+  'dragon-fruit',
+  'dragon fruit',
+  'dua-tuoi',
+  'dua tuoi',
+  'coconut',
+  'dua',
+  'dua xiem',
+  'dua uong nuoc',
   'thit-heo',
   'pangasius',
   'tom-the',
@@ -375,6 +434,10 @@ const DISPLAY_REGION_ALIASES: Record<string, string> = {
   'mien dong nam bo': 'Miền Đông Nam Bộ',
   'dong nam bo': 'Đông Nam Bộ',
   'tay nguyen': 'Tây Nguyên',
+  'dong bang song cuu long': 'Đồng bằng sông Cửu Long',
+  dbscl: 'Đồng bằng sông Cửu Long',
+  'kon tum': 'Kon Tum',
+  'phu yen': 'Phú Yên',
   'cam sanh': 'Cam sành',
   'buoi nam roi': 'Bưởi Năm Roi',
   'ca tra': 'Cá tra',
@@ -388,6 +451,10 @@ const DISPLAY_REGION_ALIASES: Record<string, string> = {
   'lua tuoi om 34': 'Lúa tươi OM 34',
   'nguyen lieu ir 504': 'Nguyên liệu IR 504',
   'nguyen lieu cl 555': 'Nguyên liệu CL 555',
+  'thanh long': 'Thanh long',
+  'thanh long ruot trang': 'Thanh long ruột trắng',
+  'dua tuoi': 'Dừa tươi',
+  'dua xiem': 'Dừa xiêm',
   'khong ro khu vuc': 'Không rõ khu vực',
 }
 
@@ -413,10 +480,7 @@ export type RiceClassification = {
 }
 
 function stripRicePrefix(value: string) {
-  return value
-    .replace(/^Nguyen lieu\s+/i, '')
-    .replace(/^Lua tuoi\s+/i, '')
-    .trim()
+  return value.replace(/^Nguyen lieu\s+/i, '').replace(/^Lua tuoi\s+/i, '').trim()
 }
 
 export function classifyRiceRegionLabel(region: string): RiceClassification {
@@ -471,7 +535,12 @@ export function convertWorldPriceToUsdKg(price: number, unit: string, factor?: n
     return roundTo(price * (foldedUnit.includes('usc/') ? 0.01 : 1), 6)
   }
 
-  if (foldedUnit.includes('usd/tan') || foldedUnit.includes('usd/ton') || foldedUnit.includes('usd/t') || foldedUnit.includes('usd/mt')) {
+  if (
+    foldedUnit.includes('usd/tan') ||
+    foldedUnit.includes('usd/ton') ||
+    foldedUnit.includes('usd/t') ||
+    foldedUnit.includes('usd/mt')
+  ) {
     return roundTo(price / 1000, 6)
   }
 
@@ -539,3 +608,4 @@ export function getRegionLabelFromObservation(
 
   return 'Không rõ khu vực'
 }
+

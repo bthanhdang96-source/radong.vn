@@ -1,4 +1,5 @@
 import { foldText } from '../crawlers/common.js'
+import { COCONUT_COMMODITY_SLUG } from '../coconutPricing.js'
 import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
 import { DURIAN_COMMODITY_SLUG } from '../durianPricing.js'
 import { normalizeDisplayRegion, PROVINCE_NAME_BY_CODE, VN_COMMODITY_META } from '../marketDataMappings.js'
@@ -147,6 +148,7 @@ type CandidatePage = {
 const PRICE_PAGE_PREFIX = '/gia-nong-san'
 const PRICE_TYPE_PRIORITY: PricePagePrimaryPriceType[] = ['farm_gate', 'wholesale', 'retail', 'export']
 const STALE_STATUS = 'stale' satisfies PricePageStatus
+const LOCATION_PAGE_EXCLUDED_COMMODITIES = new Set([DURIAN_COMMODITY_SLUG, COCONUT_COMMODITY_SLUG, 'tea-avg'])
 const DISPLAY_LABEL_ALIASES: Record<string, string> = {
   'viet nam': 'Việt Nam',
   cam: 'Cám',
@@ -649,7 +651,7 @@ function buildCandidatePages(
       continue
     }
 
-    if (row.commodity_slug === DURIAN_COMMODITY_SLUG) {
+    if (LOCATION_PAGE_EXCLUDED_COMMODITIES.has(row.commodity_slug)) {
       continue
     }
 
@@ -686,7 +688,7 @@ function buildCandidatePages(
       continue
     }
 
-    if (row.commodity_slug === DURIAN_COMMODITY_SLUG) {
+    if (LOCATION_PAGE_EXCLUDED_COMMODITIES.has(row.commodity_slug)) {
       continue
     }
 

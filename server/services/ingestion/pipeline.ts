@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CrawledPriceItem, SourceId } from '../crawlers/types.js'
+import { getDisplayUnit, normalizeUnitKey } from '../coconutPricing.js'
 import { DURIAN_COMMODITY_SLUG, parseDurianLabel } from '../durianPricing.js'
 import {
   classifyRiceRegionLabel,
@@ -259,6 +260,9 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
   const flags: string[] = []
   const penalties: number[] = []
   const notes: string[] = []
+  const normalizedUnitKey = item.normalizedUnitKey ?? normalizeUnitKey(item.unitRaw ?? item.unit)
+  const normalizedUnitValue = normalizedUnitKey ?? 'kg'
+  const displayUnit = getDisplayUnit(normalizedUnitKey, item.unit)
 
   if (commoditySlug === 'gao-noi-dia' && priceType !== 'retail' && priceType !== 'export') {
     const riceClassification = classifyRiceRegionLabel(item.region)
@@ -303,7 +307,7 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
       country_code: item.countryCode ?? 'VNM',
       price_type: priceType,
       price_vnd: roundNumber(item.price),
-      unit: 'kg',
+      unit: normalizedUnitValue,
       price_usd: item.priceUsd ?? roundNumber(item.price / USD_VND_RATE),
       exchange_rate: item.exchangeRate ?? USD_VND_RATE,
       source_type: SOURCE_TYPE_BY_SOURCE_ID[message.source] ?? 'crawl_news',
@@ -318,6 +322,9 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         regionLabel: item.region,
         variety,
         qualityGrade,
+        unit: displayUnit,
+        normalizedUnitKey,
+        unitQuantity: item.unitQuantity ?? null,
         marketName: item.marketName ?? null,
         articleTitle: item.articleTitle ?? null,
         sourceUrl: message.sourceUrl,
@@ -335,6 +342,10 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         provinceCode,
         variety,
         qualityGrade,
+        unit: displayUnit,
+        unitRaw: item.unitRaw ?? item.unit ?? null,
+        normalizedUnitKey,
+        unitQuantity: item.unitQuantity ?? null,
         dedupeKey: item.dedupeKey ?? null,
       },
     },

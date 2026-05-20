@@ -267,6 +267,7 @@ test('commodity page copy avoids finance-heavy stable wording', () => {
       nationalScopeLabel: null,
       regionRows: [],
       varietySections: [],
+      unitSections: [],
       metricsJson: {
         topLocationLabel: 'Đắk Lắk',
         bottomLocationLabel: 'Đắk Nông',
@@ -297,6 +298,7 @@ test('commodity page copy avoids finance-heavy stable wording', () => {
       nationalScopeLabel: 'Việt Nam',
       regionRows: [],
       varietySections: [],
+      unitSections: [],
       metricsJson: {},
     },
     'Ca cao',
@@ -513,6 +515,182 @@ test('buildCommodityCandidatePages builds durian variety sections and keeps prem
   assert.ok(ri6Section?.rows.some(row => row.qualityGrade === 'hang-xo'))
 })
 
+test('buildCommodityCandidatePages builds coconut unit sections without mixing trai and chuc rows', () => {
+  const pages = __generatedCommodityPricePagesTestUtils.buildCommodityCandidatePages(
+    {
+      latestRows: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'VLO',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          unit: 'trai',
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/trai', normalizedUnitKey: 'trai' },
+        },
+      ],
+      observations: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'VLO',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 195000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'VLO',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 190000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'VLO',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 185000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 205000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 200000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'farm_gate',
+          unit: 'chuc',
+          price_vnd: 195000,
+          confidence: 0.9,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/chuc', normalizedUnitKey: 'chuc' },
+        },
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          unit: 'trai',
+          price_vnd: 23000,
+          confidence: 0.8,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/trai', normalizedUnitKey: 'trai' },
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          unit: 'trai',
+          price_vnd: 22000,
+          confidence: 0.8,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/trai', normalizedUnitKey: 'trai' },
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          unit: 'trai',
+          price_vnd: 21000,
+          confidence: 0.8,
+          variety: null,
+          quality_grade: null,
+          market_name: null,
+          raw_payload: { unit: 'VND/trai', normalizedUnitKey: 'trai' },
+        },
+      ],
+      commodities: [{ slug: 'dua-tuoi', name_vi: 'Dua tuoi', category: 'Trai cay' }],
+      provinces: [
+        { code: 'HCM', name_vi: 'TP. Ho Chi Minh' },
+        { code: 'VLO', name_vi: 'Vinh Long' },
+      ],
+      regionalPrices: [],
+      trends: [],
+    },
+    {},
+  )
+
+  assert.equal(pages.length, 1)
+  assert.deepEqual(
+    pages[0]?.unitSections.map(section => section.unitKey),
+    ['chuc', 'trai'],
+  )
+  assert.equal(pages[0]?.headlineLatestPriceUnit, 'VND/chuc')
+})
+
 test('location price pages do not publish a Viet Nam region_label route anymore', () => {
   const pages = __generatedPricePagesTestUtils.buildCandidatePages(
     {
@@ -631,4 +809,120 @@ test('location price page generator skips durian even when local scopes exist', 
   )
 
   assert.equal(pages.length, 0)
+})
+
+test('location price page generator skips tea and coconut commodity slugs', () => {
+  const coconutPages = __generatedPricePagesTestUtils.buildCandidatePages(
+    {
+      latestRows: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'TP. Ho Chi Minh' },
+        },
+      ],
+      observations: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          price_vnd: 23000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'TP. Ho Chi Minh' },
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          price_vnd: 22000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'TP. Ho Chi Minh' },
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'dua-tuoi',
+          province_code: 'HCM',
+          price_type: 'retail',
+          price_vnd: 21000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'TP. Ho Chi Minh' },
+        },
+      ],
+      commodities: [{ slug: 'dua-tuoi', name_vi: 'Dua tuoi', category: 'Trai cay' }],
+      provinces: [{ code: 'HCM', name_vi: 'TP. Ho Chi Minh' }],
+      regionalPrices: [],
+      trends: [],
+    },
+    {},
+  )
+  const teaPages = __generatedPricePagesTestUtils.buildCandidatePages(
+    {
+      latestRows: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'tea-avg',
+          province_code: 'TNG',
+          price_type: 'farm_gate',
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'Thai Nguyen' },
+        },
+      ],
+      observations: [
+        {
+          recorded_at: '2026-05-16T01:00:00.000Z',
+          commodity_slug: 'tea-avg',
+          province_code: 'TNG',
+          price_type: 'farm_gate',
+          price_vnd: 7000,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'Thai Nguyen' },
+        },
+        {
+          recorded_at: '2026-05-15T01:00:00.000Z',
+          commodity_slug: 'tea-avg',
+          province_code: 'TNG',
+          price_type: 'farm_gate',
+          price_vnd: 6800,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'Thai Nguyen' },
+        },
+        {
+          recorded_at: '2026-05-14T01:00:00.000Z',
+          commodity_slug: 'tea-avg',
+          province_code: 'TNG',
+          price_type: 'farm_gate',
+          price_vnd: 6600,
+          confidence: 0.8,
+          variety: null,
+          market_name: null,
+          raw_payload: { region: 'Thai Nguyen' },
+        },
+      ],
+      commodities: [{ slug: 'tea-avg', name_vi: 'Che', category: 'Cay cong nghiep' }],
+      provinces: [{ code: 'TNG', name_vi: 'Thai Nguyen' }],
+      regionalPrices: [],
+      trends: [],
+    },
+    {},
+  )
+
+  assert.equal(coconutPages.length, 0)
+  assert.equal(teaPages.length, 0)
 })

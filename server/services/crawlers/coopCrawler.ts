@@ -1,8 +1,9 @@
 import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parseDurianLabel } from '../durianPricing.js'
-import { failedSource, finalizeSourceBatch, foldText, roundNumber, USER_AGENT } from './common.js'
-import { matchRetailCommodity, parseQuantityKgFromText } from './retailCommodityMatcher.js'
+import { failedSource, finalizeSourceBatch, USER_AGENT } from './common.js'
+import { matchRetailCommodity } from './retailCommodityMatcher.js'
+import { parseRetailUnitPricing } from './retailUnitPricing.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
 import { retryTransient } from '../transientNetwork.js'
 
@@ -322,22 +323,6 @@ function parsePriceValue(value: string | number | undefined) {
   return null
 }
 
-function getQuantityKg(product: CoopApiProduct) {
-  if (foldText(product.uomName ?? '') === 'kg') {
-    return 1
-  }
-
-  const candidates = [product.name, product.canonical]
-  for (const candidate of candidates) {
-    const quantity = parseQuantityKgFromText(candidate)
-    if (quantity && Number.isFinite(quantity) && quantity > 0) {
-      return quantity
-    }
-  }
-
-  return null
-}
-
 function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, categorySlug: string): CrawledPriceItem | null {
   const productName = product.name?.trim() ?? ''
   if (!productName) {
@@ -354,8 +339,8 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
     return null
   }
 
-  const quantityKg = getQuantityKg(product)
-  if (!quantityKg) {
+  const pricing = parseRetailUnitPricing(commodity.slug, priceOriginalVnd, product.uomName, product.name, product.canonical)
+  if (!pricing) {
     return null
   }
 
@@ -373,8 +358,11 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
     commodityName: commodity.commodityName,
     category: commodity.category,
     region: region.nameVi,
-    price: roundNumber(priceOriginalVnd / quantityKg),
-    unit: 'VND/kg',
+    price: pricing.price,
+    unit: pricing.unit,
+    unitRaw: pricing.unitRaw,
+    normalizedUnitKey: pricing.normalizedUnitKey,
+    unitQuantity: pricing.unitQuantity,
     change: null,
     changePct: null,
     timestamp: new Date().toISOString(),
@@ -385,7 +373,7 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
     marketName: region.terminalName,
     articleTitle: productName,
     countryCode: 'VNM',
-    dedupeKey: `coop:${region.code}:${region.terminalId}:${sku}:${quantityKg}`,
+    dedupeKey: `coop:${region.code}:${region.terminalId}:${sku}:${pricing.normalizedUnitKey}:${pricing.unitQuantity ?? pricing.unit}`,
     previousPrice: null,
     extra: {
       categorySlug,
@@ -396,8 +384,7 @@ function toCrawledItem(product: CoopApiProduct, region: CoopResolvedRegion, cate
       provinceCode: region.provinceCode,
       sku,
       productId,
-      quantityKg,
-      priceOriginalVnd,
+      ...pricing.extra,
       canonical: product.canonical ?? null,
       uomName: product.uomName ?? null,
       listingUrl,

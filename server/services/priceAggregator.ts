@@ -1,10 +1,13 @@
 import { appendHistory, getCached, getCacheEntry, getHistory, listHistoryDates, setCache } from './cacheService.js';
+import { crawlAgroinfoFruitReport } from './crawlers/agroinfoFruitReportCrawler.js';
 import { crawlBanggianongsan } from './crawlers/banggianongsanCrawler.js';
 import { crawlChogiaDurian } from './crawlers/chogiaDurianCrawler.js';
 import { crawlCongthuong } from './crawlers/congthuongCrawler.js';
 import { crawlDaklakSctDurian } from './crawlers/daklakSctDurianCrawler.js';
 import { crawlDongnaiDauGiay } from './crawlers/dongnaiDauGiayCrawler.js';
 import { crawlGiacaNsvl } from './crawlers/giacaNsvlCrawler.js';
+import { crawlGiahotieuAgriculture } from './crawlers/giahotieuAgricultureCrawler.js';
+import { crawlKimhungTea } from './crawlers/kimhungTeaCrawler.js';
 import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
 import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
 import { crawlVietnambizDurianFromRss } from './crawlers/vietnambizDurianCrawler.js';
@@ -265,7 +268,7 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];
 
-  const [nongnghiep, vietnambiz, vietnambizDurian, congthuong, chogiaDurian, daklakSctDurian, dongnaiDauGiay, vpsaspice, banggianongsan, vietfood, giacaNsvl] = await Promise.all([
+  const [nongnghiep, vietnambiz, vietnambizDurian, congthuong, chogiaDurian, daklakSctDurian, dongnaiDauGiay, vpsaspice, banggianongsan, vietfood, giacaNsvl, giahotieuAgriculture, kimhungTea, agroinfoFruitReport] = await Promise.all([
     retryCrawlerResult(() => crawlNongnghiep()),
     retryCrawlerResult(() => crawlVietnambiz()),
     retryCrawlerResult(() => crawlVietnambizDurianFromRss()),
@@ -277,6 +280,9 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     retryCrawlerResult(() => crawlBanggianongsan()),
     retryCrawlerResult(() => crawlVietfood()),
     retryCrawlerResult(() => crawlGiacaNsvl()),
+    retryCrawlerResult(() => crawlGiahotieuAgriculture()),
+    retryCrawlerResult(() => crawlKimhungTea()),
+    retryCrawlerResult(() => crawlAgroinfoFruitReport()),
   ]);
   const items = [
     ...nongnghiep.items,
@@ -290,6 +296,9 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...banggianongsan.items,
     ...vietfood.items,
     ...giacaNsvl.items,
+    ...giahotieuAgriculture.items,
+    ...kimhungTea.items,
+    ...agroinfoFruitReport.items,
   ];
   const sources: SourceSnapshot[] = [
     ...nongnghiep.sources,
@@ -303,6 +312,9 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...banggianongsan.sources,
     ...vietfood.sources,
     ...giacaNsvl.sources,
+    ...giahotieuAgriculture.sources,
+    ...kimhungTea.sources,
+    ...agroinfoFruitReport.sources,
   ];
 
   for (const source of sources) {

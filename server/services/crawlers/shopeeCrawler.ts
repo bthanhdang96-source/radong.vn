@@ -1,7 +1,8 @@
 import { access, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parseDurianLabel } from '../durianPricing.js'
-import { failedSource, finalizeSourceBatch, foldText, roundNumber } from './common.js'
+import { failedSource, finalizeSourceBatch, foldText } from './common.js'
+import { parseRetailUnitPricing } from './retailUnitPricing.js'
 import { ensureFreshShopeeSession, readShopeeSessionMetadata, refreshShopeeSession, runShopeeBrowserSearch } from './shopeeSession.js'
 import type { CrawledPriceItem, CrawlerResult } from './types.js'
 
@@ -97,6 +98,30 @@ const SHOPEE_TARGETS: ShopeeTarget[] = [
     commodityName: 'Hat dieu',
     category: 'Cay cong nghiep',
   },
+  {
+    keyword: 'san tuoi',
+    commoditySlug: 'cassava',
+    commodityName: 'San',
+    category: 'Luong thuc',
+  },
+  {
+    keyword: 'thanh long ruot trang',
+    commoditySlug: 'thanh-long',
+    commodityName: 'Thanh long',
+    category: 'Trai cay',
+  },
+  {
+    keyword: 'dua tuoi',
+    commoditySlug: 'dua-tuoi',
+    commodityName: 'Dua tuoi',
+    category: 'Trai cay',
+  },
+  {
+    keyword: 'dua xiem',
+    commoditySlug: 'dua-tuoi',
+    commodityName: 'Dua tuoi',
+    category: 'Trai cay',
+  },
 ]
 
 const SHOPEE_EXCLUDE_KEYWORDS = [
@@ -140,6 +165,9 @@ const SHOPEE_PRICE_BOUNDS: Record<string, { min: number; max: number }> = {
   'ca-tra': { min: 50_000, max: 150_000 },
   shrimp: { min: 100_000, max: 800_000 },
   'sau-rieng': { min: 60_000, max: 600_000 },
+  cassava: { min: 3_000, max: 30_000 },
+  'thanh-long': { min: 5_000, max: 80_000 },
+  'dua-tuoi': { min: 8_000, max: 250_000 },
 }
 
 function getEnabledSlugs(options: CrawlShopeeOptions) {
@@ -184,44 +212,6 @@ function priceFromApi(item: ShopeeApiItem['item_basic']) {
 function isExcludedName(name: string) {
   const folded = foldText(name)
   return SHOPEE_EXCLUDE_KEYWORDS.some(keyword => folded.includes(keyword))
-}
-
-function parseQuantityKg(name: string) {
-  const folded = foldText(name)
-  const multiKg = folded.match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*kg/)
-  if (multiKg) {
-    return Number(multiKg[1].replace(',', '.')) * Number(multiKg[2].replace(',', '.'))
-  }
-
-  const multiGram = folded.match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*(g|gr|gram)\b/)
-  if (multiGram) {
-    return Number(multiGram[1].replace(',', '.')) * Number(multiGram[2].replace(',', '.')) / 1000
-  }
-
-  const kgMatch = folded.match(/(\d+(?:[.,]\d+)?)\s*kg\b/)
-  if (kgMatch) {
-    return Number(kgMatch[1].replace(',', '.'))
-  }
-
-  const gramMatch = folded.match(/(\d+(?:[.,]\d+)?)\s*(g|gr|gram)\b/)
-  if (gramMatch) {
-    return Number(gramMatch[1].replace(',', '.')) / 1000
-  }
-
-  if (folded.includes('/kg') || folded.includes('1kg')) {
-    return 1
-  }
-
-  return null
-}
-
-function toPricePerKg(priceVnd: number, name: string) {
-  const quantityKg = parseQuantityKg(name)
-  if (!quantityKg || !Number.isFinite(quantityKg) || quantityKg <= 0) {
-    return null
-  }
-
-  return roundNumber(priceVnd / quantityKg)
 }
 
 async function fetchShopeeSearch(keyword: string, maxPages: number, forceSessionRefresh = false) {
@@ -293,13 +283,13 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
     return null
   }
 
-  const pricePerKg = toPricePerKg(priceVnd, name)
-  if (!pricePerKg) {
+  const pricing = parseRetailUnitPricing(target.commoditySlug, priceVnd, name)
+  if (!pricing) {
     return null
   }
 
   const bounds = SHOPEE_PRICE_BOUNDS[target.commoditySlug]
-  if (bounds && (pricePerKg < bounds.min || pricePerKg > bounds.max)) {
+  if (bounds && (pricing.price < bounds.min || pricing.price > bounds.max)) {
     return null
   }
 
@@ -318,8 +308,11 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
     commodityName: target.commodityName,
     category: target.category,
     region,
-    price: pricePerKg,
-    unit: 'VND/kg',
+    price: pricing.price,
+    unit: pricing.unit,
+    unitRaw: pricing.unitRaw,
+    normalizedUnitKey: pricing.normalizedUnitKey,
+    unitQuantity: pricing.unitQuantity,
     change: null,
     changePct: null,
     timestamp,
@@ -330,7 +323,7 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
     marketName: region,
     articleTitle: name,
     countryCode: 'VNM',
-    dedupeKey: `shopee:${shopId}:${itemId}`,
+    dedupeKey: `shopee:${shopId}:${itemId}:${pricing.normalizedUnitKey}:${pricing.unitQuantity ?? pricing.unit}`,
     previousPrice: null,
     extra: {
       keyword,
@@ -340,8 +333,7 @@ function toCrawledItem(rawItem: ShopeeApiItem, target: ShopeeTarget, keyword: st
       shopId,
       sourceFormat: 'search_api',
       listingUrl: `https://shopee.vn/product/${shopId}/${itemId}`,
-      priceOriginalVnd: priceVnd,
-      quantityKg: parseQuantityKg(name),
+      ...pricing.extra,
     },
   }
 }

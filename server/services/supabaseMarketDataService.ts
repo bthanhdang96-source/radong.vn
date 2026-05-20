@@ -11,6 +11,13 @@ import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './i
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
 import { processQueuedBatch } from './ingestion/worker.js'
 import {
+  COCONUT_COMMODITY_SLUG,
+  getDisplayUnit,
+  normalizeUnitKey,
+  selectPreferredCoconutUnitCluster,
+  type NormalizedUnitKey,
+} from './coconutPricing.js'
+import {
   getRegionLabelFromObservation,
   convertWorldPriceToUsdKg,
   SOURCE_BASE_CONFIDENCE,
@@ -36,6 +43,7 @@ type LatestObservationRow = {
   quality_grade: string | null
   price_type?: string | null
   market_type?: string | null
+  unit?: string | null
   price_vnd: number
   price_usd?: number | null
   source: string
@@ -44,6 +52,9 @@ type LatestObservationRow = {
     commodityName?: string
     category?: string
     unit?: string
+    unitRaw?: string | null
+    normalizedUnitKey?: string | null
+    unitQuantity?: number | null
     priceType?: PriceType
     marketName?: string
     articleTitle?: string
@@ -185,6 +196,12 @@ type VnPriceChainResponse = {
 
 const DEFAULT_VN_PRICE_TYPES: PriceType[] = ['farm_gate', 'wholesale']
 const EXPORT_OBSERVATION_LOOKBACK_DAYS = 45
+const SUMMARY_PRICE_TYPE_PREFERENCE: Partial<Record<string, PriceType>> = {
+  cassava: 'farm_gate',
+  'tea-avg': 'farm_gate',
+  'thanh-long': 'farm_gate',
+  'dua-tuoi': 'farm_gate',
+}
 const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'nongnghiep',
   'vietnambiz',
@@ -194,6 +211,8 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'dongnai_sct_daugiay',
   'vpsaspice',
   'banggianongsan',
+  'giahotieu',
+  'kimhungmarket',
   'vietfood',
   'giaca_nsvl',
   'bhx',
@@ -343,7 +362,7 @@ async function getLatestObservationRows(priceTypes: PriceType[]) {
 
   const modern = await client
     .from('latest_observation_details')
-    .select('recorded_at, commodity_slug, province_code, variety, quality_grade, price_type, price_vnd, price_usd, source, raw_payload')
+    .select('recorded_at, commodity_slug, province_code, variety, quality_grade, price_type, unit, price_vnd, price_usd, source, raw_payload')
     .in('price_type', priceTypes)
     .order('commodity_slug', { ascending: true })
     .order('price_vnd', { ascending: false })
@@ -351,7 +370,7 @@ async function getLatestObservationRows(priceTypes: PriceType[]) {
   if (modern.error && isColumnMissing(modern.error, 'price_type')) {
     const legacy = await client
       .from('latest_observation_details')
-      .select('recorded_at, commodity_slug, province_code, variety, quality_grade, market_type, price_vnd, price_usd, source, raw_payload')
+      .select('recorded_at, commodity_slug, province_code, variety, quality_grade, market_type, unit, price_vnd, price_usd, source, raw_payload')
       .in('market_type', priceTypes)
       .order('commodity_slug', { ascending: true })
       .order('price_vnd', { ascending: false })
@@ -382,7 +401,7 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
   const modern = await client
     .from('price_observations')
     .select(
-      'recorded_at, commodity_slug, province_code, variety, quality_grade, price_type, price_vnd, price_usd, source_name, raw_payload',
+      'recorded_at, commodity_slug, province_code, variety, quality_grade, price_type, unit, price_vnd, price_usd, source_name, raw_payload',
     )
     .gte('recorded_at', start.toISOString())
     .in('price_type', priceTypes)
@@ -392,7 +411,7 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
   if (modern.error && isColumnMissing(modern.error, 'price_type')) {
     const legacy = await client
       .from('price_observations')
-      .select('recorded_at, commodity_slug, province_code, variety, quality_grade, market_type, price_vnd, price_usd, source, raw_payload')
+      .select('recorded_at, commodity_slug, province_code, variety, quality_grade, market_type, unit, price_vnd, price_usd, source, raw_payload')
       .gte('recorded_at', start.toISOString())
       .in('market_type', priceTypes)
       .order('recorded_at', { ascending: false })
@@ -409,6 +428,7 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
       variety: string | null
       quality_grade: string | null
       market_type: string | null
+      unit?: string | null
       price_vnd: number
       price_usd?: number | null
       source: string
@@ -422,6 +442,7 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
       market_type: row.market_type,
       price_vnd: row.price_vnd,
       price_usd: row.price_usd ?? null,
+      unit: row.unit ?? null,
       source: row.source,
       raw_payload: row.raw_payload ?? {},
     }))
@@ -436,9 +457,10 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
     commodity_slug: string
     province_code: string | null
     variety: string | null
-    quality_grade: string | null
-    price_type: string | null
-    price_vnd: number
+      quality_grade: string | null
+      price_type: string | null
+      unit?: string | null
+      price_vnd: number
     price_usd?: number | null
     source_name: string
     raw_payload: LatestObservationRow['raw_payload']
@@ -449,6 +471,7 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
     variety: row.variety,
     quality_grade: row.quality_grade,
     price_type: row.price_type,
+    unit: row.unit ?? null,
     price_vnd: row.price_vnd,
     price_usd: row.price_usd ?? null,
     source: row.source_name,
@@ -746,6 +769,51 @@ function buildHistoricalLookups(rows: DailySummaryRow[]) {
   }
 }
 
+function buildHistoricalLookupsByCommodityAndPriceType(rows: DailySummaryRow[]) {
+  const rangeByCommodityAndPriceType = new Map<string, { low: number; high: number }>()
+  const dailyByCommodityAndPriceType = new Map<
+    string,
+    Map<string, { weightedSum: number; observationCount: number; minPrice: number; maxPrice: number }>
+  >()
+
+  for (const row of rows) {
+    const key = `${row.commodity_slug}::${row.price_type}`
+    const range = rangeByCommodityAndPriceType.get(key)
+    if (!range) {
+      rangeByCommodityAndPriceType.set(key, {
+        low: row.min_price_vnd,
+        high: row.max_price_vnd,
+      })
+    } else {
+      range.low = Math.min(range.low, row.min_price_vnd)
+      range.high = Math.max(range.high, row.max_price_vnd)
+    }
+
+    const dateKey = normalizeDateKey(row.date)
+    const byDate = dailyByCommodityAndPriceType.get(key) ?? new Map()
+    const aggregate = byDate.get(dateKey) ?? {
+      weightedSum: 0,
+      observationCount: 0,
+      minPrice: row.min_price_vnd,
+      maxPrice: row.max_price_vnd,
+    }
+    const weight = row.observation_count > 0 ? row.observation_count : 1
+
+    aggregate.weightedSum += row.avg_price_vnd * weight
+    aggregate.observationCount += weight
+    aggregate.minPrice = Math.min(aggregate.minPrice, row.min_price_vnd)
+    aggregate.maxPrice = Math.max(aggregate.maxPrice, row.max_price_vnd)
+
+    byDate.set(dateKey, aggregate)
+    dailyByCommodityAndPriceType.set(key, byDate)
+  }
+
+  return {
+    rangeByCommodityAndPriceType,
+    dailyByCommodityAndPriceType,
+  }
+}
+
 function buildSparkline30d(
   dailyState?: Map<string, { weightedSum: number; observationCount: number; minPrice: number; maxPrice: number }>,
 ): CommoditySparkPoint[] {
@@ -779,6 +847,27 @@ function getObservationSource(row: LatestObservationRow) {
   }
 
   return 'fallback'
+}
+
+function getObservationNormalizedUnitKey(row: LatestObservationRow): NormalizedUnitKey | null {
+  return (
+    normalizeUnitKey(row.raw_payload?.normalizedUnitKey) ??
+    normalizeUnitKey(row.raw_payload?.unit) ??
+    normalizeUnitKey(row.raw_payload?.unitRaw) ??
+    normalizeUnitKey(row.unit) ??
+    null
+  )
+}
+
+function getObservationDisplayUnit(row: LatestObservationRow) {
+  const rawDisplayUnit =
+    typeof row.raw_payload?.unit === 'string' && row.raw_payload.unit.length > 0
+      ? row.raw_payload.unit
+      : typeof row.unit === 'string' && row.unit.includes('/')
+        ? row.unit
+        : null
+
+  return getDisplayUnit(getObservationNormalizedUnitKey(row), rawDisplayUnit)
 }
 
 function getActiveSourceIds(rows: Array<{ source: string }>) {
@@ -846,13 +935,53 @@ function preferDurianHeadlineObservationRows(rows: LatestObservationRow[]) {
   })
 }
 
+function preferCoconutHeadlineObservationRows(rows: LatestObservationRow[]) {
+  const preferredUnitCluster = selectPreferredCoconutUnitCluster(rows, row => ({
+    commoditySlug: row.commodity_slug,
+    sourceId: getObservationSource(row),
+    recordedAt: row.recorded_at,
+    displayUnit: getObservationDisplayUnit(row),
+    normalizedUnitKey: getObservationNormalizedUnitKey(row),
+  }))
+
+  if (!preferredUnitCluster) {
+    return rows
+  }
+
+  return rows.filter(row => {
+    if (row.commodity_slug !== COCONUT_COMMODITY_SLUG) {
+      return true
+    }
+
+    return getObservationNormalizedUnitKey(row) === preferredUnitCluster
+  })
+}
+
+function preferCommodityHeadlineObservationRows(rows: LatestObservationRow[]) {
+  return preferCoconutHeadlineObservationRows(preferDurianHeadlineObservationRows(rows))
+}
+
+function selectSummaryObservationRows(rows: LatestObservationRow[]) {
+  if (rows.length === 0) {
+    return rows
+  }
+
+  const preferredPriceType = SUMMARY_PRICE_TYPE_PREFERENCE[rows[0]?.commodity_slug ?? '']
+  if (!preferredPriceType) {
+    return rows
+  }
+
+  const preferredRows = rows.filter(row => getObservationPriceType(row) === preferredPriceType)
+  return preferredRows.length > 0 ? preferredRows : rows
+}
+
 function buildVnResponseFromRows(
   observationRows: LatestObservationRow[],
   dailySummaryRows: DailySummaryRow[],
   trendRows: CommodityTrendRow[],
   sourceSnapshots: SourceSnapshot[],
 ): VnPricesResponse {
-  const filteredObservationRows = preferDurianHeadlineObservationRows(observationRows)
+  const filteredObservationRows = preferCommodityHeadlineObservationRows(observationRows)
   const byCommodity = new Map<string, LatestObservationRow[]>()
   const activeSourceSnapshots = filterSourceSnapshotsForObservationRows(sourceSnapshots, filteredObservationRows)
   const sourcePriorityLookup = buildSourcePriorityLookup(activeSourceSnapshots)
@@ -863,6 +992,9 @@ function buildVnResponseFromRows(
   }
 
   const { rangeByCommodity, dailyByCommodity } = buildHistoricalLookups(dailySummaryRows)
+  const { rangeByCommodityAndPriceType, dailyByCommodityAndPriceType } = buildHistoricalLookupsByCommodityAndPriceType(
+    dailySummaryRows,
+  )
   const trendByCommodity = new Map(trendRows.map(row => [row.commodity_slug, row]))
   const latestSourceFetchedAt = activeSourceSnapshots.reduce(
     (latest, snapshot) => (snapshot.fetchedAt > latest ? snapshot.fetchedAt : latest),
@@ -871,14 +1003,17 @@ function buildVnResponseFromRows(
 
   const summaries = [...byCommodity.entries()]
     .map(([commoditySlug, rows]) => {
+      const summaryRows = selectSummaryObservationRows(rows)
+      const summaryPriceType = getObservationPriceType(summaryRows[0] ?? rows[0])
+      const historicalKey = `${commoditySlug}::${summaryPriceType}`
       const meta = VN_COMMODITY_META[commoditySlug] ?? {
-        commodityName: rows[0].raw_payload?.commodityName ?? commoditySlug,
-        category: rows[0].raw_payload?.category ?? 'Khác',
-        unit: rows[0].raw_payload?.unit ?? 'VND/kg',
+        commodityName: summaryRows[0]?.raw_payload?.commodityName ?? rows[0].raw_payload?.commodityName ?? commoditySlug,
+        category: summaryRows[0]?.raw_payload?.category ?? rows[0].raw_payload?.category ?? 'Khác',
+        unit: summaryRows[0] ? getObservationDisplayUnit(summaryRows[0]) : getObservationDisplayUnit(rows[0]),
       }
       const regionSelections = pickSummaryRegionSelections(
         buildCanonicalRegionSelections(
-          rows.map(row => {
+          summaryRows.map(row => {
             const regionLabel = getRegionLabelFromObservation(
               row.province_code,
               row.variety,
@@ -901,9 +1036,12 @@ function buildVnResponseFromRows(
       const summaryCandidates = regionSelections.map(selection => selection.primary)
       const prices = summaryCandidates.map(candidate => candidate.price)
       const fallbackPriceAvg = roundNumber(prices.reduce((sum, price) => sum + price, 0) / prices.length)
-      const latestDate = rows.reduce((latest, row) => (row.recorded_at > latest ? row.recorded_at : latest), rows[0].recorded_at)
+      const latestDate = summaryRows.reduce(
+        (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
+        summaryRows[0]?.recorded_at ?? rows[0].recorded_at,
+      )
       const currentDateKey = normalizeDateKey(latestDate)
-      const dailyState = dailyByCommodity.get(commoditySlug)
+      const dailyState = dailyByCommodityAndPriceType.get(historicalKey) ?? dailyByCommodity.get(commoditySlug)
       const currentDaily = dailyState?.get(currentDateKey)
       const previousDateKey = dailyState
         ? [...dailyState.keys()].filter(dateKey => dateKey < currentDateKey).sort().at(-1)
@@ -928,7 +1066,7 @@ function buildVnResponseFromRows(
         typeof trend?.trend_7d_pct === 'number' && Number.isFinite(trend.trend_7d_pct)
           ? trend.trend_7d_pct
           : changePct
-      const historicalRange = rangeByCommodity.get(commoditySlug)
+      const historicalRange = rangeByCommodityAndPriceType.get(historicalKey) ?? rangeByCommodity.get(commoditySlug)
       const regions = toRegionPrices(regionSelections)
       const sparkline30d = buildSparkline30d(dailyState)
       const trend7dPct =
@@ -940,7 +1078,7 @@ function buildVnResponseFromRows(
         commodity: commoditySlug,
         commodityName: meta.commodityName,
         category: meta.category,
-        unit: meta.unit,
+        unit: summaryRows[0] ? getObservationDisplayUnit(summaryRows[0]) : meta.unit,
         priceHigh: Math.max(...prices),
         priceLow: Math.min(...prices),
         priceAvg,
@@ -949,7 +1087,7 @@ function buildVnResponseFromRows(
         low52w: historicalRange?.low ?? (currentDaily?.minPrice ?? Math.min(...prices)),
         high52w: historicalRange?.high ?? (currentDaily?.maxPrice ?? Math.max(...prices)),
         regions,
-        sources: [...new Set(rows.map(row => toSourceId(row.source)))],
+        sources: [...new Set(summaryRows.map(row => toSourceId(row.source)))],
         recommendation: getRecommendation(recommendationBasis),
         trend7dPct,
         trendDirection: getTrendDirection(trend7dPct),
@@ -1097,7 +1235,7 @@ function dedupeObservationRows(rows: LatestObservationRow[]) {
         ? row.raw_payload.articleTitle
         : ''
     const signature = explicitDedupeKey
-      ? `${getObservationSource(row)}::${priceType}::${explicitDedupeKey}`
+      ? `${getObservationSource(row)}::${priceType}::${getObservationDisplayUnit(row)}::${getObservationNormalizedUnitKey(row) ?? ''}::${explicitDedupeKey}`
       : [
           getObservationSource(row),
           row.commodity_slug,
@@ -1105,6 +1243,9 @@ function dedupeObservationRows(rows: LatestObservationRow[]) {
           provinceCode,
           row.variety ?? '',
           row.quality_grade ?? '',
+          getObservationDisplayUnit(row),
+          getObservationNormalizedUnitKey(row) ?? '',
+          typeof row.raw_payload?.unitQuantity === 'number' ? row.raw_payload.unitQuantity : '',
           marketName,
           articleTitle,
           row.price_vnd,
@@ -1136,13 +1277,14 @@ function buildPriceChainResponseFromObservationRows(
 
   const data = [...byCommodity.entries()]
     .map(([commoditySlug, rows]) => {
+      const curatedRows = preferCommodityHeadlineObservationRows(rows)
       const meta = VN_COMMODITY_META[commoditySlug] ?? {
-        commodityName: rows[0]?.raw_payload?.commodityName ?? commoditySlug,
-        category: rows[0]?.raw_payload?.category ?? 'Khác',
-        unit: rows[0]?.raw_payload?.unit ?? 'VND/kg',
+        commodityName: curatedRows[0]?.raw_payload?.commodityName ?? rows[0]?.raw_payload?.commodityName ?? commoditySlug,
+        category: curatedRows[0]?.raw_payload?.category ?? rows[0]?.raw_payload?.category ?? 'Khác',
+        unit: curatedRows[0] ? getObservationDisplayUnit(curatedRows[0]) : 'VND/kg',
       }
       const rowsByType = new Map<PriceType, LatestObservationRow[]>()
-      for (const row of rows) {
+      for (const row of curatedRows) {
         const priceType = getObservationPriceType(row)
         const entries = rowsByType.get(priceType) ?? []
         entries.push(row)
@@ -1151,23 +1293,18 @@ function buildPriceChainResponseFromObservationRows(
 
       const getAveragePrice = (priceType: PriceType) => {
         const entries = rowsByType.get(priceType) ?? []
-        const filteredEntries =
-          commoditySlug === DURIAN_COMMODITY_SLUG ? preferDurianHeadlineObservationRows(entries) : entries
-        if (filteredEntries.length === 0) {
+        if (entries.length === 0) {
           return null
         }
 
-        return roundNumber(filteredEntries.reduce((sum, entry) => sum + entry.price_vnd, 0) / filteredEntries.length)
+        return roundNumber(entries.reduce((sum, entry) => sum + entry.price_vnd, 0) / entries.length)
       }
 
       const farmGateVnd = getAveragePrice('farm_gate')
       const wholesaleVnd = getAveragePrice('wholesale')
       const retailVnd = getAveragePrice('retail')
       const exportVnd = getAveragePrice('export')
-      const exportEntries =
-        commoditySlug === DURIAN_COMMODITY_SLUG
-          ? preferDurianHeadlineObservationRows(rowsByType.get('export') ?? [])
-          : (rowsByType.get('export') ?? [])
+      const exportEntries = rowsByType.get('export') ?? []
       const exportUsd =
         exportEntries.length > 0
           ? roundNumber(
@@ -1175,10 +1312,7 @@ function buildPriceChainResponseFromObservationRows(
                 exportEntries.length,
             )
           : null
-      const retailRows =
-        commoditySlug === DURIAN_COMMODITY_SLUG
-          ? preferDurianHeadlineObservationRows(rowsByType.get('retail') ?? [])
-          : (rowsByType.get('retail') ?? [])
+      const retailRows = rowsByType.get('retail') ?? []
       const nationalRetailAvg =
         retailRows.length > 0
           ? retailRows.reduce((sum, row) => sum + row.price_vnd, 0) / retailRows.length
@@ -1212,16 +1346,16 @@ function buildPriceChainResponseFromObservationRows(
         .sort((left, right) => right.avgPrice - left.avgPrice)
       const trend = trendByCommodity.get(commoditySlug)
       const world = worldByCommodity.get(commoditySlug)
-      const updatedAt = rows.reduce(
+      const updatedAt = curatedRows.reduce(
         (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
-        rows[0]?.recorded_at ?? new Date().toISOString(),
+        curatedRows[0]?.recorded_at ?? rows[0]?.recorded_at ?? new Date().toISOString(),
       )
 
       return {
         commodity: commoditySlug,
         commodityName: meta.commodityName,
         category: meta.category,
-        unit: meta.unit,
+        unit: curatedRows[0] ? getObservationDisplayUnit(curatedRows[0]) : meta.unit,
         farmGateVnd,
         wholesaleVnd,
         retailVnd,

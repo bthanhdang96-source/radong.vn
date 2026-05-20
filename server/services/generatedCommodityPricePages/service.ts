@@ -9,6 +9,14 @@ import { listGeneratedPricePages } from '../generatedPricePages/service.js'
 import { resolveCommodityImage } from '../generatedPricePages/commodityImageResolver.js'
 import { getContentFamilyMeta, getPriceCommodityGroupMeta } from '../contentTaxonomy.js'
 import {
+  COCONUT_COMMODITY_SLUG,
+  getCoconutUnitPriority,
+  getDisplayUnit,
+  getUnitLabel,
+  normalizeUnitKey,
+  selectPreferredCoconutUnitCluster,
+} from '../coconutPricing.js'
+import {
   DURIAN_COMMODITY_SLUG,
   DURIAN_SUPPORTED_VARIETIES,
   getDurianVarietyLabel,
@@ -29,6 +37,8 @@ import type {
   GeneratedCommodityPricePageSummary,
   GeneratedCommodityPriceChainCard,
   GeneratedCommodityPriceRegionRow,
+  GeneratedCommodityPriceUnitRow,
+  GeneratedCommodityPriceUnitSection,
   GeneratedCommodityPriceVarietyRow,
   GeneratedCommodityPriceVarietySection,
   PricePageFaqItem,
@@ -54,11 +64,16 @@ type LatestObservationRow = {
   commodity_slug: string
   province_code: string | null
   price_type: PricePagePrimaryPriceType | null
+  unit?: string | null
   variety: string | null
   quality_grade: string | null
   market_name: string | null
   raw_payload: {
     region?: string | null
+    unit?: string | null
+    unitRaw?: string | null
+    normalizedUnitKey?: string | null
+    unitQuantity?: number | null
   } | null
 }
 
@@ -67,6 +82,7 @@ type ObservationWindowRow = {
   commodity_slug: string
   province_code: string | null
   price_type: PricePagePrimaryPriceType | null
+  unit?: string | null
   price_vnd: number | null
   confidence: number
   variety: string | null
@@ -74,6 +90,10 @@ type ObservationWindowRow = {
   market_name: string | null
   raw_payload: {
     region?: string | null
+    unit?: string | null
+    unitRaw?: string | null
+    normalizedUnitKey?: string | null
+    unitQuantity?: number | null
   } | null
 }
 
@@ -177,6 +197,7 @@ type GeneratedCommodityPricePageRow = {
   national_scope_label: string | null
   region_rows_json: unknown
   variety_sections_json: unknown
+  unit_sections_json: unknown
   metrics_json: Record<string, unknown> | null
   published_at: string | null
   updated_at: string
@@ -205,6 +226,7 @@ type CommodityCandidatePage = {
   nationalScopeLabel: string | null
   regionRows: GeneratedCommodityPriceRegionRow[]
   varietySections: GeneratedCommodityPriceVarietySection[]
+  unitSections: GeneratedCommodityPriceUnitSection[]
   metricsJson: Record<string, unknown>
 }
 
@@ -260,13 +282,52 @@ function formatDateTime(value: string) {
   }).format(new Date(value))
 }
 
-function formatCurrency(value: number) {
-  return `${Math.round(value).toLocaleString('vi-VN')} đồng/kg`
+function getRowNormalizedUnitKey(
+  row: {
+    unit?: string | null
+    raw_payload?: {
+      unit?: string | null
+      unitRaw?: string | null
+      normalizedUnitKey?: string | null
+    } | null
+  },
+) {
+  return (
+    normalizeUnitKey(row.raw_payload?.normalizedUnitKey) ??
+    normalizeUnitKey(row.raw_payload?.unit) ??
+    normalizeUnitKey(row.raw_payload?.unitRaw) ??
+    normalizeUnitKey(row.unit) ??
+    null
+  )
 }
 
-function formatSignedCurrency(value: number) {
+function getRowDisplayUnit(
+  row: {
+    unit?: string | null
+    raw_payload?: {
+      unit?: string | null
+      unitRaw?: string | null
+      normalizedUnitKey?: string | null
+    } | null
+  },
+) {
+  const rawDisplayUnit =
+    typeof row.raw_payload?.unit === 'string' && row.raw_payload.unit.length > 0
+      ? row.raw_payload.unit
+      : typeof row.unit === 'string' && row.unit.includes('/')
+        ? row.unit
+        : null
+
+  return getDisplayUnit(getRowNormalizedUnitKey(row), rawDisplayUnit)
+}
+
+function formatCurrency(value: number, unit = 'VND/kg') {
+  return `${Math.round(value).toLocaleString('vi-VN')} ${unit.replace(/^VND\//, 'đồng/')}`
+}
+
+function formatSignedCurrency(value: number, unit = 'VND/kg') {
   const prefix = value > 0 ? '+' : value < 0 ? '-' : ''
-  return `${prefix}${Math.abs(Math.round(value)).toLocaleString('vi-VN')} đồng/kg`
+  return `${prefix}${Math.abs(Math.round(value)).toLocaleString('vi-VN')} ${unit.replace(/^VND\//, 'đồng/')}`
 }
 
 function formatSignedPercent(value: number) {
@@ -527,6 +588,88 @@ function parseVarietySectionsJson(input: unknown): GeneratedCommodityPriceVariet
     .filter((section): section is GeneratedCommodityPriceVarietySection => Boolean(section))
 }
 
+function parseUnitSectionsJson(input: unknown): GeneratedCommodityPriceUnitSection[] {
+  if (!Array.isArray(input)) {
+    return []
+  }
+
+  return input
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const section = item as Record<string, unknown>
+      if (
+        typeof section.unitKey !== 'string' ||
+        typeof section.unitLabel !== 'string' ||
+        typeof section.headlineLatestPriceVnd !== 'number' ||
+        typeof section.lowestPriceVnd !== 'number' ||
+        typeof section.highestPriceVnd !== 'number' ||
+        typeof section.change7dPct !== 'number' ||
+        !Array.isArray(section.rows)
+      ) {
+        return null
+      }
+
+      const rows = section.rows
+        .map(rowItem => {
+          if (!rowItem || typeof rowItem !== 'object') {
+            return null
+          }
+
+          const row = rowItem as Record<string, unknown>
+          if (
+            typeof row.scopeType !== 'string' ||
+            typeof row.scopeKey !== 'string' ||
+            typeof row.locationLabel !== 'string' ||
+            typeof row.locationSlug !== 'string' ||
+            typeof row.priceType !== 'string' ||
+            typeof row.latestPriceVnd !== 'number' ||
+            typeof row.latestPriceUnit !== 'string' ||
+            typeof row.dayChangeVnd !== 'number' ||
+            typeof row.dayChangePct !== 'number' ||
+            typeof row.change7dVnd !== 'number' ||
+            typeof row.change7dPct !== 'number' ||
+            typeof row.latestObservedOn !== 'string' ||
+            typeof row.sortRank !== 'number'
+          ) {
+            return null
+          }
+
+          return {
+            scopeType: row.scopeType as PricePageScopeType,
+            scopeKey: row.scopeKey,
+            provinceCode: typeof row.provinceCode === 'string' ? row.provinceCode : null,
+            regionLabel: typeof row.regionLabel === 'string' ? row.regionLabel : null,
+            locationLabel: row.locationLabel,
+            locationSlug: row.locationSlug,
+            priceType: row.priceType as PricePagePrimaryPriceType,
+            latestPriceVnd: row.latestPriceVnd,
+            latestPriceUnit: row.latestPriceUnit,
+            dayChangeVnd: row.dayChangeVnd,
+            dayChangePct: row.dayChangePct,
+            change7dVnd: row.change7dVnd,
+            change7dPct: row.change7dPct,
+            latestObservedOn: row.latestObservedOn,
+            sortRank: row.sortRank,
+          } satisfies GeneratedCommodityPriceUnitRow
+        })
+        .filter((row): row is GeneratedCommodityPriceUnitRow => Boolean(row))
+
+      return {
+        unitKey: section.unitKey,
+        unitLabel: section.unitLabel,
+        headlineLatestPriceVnd: section.headlineLatestPriceVnd,
+        lowestPriceVnd: section.lowestPriceVnd,
+        highestPriceVnd: section.highestPriceVnd,
+        change7dPct: section.change7dPct,
+        rows,
+      } satisfies GeneratedCommodityPriceUnitSection
+    })
+    .filter((section): section is GeneratedCommodityPriceUnitSection => Boolean(section))
+}
+
 function parseChainCardsFromMetricsJson(input: Record<string, unknown> | null | undefined): GeneratedCommodityPriceChainCard[] {
   const chainCards = input?.chainCards
   if (!Array.isArray(chainCards)) {
@@ -567,11 +710,11 @@ async function loadGenerationInputs() {
 
   const latestRowsPromise = client
     .from('latest_observation_details')
-    .select('recorded_at, commodity_slug, province_code, price_type, variety, quality_grade, market_name, raw_payload')
+    .select('recorded_at, commodity_slug, province_code, price_type, unit, variety, quality_grade, market_name, raw_payload')
 
   const observationsPromise = client
     .from('price_observations')
-    .select('recorded_at, commodity_slug, province_code, price_type, price_vnd, confidence, variety, quality_grade, market_name, raw_payload')
+    .select('recorded_at, commodity_slug, province_code, price_type, unit, price_vnd, confidence, variety, quality_grade, market_name, raw_payload')
     .gte('recorded_at', new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString())
     .gte('confidence', 0.5)
 
@@ -621,7 +764,20 @@ async function loadGenerationInputs() {
   } satisfies GenerationInputs
 }
 
-function filterDurianHeadlineRows<T extends { commodity_slug: string; price_type: PricePagePrimaryPriceType | null; quality_grade: string | null }>(
+function filterHeadlineRows<
+  T extends {
+    commodity_slug: string
+    price_type: PricePagePrimaryPriceType | null
+    quality_grade: string | null
+    unit?: string | null
+    recorded_at: string
+    raw_payload?: {
+      unit?: string | null
+      unitRaw?: string | null
+      normalizedUnitKey?: string | null
+    } | null
+  },
+>(
   rows: T[],
 ) {
   const premiumByPriceType = new Set<string>()
@@ -636,10 +792,26 @@ function filterDurianHeadlineRows<T extends { commodity_slug: string; price_type
   }
 
   if (premiumByPriceType.size === 0) {
-    return rows
+    const preferredCoconutUnitCluster = selectPreferredCoconutUnitCluster(rows, row => ({
+      commoditySlug: row.commodity_slug,
+      recordedAt: row.recorded_at,
+      displayUnit: getRowDisplayUnit(row),
+      normalizedUnitKey: getRowNormalizedUnitKey(row),
+    }))
+    if (!preferredCoconutUnitCluster) {
+      return rows
+    }
+
+    return rows.filter(row => {
+      if (row.commodity_slug !== COCONUT_COMMODITY_SLUG) {
+        return true
+      }
+
+      return getRowNormalizedUnitKey(row) === preferredCoconutUnitCluster
+    })
   }
 
-  return rows.filter(row => {
+  const filteredRows = rows.filter(row => {
     if (row.commodity_slug !== DURIAN_COMMODITY_SLUG || !row.price_type) {
       return true
     }
@@ -650,38 +822,56 @@ function filterDurianHeadlineRows<T extends { commodity_slug: string; price_type
 
     return isDurianHeadlineQualityGrade(row.quality_grade)
   })
+
+  const preferredCoconutUnitCluster = selectPreferredCoconutUnitCluster(filteredRows, row => ({
+    commoditySlug: row.commodity_slug,
+    recordedAt: row.recorded_at,
+    displayUnit: getRowDisplayUnit(row),
+    normalizedUnitKey: getRowNormalizedUnitKey(row),
+  }))
+  if (!preferredCoconutUnitCluster) {
+    return filteredRows
+  }
+
+  return filteredRows.filter(row => {
+    if (row.commodity_slug !== COCONUT_COMMODITY_SLUG) {
+      return true
+    }
+
+    return getRowNormalizedUnitKey(row) === preferredCoconutUnitCluster
+  })
 }
 
 function buildCommodityChainCards(commoditySlug: string, inputs: GenerationInputs): GeneratedCommodityPriceChainCard[] {
+  const commodityRows = filterHeadlineRows(
+    inputs.observations.filter(row => row.commodity_slug === commoditySlug && row.price_vnd !== null),
+  )
+  const fallbackUnit = commodityRows[0] ? getRowDisplayUnit(commodityRows[0]) : 'VND/kg'
+
   return PRICE_TYPE_PRIORITY.map(priceType => {
-    const rows = inputs.observations.filter(
-      row => row.commodity_slug === commoditySlug && row.price_type === priceType && row.price_vnd !== null,
-    )
-    const filteredRows = commoditySlug === DURIAN_COMMODITY_SLUG ? filterDurianHeadlineRows(rows) : rows
-    if (filteredRows.length === 0) {
+    const rows = commodityRows.filter(row => row.price_type === priceType)
+    if (rows.length === 0) {
       return {
         priceType,
         label: getPriceTypeLabel(priceType),
         latestPriceVnd: null,
-        latestPriceUnit: 'VND/kg',
+        latestPriceUnit: fallbackUnit,
         latestObservedOn: null,
       } satisfies GeneratedCommodityPriceChainCard
     }
 
-    const latestObservedOn = filteredRows.reduce(
+    const latestObservedOn = rows.reduce(
       (latest, row) => (row.recorded_at > latest ? row.recorded_at : latest),
-      filteredRows[0]?.recorded_at ?? null,
+      rows[0]?.recorded_at ?? null,
     )
     const latestDateKey = latestObservedOn ? dateKeyFromIso(latestObservedOn) : null
-    const latestRows = latestDateKey
-      ? filteredRows.filter(row => dateKeyFromIso(row.recorded_at) === latestDateKey)
-      : filteredRows
+    const latestRows = latestDateKey ? rows.filter(row => dateKeyFromIso(row.recorded_at) === latestDateKey) : rows
 
     return {
       priceType,
       label: getPriceTypeLabel(priceType),
       latestPriceVnd: roundNumber(latestRows.reduce((sum, row) => sum + (row.price_vnd ?? 0), 0) / latestRows.length),
-      latestPriceUnit: 'VND/kg',
+      latestPriceUnit: getRowDisplayUnit(latestRows[0] ?? rows[0]),
       latestObservedOn: latestDateKey,
     } satisfies GeneratedCommodityPriceChainCard
   })
@@ -842,6 +1032,161 @@ function buildDurianVarietySections(
   return sections.filter((section): section is GeneratedCommodityPriceVarietySection => section !== null)
 }
 
+function buildCoconutUnitSections(
+  commoditySlug: string,
+  inputs: GenerationInputs,
+  latestDateKey: string,
+): GeneratedCommodityPriceUnitSection[] {
+  if (commoditySlug !== COCONUT_COMMODITY_SLUG) {
+    return []
+  }
+
+  const provinceLookup = new Map(inputs.provinces.map(province => [province.code, province.name_vi]))
+  const sevenDayStartKey = addDays(latestDateKey, -6)
+  const bucketLookup = new Map<string, Map<string, { sum: number; count: number }>>()
+  const scopeLookup = new Map<
+    string,
+    {
+      unitKey: string
+      unitLabel: string
+      latestPriceUnit: string
+      scopeType: PricePageScopeType
+      scopeKey: string
+      provinceCode: string | null
+      regionLabel: string | null
+      locationLabel: string
+      locationSlug: string
+      priceType: PricePagePrimaryPriceType
+    }
+  >()
+
+  for (const row of inputs.observations) {
+    if (row.commodity_slug !== COCONUT_COMMODITY_SLUG || row.price_vnd === null || !row.price_type) {
+      continue
+    }
+
+    const scope = deriveScope(row, provinceLookup)
+    if (!scope) {
+      continue
+    }
+
+    const rowDateKey = dateKeyFromIso(row.recorded_at)
+    if (rowDateKey < sevenDayStartKey || rowDateKey > latestDateKey) {
+      continue
+    }
+
+    const unitKey = getRowNormalizedUnitKey(row)
+    const latestPriceUnit = getRowDisplayUnit(row)
+    if (!unitKey) {
+      continue
+    }
+
+    const key = [unitKey, scope.scopeType, scope.scopeKey, row.price_type].join('::')
+    scopeLookup.set(key, {
+      unitKey,
+      unitLabel: getUnitLabel(latestPriceUnit),
+      latestPriceUnit,
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      provinceCode: scope.provinceCode,
+      regionLabel: scope.regionLabel,
+      locationLabel: scope.locationLabel,
+      locationSlug: scope.locationSlug,
+      priceType: row.price_type,
+    })
+
+    const byDate = bucketLookup.get(key) ?? new Map<string, { sum: number; count: number }>()
+    const bucket = byDate.get(rowDateKey) ?? { sum: 0, count: 0 }
+    bucket.sum += row.price_vnd
+    bucket.count += 1
+    byDate.set(rowDateKey, bucket)
+    bucketLookup.set(key, byDate)
+  }
+
+  const rowsByUnit = new Map<string, GeneratedCommodityPriceUnitRow[]>()
+  for (const [key, byDate] of bucketLookup.entries()) {
+    const scope = scopeLookup.get(key)
+    const latestBucket = byDate.get(latestDateKey)
+    if (!scope || !latestBucket || latestBucket.count === 0) {
+      continue
+    }
+
+    let sevenDaySum = 0
+    let sevenDayCount = 0
+    for (const bucket of byDate.values()) {
+      sevenDaySum += bucket.sum
+      sevenDayCount += bucket.count
+    }
+
+    const latestPriceVnd = latestBucket.sum / latestBucket.count
+    const yesterdayBucket = byDate.get(addDays(latestDateKey, -1))
+    const yesterdayAvg = yesterdayBucket && yesterdayBucket.count > 0 ? yesterdayBucket.sum / yesterdayBucket.count : latestPriceVnd
+    const sevenDayAvg = sevenDayCount > 0 ? sevenDaySum / sevenDayCount : latestPriceVnd
+    const dayChangeVnd = latestPriceVnd - yesterdayAvg
+    const change7dVnd = latestPriceVnd - sevenDayAvg
+
+    const row: GeneratedCommodityPriceUnitRow = {
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      provinceCode: scope.provinceCode,
+      regionLabel: scope.regionLabel,
+      locationLabel: scope.locationLabel,
+      locationSlug: scope.locationSlug,
+      priceType: scope.priceType,
+      latestPriceVnd: roundNumber(latestPriceVnd),
+      latestPriceUnit: scope.latestPriceUnit,
+      dayChangeVnd: roundNumber(dayChangeVnd),
+      dayChangePct: roundNumber(yesterdayAvg > 0 ? (dayChangeVnd / yesterdayAvg) * 100 : 0),
+      change7dVnd: roundNumber(change7dVnd),
+      change7dPct: roundNumber(sevenDayAvg > 0 ? (change7dVnd / sevenDayAvg) * 100 : 0),
+      latestObservedOn: latestDateKey,
+      sortRank: 0,
+    }
+
+    const existing = rowsByUnit.get(scope.unitKey) ?? []
+    existing.push(row)
+    rowsByUnit.set(scope.unitKey, existing)
+  }
+
+  return [...rowsByUnit.entries()]
+    .map(([unitKey, rows]) => {
+      const sortedRows = rows
+        .sort((left, right) => {
+          if (right.latestPriceVnd !== left.latestPriceVnd) {
+            return right.latestPriceVnd - left.latestPriceVnd
+          }
+
+          return left.locationLabel.localeCompare(right.locationLabel, 'vi')
+        })
+        .map((row, index) => ({
+          ...row,
+          sortRank: index + 1,
+        }))
+
+      return {
+        unitKey,
+        unitLabel: getUnitLabel(sortedRows[0]?.latestPriceUnit ?? 'VND/kg'),
+        headlineLatestPriceVnd: roundNumber(
+          sortedRows.reduce((sum, row) => sum + row.latestPriceVnd, 0) / sortedRows.length,
+        ),
+        lowestPriceVnd: Math.min(...sortedRows.map(row => row.latestPriceVnd)),
+        highestPriceVnd: Math.max(...sortedRows.map(row => row.latestPriceVnd)),
+        change7dPct: roundNumber(
+          sortedRows.reduce((sum, row) => sum + row.change7dPct, 0) / sortedRows.length,
+        ),
+        rows: sortedRows,
+      } satisfies GeneratedCommodityPriceUnitSection
+    })
+    .sort((left, right) => {
+      const unitPriorityDiff = getCoconutUnitPriority(right.unitKey) - getCoconutUnitPriority(left.unitKey)
+      if (unitPriorityDiff !== 0) {
+        return unitPriorityDiff
+      }
+
+      return left.unitLabel.localeCompare(right.unitLabel, 'vi')
+    })
+}
+
 export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commoditySlug?: string) {
   if (inputs.latestRows.length === 0) {
     return [] as ScopeMetric[]
@@ -861,10 +1206,11 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
   const yesterdayDateKey = addDays(latestDateKey, -1)
   const sevenDayStartKey = addDays(latestDateKey, -6)
 
-  const filteredLatestRows = filterDurianHeadlineRows(inputs.latestRows)
-  const filteredObservations = filterDurianHeadlineRows(inputs.observations)
+  const filteredLatestRows = filterHeadlineRows(inputs.latestRows)
+  const filteredObservations = filterHeadlineRows(inputs.observations)
   const candidatePageKeys = new Set<string>()
   const pageInfoLookup = new Map<string, { commoditySlug: string; scope: ScopeInfo }>()
+  const priceTypeUnitLookup = new Map<string, string>()
   for (const row of filteredLatestRows.filter(item => dateKeyFromIso(item.recorded_at) === latestDateKey)) {
     if (!isPriceType(row.price_type)) {
       continue
@@ -882,6 +1228,9 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
     const pageKey = buildScopeCacheKey(row.commodity_slug, scope.scopeType, scope.scopeKey)
     candidatePageKeys.add(pageKey)
     pageInfoLookup.set(pageKey, { commoditySlug: row.commodity_slug, scope })
+    if (row.price_type) {
+      priceTypeUnitLookup.set(`${pageKey}::${row.price_type}`, getRowDisplayUnit(row))
+    }
   }
 
   const bucketLookup = new Map<string, DailyBucket>()
@@ -925,6 +1274,7 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
 
     const windowCountKey = `${pageKey}::${row.price_type}`
     windowObservationCounts.set(windowCountKey, (windowObservationCounts.get(windowCountKey) ?? 0) + 1)
+    priceTypeUnitLookup.set(`${pageKey}::${row.price_type}`, getRowDisplayUnit(row))
   }
 
   const metrics: ScopeMetric[] = []
@@ -984,7 +1334,7 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
         priceType,
         latestDate: latestDateKey,
         latestPriceVnd: roundNumber(latestAvg),
-        latestPriceUnit: 'VND/kg',
+        latestPriceUnit: priceTypeUnitLookup.get(`${pageKey}::${priceType}`) ?? 'VND/kg',
         dayChangeVnd: roundNumber(latestAvg - yesterdayAvg),
         dayChangePct: roundNumber(yesterdayAvg > 0 ? ((latestAvg - yesterdayAvg) / yesterdayAvg) * 100 : 0),
         change7dVnd: roundNumber(latestAvg - sevenDayAvg),
@@ -1012,6 +1362,7 @@ export function buildScopeMetricsForCommodity(inputs: GenerationInputs, commodit
 function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: string) {
   const latestDateLabel = formatFullDate(page.latestDate)
   const priceTypeLabel = getPriceTypeLabel(page.primaryPriceType)
+  const displayUnit = page.headlineLatestPriceUnit
   const dayDirection = getMovementLabel(page.dayChangePct)
   const sevenDayDirection = getMovementLabel(page.change7dPct)
   const topLocationLabel = typeof page.metricsJson.topLocationLabel === 'string' ? page.metricsJson.topLocationLabel : 'vùng cao nhất'
@@ -1020,8 +1371,8 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
   const daySummaryPhrase =
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
-      : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu từ các nơi đang có cho thấy mức cao nhất tại ${topLocationLabel} và thấp nhất tại ${bottomLocationLabel}.`
+      : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} ${displayUnit.replace(/^VND\//, 'đồng/')} so với hôm qua`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu từ các nơi đang có cho thấy mức cao nhất tại ${topLocationLabel} và thấp nhất tại ${bottomLocationLabel}.`
   const excerpt = maybeTruncate(
     `${answerSummary} Bảng giá theo vùng được tổng hợp từ ${page.locationCount.toLocaleString('vi-VN')} nơi có đủ dữ liệu cùng loại giá.`,
     180,
@@ -1030,11 +1381,11 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
   const faq: PricePageFaqItem[] = [
     {
       question: `Giá ${commodityName} hôm nay là bao nhiêu?`,
-      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)} theo dữ liệu cập nhật ngày ${latestDateLabel}.`,
+      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} theo dữ liệu cập nhật ngày ${latestDateLabel}.`,
     },
     {
       question: `Giá ${commodityName} hôm nay khác nhau giữa các vùng ra sao?`,
-      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo khoảng cách ${formatCurrency(page.priceSpreadVnd)} giữa các vùng có đủ dữ liệu.`,
+      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo khoảng cách ${formatCurrency(page.priceSpreadVnd, displayUnit)} giữa các vùng có đủ dữ liệu.`,
     },
     {
       question: `Xem bảng giá ${commodityName} theo vùng ở đâu?`,
@@ -1045,10 +1396,10 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
   const bodyHtml = [
     `<section><h2>Tóm tắt nhanh</h2><p>${answerSummary}</p></section>`,
     `<section><h2>Bảng giá theo vùng hôm nay</h2><p>Bảng bên dưới tổng hợp ${page.locationCount.toLocaleString('vi-VN')} nơi có đủ dữ liệu với ${priceTypeLabel} của ${commodityName}. Các hàng được sắp theo mức giá hiện tại giảm dần để người đọc dễ nhìn ra nơi giá cao hơn và nơi giá thấp hơn.</p></section>`,
-    `<section><h2>Khu vực nổi bật</h2><p>${topLocationLabel} hiện là nơi có mức giá cao nhất ở ${formatCurrency(page.highestPriceVnd)}, trong khi ${bottomLocationLabel} đang ở ${formatCurrency(page.lowestPriceVnd)}. Mức cách nhau giữa nơi cao nhất và thấp nhất hiện là ${formatCurrency(page.priceSpreadVnd)}.</p></section>`,
-    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, với mức lệch ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
-    `<section><h2>Giá trong 7 ngày gần đây</h2><p>So với trung bình 7 ngày, giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)}`}. Nhờ vậy người đọc dễ thấy giá đang thay đổi ở nhiều nơi hay chỉ ở một vài nơi.</p></section>`,
-    `<section><h2>Giá giữa các vùng khác nhau ra sao</h2><p>Khoảng giá hiện nằm từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}. Người đọc có thể dùng bảng vùng để nhận diện nơi có giá thấp hơn hoặc nơi đang giữ mức giá cao.</p></section>`,
+    `<section><h2>Khu vực nổi bật</h2><p>${topLocationLabel} hiện là nơi có mức giá cao nhất ở ${formatCurrency(page.highestPriceVnd, displayUnit)}, trong khi ${bottomLocationLabel} đang ở ${formatCurrency(page.lowestPriceVnd, displayUnit)}. Mức cách nhau giữa nơi cao nhất và thấp nhất hiện là ${formatCurrency(page.priceSpreadVnd, displayUnit)}.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, với mức lệch ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` }.</p></section>`,
+    `<section><h2>Giá trong 7 ngày gần đây</h2><p>So với trung bình 7 ngày, giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Nhờ vậy người đọc dễ thấy giá đang thay đổi ở nhiều nơi hay chỉ ở một vài nơi.</p></section>`,
+    `<section><h2>Giá giữa các vùng khác nhau ra sao</h2><p>Khoảng giá hiện nằm từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} đến ${formatCurrency(page.highestPriceVnd, displayUnit)}. Người đọc có thể dùng bảng vùng để nhận diện nơi có giá thấp hơn hoặc nơi đang giữ mức giá cao.</p></section>`,
     `<section><h2>Theo dõi thêm</h2><p>Xem thêm bảng giá tổng hợp tại <a href="/bang-gia">/bang-gia</a> và chuỗi giá tại <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
   ].join('')
 
@@ -1082,6 +1433,7 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
 function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: string) {
   const latestDateLabel = formatFullDate(page.latestDate)
   const priceTypeLabel = getPriceTypeLabel(page.primaryPriceType)
+  const displayUnit = page.headlineLatestPriceUnit
   const dayDirection = getMovementLabel(page.dayChangePct)
   const sevenDayDirection = getMovementLabel(page.change7dPct)
   const nationalLabel = page.nationalScopeLabel ?? 'Việt Nam'
@@ -1089,8 +1441,8 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
   const daySummaryPhrase =
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
-      : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} đồng/kg so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} theo dữ liệu toàn quốc hiện có ngày ${latestDateLabel} đang ở mức ${formatCurrency(page.headlineLatestPriceVnd)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng so sánh chi tiết.`
+      : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} ${displayUnit.replace(/^VND\//, 'đồng/')} so với hôm qua`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} theo dữ liệu toàn quốc hiện có ngày ${latestDateLabel} đang ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng so sánh chi tiết.`
   const excerpt = maybeTruncate(
     `${answerSummary} Bài viết được cập nhật tự động theo dữ liệu cấp quốc gia hiện có để phục vụ nhu cầu tra cứu nhanh.`,
     180,
@@ -1099,7 +1451,7 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
   const faq: PricePageFaqItem[] = [
     {
       question: `Giá ${commodityName} hôm nay là bao nhiêu?`,
-      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd)} theo dữ liệu cấp ${nationalLabel} cập nhật ngày ${latestDateLabel}.`,
+      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} theo dữ liệu cấp ${nationalLabel} cập nhật ngày ${latestDateLabel}.`,
     },
     {
       question: `Vì sao bài giá ${commodityName} hôm nay chưa có bảng theo vùng?`,
@@ -1107,14 +1459,14 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
     },
     {
       question: `Giá ${commodityName} trong 7 ngày gần đây thay đổi ra sao?`,
-      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)} theo dữ liệu toàn quốc hiện có.`,
+      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)} theo dữ liệu toàn quốc hiện có.`,
     },
   ]
 
   const bodyHtml = [
     `<section><h2>Tóm tắt nhanh</h2><p>${answerSummary}</p></section>`,
-    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} tại ${nationalLabel} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, tương ứng mức lệch ${formatSignedCurrency(page.dayChangeVnd)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd)}` }.</p></section>`,
-    `<section><h2>So với 7 ngày gần đây</h2><p>So với trung bình 7 ngày, mức giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd)}`}. Khoảng giá ghi nhận nằm từ ${formatCurrency(page.lowestPriceVnd)} đến ${formatCurrency(page.highestPriceVnd)}.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} tại ${nationalLabel} hiện ${dayDirection === 'ổn định' ? `ít thay đổi so với hôm qua, tương ứng mức lệch ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương ứng mức thay đổi ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` }.</p></section>`,
+    `<section><h2>So với 7 ngày gần đây</h2><p>So với trung bình 7 ngày, mức giá hiện ${sevenDayDirection === 'ổn định' ? 'giữ mức khá ổn định' : `${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Khoảng giá ghi nhận nằm từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} đến ${formatCurrency(page.highestPriceVnd, displayUnit)}.</p></section>`,
     `<section><h2>Dữ liệu hiện có</h2><p>Hiện hệ thống mới có dữ liệu đủ dùng ở cấp ${nationalLabel}. Vì vậy trang này được hiển thị như một bài tin giá tự động để người đọc vẫn có thể theo dõi mức giá chung của ${commodityName} hôm nay.</p></section>`,
     `<section><h2>Theo dõi thêm</h2><p>Khi có thêm dữ liệu địa bàn, trang này sẽ tự động có thêm bảng giá theo vùng. Trong lúc chờ đợi, người đọc có thể xem thêm tại <a href="/bang-gia">/bang-gia</a> và <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
   ].join('')
@@ -1240,6 +1592,11 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         inputs,
         topMetric?.latestDate ?? new Date().toISOString().slice(0, 10),
       )
+      const unitSections = buildCoconutUnitSections(
+        commoditySlug,
+        inputs,
+        topMetric?.latestDate ?? new Date().toISOString().slice(0, 10),
+      )
       const chainCards = buildCommodityChainCards(commoditySlug, inputs)
 
       pages.push({
@@ -1250,7 +1607,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         renderMode: 'regional_table',
         latestDate: topMetric?.latestDate ?? new Date().toISOString().slice(0, 10),
         headlineLatestPriceVnd: roundNumber(headlineLatestPriceVnd),
-        headlineLatestPriceUnit: 'VND/kg',
+        headlineLatestPriceUnit: topMetric?.latestPriceUnit ?? 'VND/kg',
         dayChangeVnd: roundNumber(dayChangeVnd),
         dayChangePct: roundNumber(yesterdayAvg > 0 ? (dayChangeVnd / yesterdayAvg) * 100 : 0),
         change7dVnd: roundNumber(change7dVnd),
@@ -1264,6 +1621,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         nationalScopeLabel: null,
         regionRows,
         varietySections,
+        unitSections,
         metricsJson: {
           topLocationLabel: topMetric?.scope.locationLabel ?? null,
           bottomLocationLabel: bottomMetric?.scope.locationLabel ?? null,
@@ -1272,6 +1630,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
           isNationalOnly: false,
           nationalOnlyReason: null,
           varietySectionCount: varietySections.length,
+          unitSectionCount: unitSections.length,
           chainCards,
           coverageByPriceType,
           updatedAtLabel: formatDateTime(`${topMetric?.latestDate ?? new Date().toISOString().slice(0, 10)}T08:00:00.000Z`),
@@ -1314,6 +1673,7 @@ function buildCommodityCandidatePages(inputs: GenerationInputs, options: Generat
         nationalScopeLabel: selectedMetric.scope.locationLabel,
         regionRows: [],
         varietySections: [],
+        unitSections: buildCoconutUnitSections(commoditySlug, inputs, selectedMetric.latestDate),
         metricsJson: {
           topLocationLabel: selectedMetric.scope.locationLabel,
           bottomLocationLabel: selectedMetric.scope.locationLabel,
@@ -1550,6 +1910,7 @@ export async function generateCommodityPricePages(
         national_scope_label: page.nationalScopeLabel,
         region_rows_json: page.regionRows,
         variety_sections_json: page.varietySections,
+        unit_sections_json: page.unitSections,
         metrics_json: page.metricsJson,
         status: 'published',
         published_at: existing?.published_at ?? new Date().toISOString(),
@@ -1755,6 +2116,7 @@ export async function getGeneratedCommodityPricePageDetail(
       seo: parseSeoJson(row.seo_json, seoFallback),
       regionRows: parseRegionRowsJson(row.region_rows_json),
       varietySections: parseVarietySectionsJson(row.variety_sections_json),
+      unitSections: parseUnitSectionsJson(row.unit_sections_json),
       chainCards: parseChainCardsFromMetricsJson(row.metrics_json),
       relatedCommodityPages,
       relatedLocationPages,
