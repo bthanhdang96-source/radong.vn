@@ -116,6 +116,18 @@ function getFavoriteId(item: LookupItem) {
   return `${item.registryType}:${item.id}`
 }
 
+function shouldShowProductLabel(product: string) {
+  const normalizedProduct = product.trim().toLocaleLowerCase('vi-VN')
+  return ![
+    'một loại nông sản khác',
+    'mot loai nong san khac',
+    'nông sản khác',
+    'nong san khac',
+    'khác',
+    'khac',
+  ].includes(normalizedProduct)
+}
+
 function readFavorites() {
   try {
     const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? '[]')
@@ -336,6 +348,8 @@ function LookupCard({
   onToggleFavorite: (item: LookupItem) => void
   canUseTelLinks: boolean
 }) {
+  const showProductLabel = shouldShowProductLabel(item.product)
+
   return (
     <article
       id={`registry-card-${item.id}`}
@@ -343,7 +357,7 @@ function LookupCard({
       onClick={() => onSelect(item)}
     >
       <div className="lookup-card__topline">
-        <span className="lookup-card__product">{item.product}</span>
+        {showProductLabel ? <span className="lookup-card__product">{item.product}</span> : <span aria-hidden="true" />}
         {item.market ? <span className="lookup-card__market">{item.market}</span> : null}
       </div>
 
@@ -408,6 +422,7 @@ function RegistryMap({
   const markersRef = useRef<MapLibreMarker[]>([])
   const [mapReady, setMapReady] = useState(false)
   const selectedItem = items.find(item => item.id === selectedId)
+  const showSelectedProductLabel = selectedItem ? shouldShowProductLabel(selectedItem.product) : false
   const mapItems = useMemo(
     () => items.map(item => ({
       item,
@@ -542,7 +557,7 @@ function RegistryMap({
           className="lookup-map__popup"
           onClick={() => closeMobileMapAndScroll(selectedItem)}
         >
-          <span>{selectedItem.product}</span>
+          {showSelectedProductLabel ? <span>{selectedItem.product}</span> : null}
           <strong>{selectedItem.name}</strong>
           <p>{selectedItem.address}</p>
           {selectedItem.phone ? (
