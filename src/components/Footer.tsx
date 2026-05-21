@@ -1,4 +1,5 @@
-import './Footer.css';
+import { Link } from 'react-router-dom'
+import './Footer.css'
 
 export default function Footer() {
   return (
@@ -18,18 +19,18 @@ export default function Footer() {
           <div className="footer__links-group">
             <h3 className="footer__title">Dịch vụ</h3>
             <ul className="footer__links">
-              <li><a href="#bang-gia">Bảng giá trực tuyến</a></li>
-              <li><a href="#api">API dữ liệu</a></li>
+              <li><Link to="/bang-gia">Bảng giá trực tuyến</Link></li>
+              <li><Link to="/chuoi-gia">Chuỗi giá</Link></li>
+              <li><Link to="/tra-cuu">Tra cứu vùng trồng</Link></li>
             </ul>
           </div>
 
           <div className="footer__links-group">
             <h3 className="footer__title">Hỗ trợ</h3>
             <ul className="footer__links">
-              <li><a href="#faq">Câu hỏi thường gặp</a></li>
-              <li><a href="#lien-he">Liên hệ</a></li>
-              <li><a href="#bao-mat">Chính sách bảo mật</a></li>
-              <li><a href="#dieu-khoan">Điều khoản sử dụng</a></li>
+              <li><Link to="/thoi-tiet-nong-nghiep">Thời tiết nông nghiệp</Link></li>
+              <li><Link to="/chinh-sach-bao-mat">Chính sách bảo mật</Link></li>
+              <li><Link to="/dieu-khoan-su-dung">Điều khoản sử dụng</Link></li>
             </ul>
           </div>
         </div>
@@ -39,11 +40,11 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} NôngSản VN. Giữ toàn quyền.
           </p>
           <div className="footer__warning">
-            <strong>Tuyên bố từ chối trách nhiệm:</strong> Mọi thông tin giá cả trên nền tảng NôngSản VN chỉ mang tính phỏng đoán và dùng để tham khảo.
+            <strong>Tuyên bố từ chối trách nhiệm:</strong> Mọi thông tin giá cả trên nền tảng NôngSản VN chỉ mang tính tham khảo.
             Giao dịch nông sản tiềm ẩn rủi ro về biến động giá mạnh, vui lòng tự cân nhắc trước mọi quyết định.
           </div>
         </div>
       </div>
     </footer>
-  );
+  )
 }

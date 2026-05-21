@@ -116,6 +116,23 @@
   line-height: 1.4;
 }
 
+.generated-commodity-price-page__trend {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.generated-commodity-price-page__trend--up {
+  color: var(--color-up);
+}
+
+.generated-commodity-price-page__trend--down {
+  color: var(--color-down);
+}
+
+.generated-commodity-price-page__trend--neutral {
+  color: var(--color-hold);
+}
+
 .generated-commodity-price-page__table {
   margin-top: 1.5rem;
   padding: 1rem;
@@ -210,6 +227,16 @@
   text-align: left;
 }
 
+.generated-commodity-price-page__variety-table tbody tr,
+.generated-commodity-price-page__table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.generated-commodity-price-page__variety-table tbody tr:hover,
+.generated-commodity-price-page__table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+}
+
 .generated-commodity-price-page__section-head {
   display: flex;
   justify-content: space-between;
@@ -220,6 +247,21 @@
 .generated-commodity-price-page__table-wrap {
   margin-top: 1rem;
   overflow-x: auto;
+  position: relative;
+  box-shadow: inset -24px 0 22px -28px var(--color-text-muted);
+}
+
+.generated-commodity-price-page__table-wrap::after {
+  content: '';
+  position: sticky;
+  right: 0;
+  display: block;
+  width: 56px;
+  height: 1px;
+  margin-top: -1px;
+  margin-left: auto;
+  pointer-events: none;
+  box-shadow: -28px 0 28px color-mix(in srgb, var(--color-surface) 94%, transparent);
 }
 
 .generated-commodity-price-page__table table {

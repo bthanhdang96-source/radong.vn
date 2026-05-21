@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './Navbar.css'
 
@@ -39,6 +39,7 @@ export default function Navbar() {
   const [time, setTime] = useState(new Date())
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+  const navbarRef = useRef<HTMLElement | null>(null)
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme')
@@ -65,6 +66,32 @@ export default function Navbar() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    if (!menuOpen) {
+      return
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (!navbarRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
+
   const timeStr = time.toLocaleTimeString('vi-VN', {
     hour: '2-digit',
     minute: '2-digit',
@@ -80,9 +107,9 @@ export default function Navbar() {
   })
 
   return (
-    <header className={`navbar${scrolled ? ' navbar--scrolled' : ''}`}>
+    <header ref={navbarRef} className={`navbar${scrolled ? ' navbar--scrolled' : ''}`}>
       <div className="navbar__container">
-        <Link to="/" className="navbar__logo">
+        <Link to="/" className="navbar__logo" onClick={() => setMenuOpen(false)}>
           <div className="navbar__logo-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="var(--color-primary)" />
@@ -143,7 +170,13 @@ export default function Navbar() {
               </svg>
             )}
           </button>
-          <button className="navbar__hamburger" onClick={() => setMenuOpen(current => !current)} aria-label="Mở menu">
+          <button
+            className={`navbar__hamburger${menuOpen ? ' navbar__hamburger--open' : ''}`}
+            onClick={() => setMenuOpen(current => !current)}
+            aria-label="Mở menu"
+            aria-expanded={menuOpen}
+            aria-controls="navbar-mobile-menu"
+          >
             <span />
             <span />
             <span />
@@ -151,34 +184,36 @@ export default function Navbar() {
         </div>
       </div>
 
-      {menuOpen ? (
-        <div className="navbar__mobile-menu">
-          {NAV_LINKS.map(link => {
-            const isActive = isLinkActive(location.pathname, link)
-            return (
-              <div key={link.label} className="navbar__mobile-group">
+      <div
+        id="navbar-mobile-menu"
+        className={`navbar__mobile-menu${menuOpen ? ' navbar__mobile-menu--open' : ''}`}
+        aria-hidden={!menuOpen}
+      >
+        {NAV_LINKS.map(link => {
+          const isActive = isLinkActive(location.pathname, link)
+          return (
+            <div key={link.label} className="navbar__mobile-group">
+              <Link
+                to={link.to}
+                className={`navbar__mobile-link${isActive ? ' navbar__mobile-link--active' : ''}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+              {link.children?.map(child => (
                 <Link
-                  to={link.to}
-                  className={`navbar__mobile-link${isActive ? ' navbar__mobile-link--active' : ''}`}
+                  key={child.to}
+                  to={child.to}
+                  className={`navbar__mobile-link navbar__mobile-link--child${location.pathname === child.to ? ' navbar__mobile-link--active' : ''}`}
                   onClick={() => setMenuOpen(false)}
                 >
-                  {link.label}
+                  {child.label}
                 </Link>
-                {link.children?.map(child => (
-                  <Link
-                    key={child.to}
-                    to={child.to}
-                    className={`navbar__mobile-link navbar__mobile-link--child${location.pathname === child.to ? ' navbar__mobile-link--active' : ''}`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {child.label}
-                  </Link>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
+              ))}
+            </div>
+          )
+        })}
+      </div>
     </header>
   )
 }

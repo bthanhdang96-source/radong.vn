@@ -19,6 +19,7 @@ export default function HomeDashboard() {
   const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   function scrollToSelector(selector: string) {
     const target = document.querySelector(selector);
@@ -79,7 +80,7 @@ export default function HomeDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshNonce]);
 
   return (
     <div className="home-dashboard">
@@ -106,8 +107,13 @@ export default function HomeDashboard() {
         <button className="home-dashboard__dock-button" type="button" onClick={() => scrollToSelector('#bang-gia')}>
           Bảng giá
         </button>
-        <button className="home-dashboard__dock-button home-dashboard__dock-button--primary" type="button" disabled>
-          Tự động cập nhật
+        <button
+          className="home-dashboard__dock-button home-dashboard__dock-button--primary"
+          type="button"
+          onClick={() => setRefreshNonce(current => current + 1)}
+          disabled={loading}
+        >
+          {loading ? 'Đang tải' : 'Làm mới'}
         </button>
       </div>
     </div>

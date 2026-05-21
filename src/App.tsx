@@ -6,6 +6,7 @@ import AssminReportPage from './pages/AssminReportPage'
 import GeneratedCommodityPricePage from './pages/GeneratedCommodityPricePage'
 import GeneratedPricePage from './pages/GeneratedPricePage'
 import HomeDashboard from './pages/HomeDashboard'
+import LegalPage from './pages/LegalPage'
 import LookupPage from './pages/LookupPage'
 import NewsArticlePage from './pages/NewsArticlePage'
 import NewsIndexPage from './pages/NewsIndexPage'
@@ -42,6 +43,8 @@ export default function App() {
           <Route path="/tra-cuu/:categorySlug" element={<LookupPage />} />
           <Route path="/thegioi" element={<WorldPricesPage />} />
           <Route path="/thoi-tiet-nong-nghiep" element={<AgriWeatherPage />} />
+          <Route path="/chinh-sach-bao-mat" element={<LegalPage />} />
+          <Route path="/dieu-khoan-su-dung" element={<LegalPage />} />
         </Routes>
       </div>
       <Footer />

@@ -1,5 +1,5 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import type { NewsDetailResponse, NewsListItem } from '../data/newsTypes'
 import { buildContentFamilyPath } from '../data/contentTaxonomy'
@@ -32,6 +32,10 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function buildNewsSearchPath(query: string) {
+  return `/?q=${encodeURIComponent(query)}`
 }
 
 function normalizeTextContent(value: string | null | undefined) {
@@ -294,12 +298,15 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
 export default function NewsArticlePage() {
   const { slug } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const initialCachedPayload = slug ? readNewsArticleCache(slug) : null
   const initialPreview = getArticlePreview(location.state, slug) ?? initialCachedPayload?.article ?? null
   const [payload, setPayload] = useState<NewsDetailResponse | null>(initialCachedPayload)
   const [preview, setPreview] = useState<NewsListItem | null>(initialPreview)
   const [loading, setLoading] = useState(!initialCachedPayload)
   const [error, setError] = useState<string | null>(null)
+  const [readingProgress, setReadingProgress] = useState(0)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
 
   useEffect(() => {
     if (!slug) {
@@ -358,6 +365,62 @@ export default function NewsArticlePage() {
   const currentPreview = preview?.slug === slug ? preview : null
   const article = currentPayload?.article ?? currentPreview
 
+  useEffect(() => {
+    function updateProgress() {
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight
+      if (scrollable <= 0) {
+        setReadingProgress(0)
+        return
+      }
+
+      setReadingProgress(Math.min(100, Math.max(0, (window.scrollY / scrollable) * 100)))
+    }
+
+    updateProgress()
+    window.addEventListener('scroll', updateProgress, { passive: true })
+    window.addEventListener('resize', updateProgress)
+
+    return () => {
+      window.removeEventListener('scroll', updateProgress)
+      window.removeEventListener('resize', updateProgress)
+    }
+  }, [slug])
+
+  async function shareArticle() {
+    if (!article) {
+      return
+    }
+
+    const shareData = {
+      title: article.title,
+      text: article.excerpt ?? article.title,
+      url: window.location.href,
+    }
+
+    try {
+      if (typeof window.navigator.share === 'function') {
+        await window.navigator.share(shareData)
+        return
+      }
+
+      await window.navigator.clipboard.writeText(shareData.url)
+      setCopyStatus('copied')
+      window.setTimeout(() => setCopyStatus('idle'), 1800)
+    } catch {
+      // Sharing can be cancelled by the user; keep the article view unchanged.
+    }
+  }
+
+  async function copyArticleLink() {
+    try {
+      await window.navigator.clipboard.writeText(window.location.href)
+      setCopyStatus('copied')
+      window.setTimeout(() => setCopyStatus('idle'), 1800)
+    } catch {
+      setCopyStatus('idle')
+    }
+  }
+
   if (!article && loading) {
     return <main className="news-article news-article--state">Đang tải bài viết...</main>
   }
@@ -366,9 +429,14 @@ export default function NewsArticlePage() {
     return (
       <main className="news-article news-article--state">
         <p>{error ?? 'Không tìm thấy bài viết'}</p>
-        <Link to="/" className="news-article__back-link">
-          Quay lại trang tin tức
-        </Link>
+        <div className="news-article__state-actions">
+          <Link to="/" className="news-article__back-link">
+            Quay lại trang tin tức
+          </Link>
+          <Link to="/bang-gia" className="news-article__back-link news-article__back-link--secondary">
+            Xem bảng giá
+          </Link>
+        </div>
       </main>
     )
   }
@@ -377,9 +445,14 @@ export default function NewsArticlePage() {
     return (
       <main className="news-article news-article--state">
         <p>Không tìm thấy bài viết</p>
-        <Link to="/" className="news-article__back-link">
-          Quay lại trang tin tức
-        </Link>
+        <div className="news-article__state-actions">
+          <Link to="/" className="news-article__back-link">
+            Quay lại trang tin tức
+          </Link>
+          <Link to="/bang-gia" className="news-article__back-link news-article__back-link--secondary">
+            Xem bảng giá
+          </Link>
+        </div>
       </main>
     )
   }
@@ -391,6 +464,9 @@ export default function NewsArticlePage() {
 
   return (
     <main className="news-article">
+      <div className="news-article__progress" aria-hidden="true">
+        <span style={{ width: `${readingProgress}%` }} />
+      </div>
       <div className="news-article__frame">
         <div className="news-article__main">
           <nav className="news-article__breadcrumb" aria-label="Breadcrumb">
@@ -402,6 +478,27 @@ export default function NewsArticlePage() {
           </nav>
 
           <header className="news-article__header">
+            <div className="news-article__top-actions">
+              <button type="button" className="news-article__action-button" onClick={() => navigate(-1)}>
+                Quay lại
+              </button>
+              <div className="news-article__share-actions" aria-label="Chia sẻ bài viết">
+                <button type="button" className="news-article__action-button" onClick={() => void shareArticle()}>
+                  Chia sẻ
+                </button>
+                <a
+                  className="news-article__action-button"
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Facebook
+                </a>
+                <button type="button" className="news-article__action-button" onClick={() => void copyArticleLink()}>
+                  {copyStatus === 'copied' ? 'Đã copy' : 'Copy link'}
+                </button>
+              </div>
+            </div>
             {article.contentFamilyLabel || article.category ? (
               <div className="news-article__meta">
                 <Link className="news-article__category news-article__category--family" to={familyPath}>
@@ -419,7 +516,7 @@ export default function NewsArticlePage() {
             {article.topicTags.length > 0 ? (
               <div className="news-article__tags">
                 {article.topicTags.map(tag => (
-                  <span key={tag}>#{tag}</span>
+                  <Link key={tag} to={buildNewsSearchPath(tag)}>#{tag}</Link>
                 ))}
               </div>
             ) : null}

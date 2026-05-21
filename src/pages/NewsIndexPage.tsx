@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   CONTENT_FAMILY_DEFINITIONS,
   PRICE_GROUP_DEFINITIONS,
@@ -20,6 +20,8 @@ import './NewsIndexPage.css'
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
 const CONTENT_FEED_CACHE_PREFIX = 'content-feed-cache:v2:'
 const CONTENT_FEED_CACHE_MAX_AGE_MS = 60 * 60 * 1000
+const DEFAULT_FEED_LIMIT = 24
+const FAMILY_FEED_LIMIT = 30
 
 type FeedCache = {
   savedAt: string
@@ -34,6 +36,45 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatRelativeTime(value: string) {
+  const date = new Date(value)
+  const diffMs = Date.now() - date.getTime()
+  const diffMinutes = Math.floor(diffMs / 60000)
+
+  if (!Number.isFinite(diffMinutes) || diffMinutes < 0) {
+    return formatDate(value)
+  }
+
+  if (diffMinutes < 1) {
+    return 'Vừa đăng'
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} phút trước`
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) {
+    return `${diffHours} giờ trước`
+  }
+
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate()
+  ) {
+    return `Hôm qua ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+  }
+
+  return formatDate(value)
+}
+
+function buildNewsSearchPath(query: string) {
+  return `/?q=${encodeURIComponent(query)}`
 }
 
 function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
@@ -135,7 +176,7 @@ function getRouteHeadline(familyLabel: string | null, priceGroupLabel: string | 
     return familyLabel
   }
 
-  return 'Tin tức và trang giá tự động'
+  return 'Cập nhật thị trường nông sản'
 }
 
 function getRouteDescription(familyLabel: string | null, priceGroupLabel: string | null) {
@@ -168,7 +209,7 @@ function ArticleCard({ item }: { item: ContentFeedItem }) {
       </Link>
       <div className="news-index__stream-body">
         <div className="news-index__meta-row">
-          <time>{formatDate(getItemTimestamp(item))}</time>
+          <time dateTime={getItemTimestamp(item)}>{formatRelativeTime(getItemTimestamp(item))}</time>
           <span className="news-index__tag news-index__tag--badge">{item.badgeLabel}</span>
         </div>
         <Link className="news-index__stream-title" to={item.path}>
@@ -179,9 +220,9 @@ function ArticleCard({ item }: { item: ContentFeedItem }) {
           <span className="news-index__tag">{item.contentFamilyLabel}</span>
           {item.priceGroupLabel ? <span className="news-index__tag">{item.priceGroupLabel}</span> : null}
           {item.topicTags.slice(0, 2).map(tag => (
-            <span key={tag} className="news-index__tag">
+            <Link key={tag} className="news-index__tag news-index__tag--link" to={buildNewsSearchPath(tag)}>
               #{tag}
-            </span>
+            </Link>
           ))}
         </div>
       </div>
@@ -273,8 +314,10 @@ function SidebarModule({ module }: { module: ContentCategoryModule }) {
 
 export default function NewsIndexPage() {
   const params = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const familySlug = params.familySlug
   const priceGroupSlug = params.priceGroupSlug
+  const queryParam = searchParams.get('q') ?? ''
 
   const routeState = useMemo(() => {
     if (!familySlug && !priceGroupSlug) {
@@ -316,7 +359,8 @@ export default function NewsIndexPage() {
     }
   }, [familySlug, priceGroupSlug])
 
-  const requestLimit = routeState.family ? 30 : 24
+  const baseRequestLimit = routeState.family ? FAMILY_FEED_LIMIT : DEFAULT_FEED_LIMIT
+  const [requestLimit, setRequestLimit] = useState(baseRequestLimit)
   const cacheKey = useMemo(
     () => buildFeedCacheKey(routeState.family, routeState.priceGroup, requestLimit),
     [routeState.family, routeState.priceGroup, requestLimit],
@@ -326,12 +370,30 @@ export default function NewsIndexPage() {
   const [payload, setPayload] = useState<ContentFeedResponse | null>(() => cachedFeed?.payload ?? null)
   const [loading, setLoading] = useState(!cachedFeed && !routeState.invalid)
   const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(queryParam)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   useEffect(() => {
-    setSearchQuery('')
-  }, [routeState.family, routeState.priceGroup])
+    setRequestLimit(baseRequestLimit)
+  }, [baseRequestLimit, routeState.family, routeState.priceGroup])
+
+  useEffect(() => {
+    setSearchQuery(queryParam)
+  }, [queryParam, routeState.family, routeState.priceGroup])
+
+  function updateSearchQuery(value: string) {
+    setSearchQuery(value)
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      if (value.trim()) {
+        next.set('q', value)
+      } else {
+        next.delete('q')
+      }
+
+      return next
+    }, { replace: true })
+  }
 
   useEffect(() => {
     if (routeState.invalid) {
@@ -430,6 +492,7 @@ export default function NewsIndexPage() {
   const hero = filteredItems[0] ?? null
   const featured = filteredItems.slice(1, 5)
   const streamItems = filteredItems.length > 5 ? filteredItems.slice(5) : filteredItems.slice(1)
+  const canLoadMore = !loading && !routeState.invalid && Boolean(payload) && (payload?.items.length ?? 0) >= requestLimit
 
   if (routeState.invalid) {
     return (
@@ -457,6 +520,8 @@ export default function NewsIndexPage() {
               <Link
                 className={`news-index__tab ${routeState.family ? '' : 'news-index__tab--active'}`}
                 to="/"
+                role="tab"
+                aria-selected={!routeState.family}
               >
                 Tất cả
               </Link>
@@ -465,6 +530,8 @@ export default function NewsIndexPage() {
                   key={family.slug}
                   className={`news-index__tab ${routeState.family === family.slug ? 'news-index__tab--active' : ''}`}
                   to={family.path}
+                  role="tab"
+                  aria-selected={routeState.family === family.slug}
                 >
                   <span>{family.label}</span>
                   <small>{family.itemCount}</small>
@@ -479,16 +546,18 @@ export default function NewsIndexPage() {
                 aria-label="Tìm trong danh sách đang xem"
                 placeholder="Tìm theo tiêu đề, mô tả, nhóm nội dung..."
                 value={searchQuery}
-                onChange={event => setSearchQuery(event.target.value)}
+                onChange={event => updateSearchQuery(event.target.value)}
               />
             </div>
           </div>
 
           {routeState.family === 'tin-gia-nong-san' ? (
-            <div className="news-index__subtabs" aria-label="Nhóm nông sản">
+            <div className="news-index__subtabs" role="tablist" aria-label="Nhóm nông sản">
               <Link
                 className={`news-index__subtab ${routeState.priceGroup ? '' : 'news-index__subtab--active'}`}
                 to={buildContentFamilyPath('tin-gia-nong-san')}
+                role="tab"
+                aria-selected={!routeState.priceGroup}
               >
                 Tất cả nhóm
               </Link>
@@ -497,6 +566,8 @@ export default function NewsIndexPage() {
                   key={group.slug}
                   className={`news-index__subtab ${routeState.priceGroup === group.slug ? 'news-index__subtab--active' : ''}`}
                   to={group.path}
+                  role="tab"
+                  aria-selected={routeState.priceGroup === group.slug}
                 >
                   <span>{group.label}</span>
                   <small>{group.itemCount}</small>
@@ -507,17 +578,17 @@ export default function NewsIndexPage() {
 
           <div className="news-index__hero-copy">
             <div>
-              <span className="news-index__eyebrow">Luồng chính</span>
+              <span className="news-index__eyebrow">Tin nổi bật</span>
               <h1>{getRouteHeadline(currentFamilyLabel, currentPriceGroupLabel)}</h1>
               <p>{getRouteDescription(currentFamilyLabel, currentPriceGroupLabel)}</p>
             </div>
             <div className="news-index__hero-copy-meta">
               <div className="news-index__hero-stats" aria-label="Tổng quan nội dung">
-                <span>{payload?.items.length ?? 0} mục đang hiển thị</span>
+                <span>{payload?.items.length ?? 0} nội dung mới</span>
                 <span>{modules.length} nhóm truy cập nhanh</span>
               </div>
               <p style={{ marginTop: '0.65rem' }}>
-                {loading ? 'Đang nạp dữ liệu...' : `${filteredItems.length} mục phù hợp trong ngữ cảnh hiện tại`}
+                {loading ? 'Đang nạp dữ liệu...' : `${filteredItems.length} kết quả đang hiển thị`}
               </p>
             </div>
           </div>
@@ -534,7 +605,7 @@ export default function NewsIndexPage() {
               </div>
               <div className="news-index__hero-lead-body">
                 <div className="news-index__meta-row">
-                  <time>{formatDate(getItemTimestamp(hero))}</time>
+                  <time dateTime={getItemTimestamp(hero)}>{formatRelativeTime(getItemTimestamp(hero))}</time>
                   <span className="news-index__tag news-index__tag--badge">{hero.badgeLabel}</span>
                 </div>
                 <h2 className="news-index__hero-title">{hero.title}</h2>
@@ -562,7 +633,7 @@ export default function NewsIndexPage() {
               <span className="news-index__eyebrow">Danh sách bài</span>
               <h2>Nội dung theo nhóm đang mở</h2>
             </div>
-            <p>{loading ? 'Đang nạp...' : `${filteredItems.length} mục phù hợp`}</p>
+            <p>{loading ? 'Đang nạp...' : `${filteredItems.length} kết quả`}</p>
           </div>
 
           {error ? <div className="news-index__error">{error}</div> : null}
@@ -580,6 +651,14 @@ export default function NewsIndexPage() {
           ) : (
             <div className="news-index__empty">Chưa có nội dung phù hợp với cách lọc hiện tại.</div>
           )}
+
+          {canLoadMore ? (
+            <div className="news-index__load-more">
+              <button type="button" onClick={() => setRequestLimit(current => current + baseRequestLimit)}>
+                Xem thêm
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <aside className="news-index__aside">
