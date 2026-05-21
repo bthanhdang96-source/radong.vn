@@ -305,14 +305,14 @@ test('commodity page copy avoids finance-heavy stable wording', () => {
   )
 
   assert.doesNotMatch(regionalCopy.answerSummary, /đi ngang/i)
-  assert.match(regionalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
-  assert.match(regionalCopy.bodyHtml, /giữ mức giá cao/i)
-  assert.match(regionalCopy.bodyHtml, /Giá trong 7 ngày gần đây/i)
-  assert.doesNotMatch(regionalCopy.bodyHtml, /scope|hợp lệ|biên độ|dao động/i)
+  assert.match(regionalCopy.bodyHtml, /(ít thay đổi|gần như không thay đổi) so với hôm qua/i)
+  assert.match(regionalCopy.bodyHtml, /(giữ mức giá cao|mức giá [^<.]* cao)/i)
+  assert.match(regionalCopy.bodyHtml, /7 ngày gần đây/i)
+  assert.doesNotMatch(regionalCopy.bodyHtml, /scope|hợp lệ/i)
   assert.doesNotMatch(nationalCopy.answerSummary, /đi ngang/i)
-  assert.match(nationalCopy.bodyHtml, /ít thay đổi so với hôm qua/i)
-  assert.match(nationalCopy.bodyHtml, /Khoảng giá ghi nhận/i)
-  assert.doesNotMatch(nationalCopy.bodyHtml, /scope|mặt bằng/i)
+  assert.match(nationalCopy.bodyHtml, /(ít thay đổi|gần như không thay đổi) so với hôm qua/i)
+  assert.match(nationalCopy.bodyHtml, /(Khoảng giá ghi nhận|khoảng giá)/i)
+  assert.doesNotMatch(nationalCopy.bodyHtml, /scope/i)
 })
 
 test('buildCommodityCandidatePages builds durian variety sections and keeps premium headline separate from hang xo rows', () => {

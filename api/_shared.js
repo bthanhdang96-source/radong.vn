@@ -1,5 +1,5 @@
 function getApiBaseUrl() {
-  const value = process.env.PRICE_CONTENT_API_BASE_URL || process.env.VITE_API_BASE_URL
+  const value = process.env.BACKEND_API_BASE_URL || process.env.PRICE_CONTENT_API_BASE_URL || process.env.VITE_API_BASE_URL
   return value ? value.replace(/\/$/, '') : null
 }
 
