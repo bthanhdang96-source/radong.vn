@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { useNavigate, useParams } from 'react-router-dom'
+import { resolveRegistryCoordinate } from '../data/vietnamGeo'
 import { buildApiUrl } from '../lib/api'
 import './LookupPage.css'
 
@@ -87,19 +90,6 @@ const DEFAULT_RESPONSE: LookupResponse = {
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString('vi-VN') : '--'
-}
-
-function getMapPoint(item: LookupItem, index: number) {
-  const text = `${item.province ?? ''}${item.district ?? ''}${item.name}`
-  let hash = index + 17
-  for (let i = 0; i < text.length; i += 1) {
-    hash = (hash * 31 + text.charCodeAt(i)) % 9973
-  }
-
-  return {
-    x: 12 + (hash % 72),
-    y: 10 + ((hash * 7) % 76),
-  }
 }
 
 function getFavoriteId(item: LookupItem) {
@@ -237,7 +227,7 @@ function LookupCard({
   )
 }
 
-function SimulatedMap({
+function RegistryMap({
   items,
   activeType,
   selectedId,
@@ -250,34 +240,128 @@ function SimulatedMap({
   onSelect: (item: LookupItem) => void
   onCloseMobile?: () => void
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
+  const maplibreRef = useRef<typeof import('maplibre-gl') | null>(null)
+  const markersRef = useRef<MapLibreMarker[]>([])
+  const [mapReady, setMapReady] = useState(false)
   const selectedItem = items.find(item => item.id === selectedId)
+  const mapItems = useMemo(
+    () => items.map(item => ({
+      item,
+      coordinate: resolveRegistryCoordinate(item),
+    })),
+    [items],
+  )
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) {
+      return
+    }
+
+    let disposed = false
+    let resizeObserver: ResizeObserver | null = null
+    const container = containerRef.current
+
+    void import('maplibre-gl').then(maplibregl => {
+      if (disposed || mapRef.current) {
+        return
+      }
+
+      maplibreRef.current = maplibregl
+      mapRef.current = new maplibregl.Map({
+        container,
+        style: 'https://tiles.openfreemap.org/styles/positron',
+        center: [106.3, 16.2],
+        zoom: 4.7,
+        attributionControl: { compact: true },
+      })
+      mapRef.current.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+      resizeObserver = new ResizeObserver(() => {
+        mapRef.current?.resize()
+      })
+      resizeObserver.observe(container)
+      setMapReady(true)
+    })
+
+    return () => {
+      disposed = true
+      resizeObserver?.disconnect()
+      markersRef.current.forEach(marker => marker.remove())
+      markersRef.current = []
+      mapRef.current?.remove()
+      mapRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    const maplibregl = maplibreRef.current
+    if (!map || !maplibregl || !mapReady) {
+      return
+    }
+
+    markersRef.current.forEach(marker => marker.remove())
+    markersRef.current = mapItems.map(({ item, coordinate }) => {
+      const markerElement = document.createElement('button')
+      markerElement.type = 'button'
+      markerElement.className = [
+        'lookup-map__marker',
+        `lookup-map__marker--${item.registryType}`,
+        selectedId === item.id ? 'lookup-map__marker--selected' : '',
+      ].filter(Boolean).join(' ')
+      markerElement.title = item.name
+      markerElement.setAttribute('aria-label', item.name)
+      markerElement.addEventListener('click', event => {
+        event.preventDefault()
+        event.stopPropagation()
+        onSelect(item)
+      })
+
+      return new maplibregl.Marker({ element: markerElement, anchor: 'center' })
+        .setLngLat(coordinate)
+        .addTo(map)
+    })
+
+    if (mapItems.length === 1) {
+      map.easeTo({ center: mapItems[0].coordinate, zoom: 8.4, duration: 450 })
+    } else if (mapItems.length > 1) {
+      const bounds = mapItems.reduce(
+        (acc, entry) => acc.extend(entry.coordinate),
+        new maplibregl.LngLatBounds(mapItems[0].coordinate, mapItems[0].coordinate),
+      )
+      map.fitBounds(bounds, {
+        padding: { top: 72, right: 44, bottom: 120, left: 44 },
+        maxZoom: 8,
+        duration: 450,
+      })
+    }
+  }, [mapItems, mapReady, onSelect, selectedId])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !selectedItem) {
+      return
+    }
+
+    map.easeTo({
+      center: resolveRegistryCoordinate(selectedItem),
+      zoom: Math.max(map.getZoom(), 8),
+      duration: 350,
+    })
+  }, [selectedItem])
 
   return (
-    <aside className="lookup-map" aria-label="Sơ đồ vị trí hỗ trợ">
+    <aside className="lookup-map" aria-label="Bản đồ vị trí vùng trồng và cơ sở đóng gói">
       <div className="lookup-map__head">
         <div>
-          <span>Sơ đồ vị trí</span>
+          <span>Bản đồ OpenStreetMap</span>
           <strong>{items.length} điểm đang hiển thị</strong>
         </div>
         {onCloseMobile ? <button type="button" onClick={onCloseMobile}>Danh sách</button> : null}
       </div>
-      <div className="lookup-map__canvas">
-        <div className="lookup-map__route lookup-map__route--one" />
-        <div className="lookup-map__route lookup-map__route--two" />
-        {items.map((item, index) => {
-          const point = getMapPoint(item, index)
-          const selected = selectedId === item.id
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`lookup-map__pin lookup-map__pin--${activeType}${selected ? ' lookup-map__pin--selected' : ''}`}
-              style={{ left: `${point.x}%`, top: `${point.y}%` }}
-              title={item.name}
-              onClick={() => onSelect(item)}
-            />
-          )
-        })}
+      <div className="lookup-map__canvas" data-map-type={activeType}>
+        <div ref={containerRef} className="lookup-map__real-canvas" />
       </div>
       {selectedItem ? (
         <div className="lookup-map__popup">
@@ -517,7 +601,7 @@ export default function LookupPage() {
           ) : null}
         </div>
 
-        <SimulatedMap
+        <RegistryMap
           items={payload.items}
           activeType={activeTab.type}
           selectedId={selectedItem?.id ?? null}
