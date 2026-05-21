@@ -102,12 +102,20 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.35rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
   border-radius: 999px;
   font-size: 0.78rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--color-primary-dark);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+:root[data-theme="dark"] .news-index__eyebrow {
+  border-color: color-mix(in srgb, var(--color-primary-light) 32%, transparent);
+  background: color-mix(in srgb, var(--color-primary-light) 16%, transparent);
+  color: hsl(142, 72%, 74%);
 }
 
 .news-index__hero-stats {
