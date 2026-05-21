@@ -593,30 +593,66 @@
 }
 
 .lookup-map__marker {
-  width: 20px;
-  height: 20px;
-  border: 3px solid white;
+  width: 34px;
+  height: 34px;
+  border: 0;
   border-radius: 0;
+  background: transparent;
   padding: 0;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  color: var(--color-primary);
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.24));
   cursor: pointer;
   will-change: transform;
-  transition: transform 150ms ease, box-shadow 150ms ease;
+  transition: filter 150ms ease, transform 150ms ease;
 }
 
-.lookup-map__marker--production_area {
-  background: var(--color-primary);
+.lookup-map__marker-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .lookup-map__marker--packing_facility {
-  background: #2563eb;
+  color: #2563eb;
+}
+
+.lookup-map__marker-halo,
+.lookup-map__marker-soil,
+.lookup-map__marker-stem,
+.lookup-map__marker-leaf {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lookup-map__marker-halo {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 7px;
+}
+
+.lookup-map__marker-soil {
+  fill: none;
+  stroke: #79512c;
+  stroke-width: 4px;
+}
+
+.lookup-map__marker-stem {
+  fill: none;
+  stroke: #79512c;
+  stroke-width: 3px;
+}
+
+.lookup-map__marker-leaf {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2px;
 }
 
 .lookup-map__marker--selected {
   z-index: 2;
-  background: #dc2626;
-  box-shadow: 0 0 0 10px rgba(220, 38, 38, 0.18), 0 14px 28px rgba(0, 0, 0, 0.25);
+  color: #dc2626;
+  filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0.9)) drop-shadow(0 0 10px rgba(220, 38, 38, 0.42)) drop-shadow(0 14px 18px rgba(0, 0, 0, 0.28));
   transform: scale(1.45);
 }
 

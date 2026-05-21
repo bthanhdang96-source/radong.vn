@@ -500,6 +500,20 @@ function RegistryMap({
       ].filter(Boolean).join(' ')
       markerElement.title = item.name
       markerElement.setAttribute('aria-label', item.name)
+      markerElement.innerHTML = `
+        <svg class="lookup-map__marker-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <path class="lookup-map__marker-halo" d="M7 29 C11 24 16 22 20 22 C24 22 29 24 33 29" />
+          <path class="lookup-map__marker-halo" d="M20 25 C19 18 17 13 11 8" />
+          <path class="lookup-map__marker-halo" d="M20 25 C21 18 24 13 30 9" />
+          <path class="lookup-map__marker-halo" d="M11 8 C5 6 4 1 4 1 C12 1 17 5 18 12 C15 11 13 10 11 8 Z" />
+          <path class="lookup-map__marker-halo" d="M30 9 C35 9 37 5 37 5 C38 12 34 17 27 17 C27 13 28 11 30 9 Z" />
+          <path class="lookup-map__marker-soil" d="M7 29 C11 24 16 22 20 22 C24 22 29 24 33 29" />
+          <path class="lookup-map__marker-stem" d="M20 25 C19 18 17 13 11 8" />
+          <path class="lookup-map__marker-stem" d="M20 25 C21 18 24 13 30 9" />
+          <path class="lookup-map__marker-leaf" d="M11 8 C5 6 4 1 4 1 C12 1 17 5 18 12 C15 11 13 10 11 8 Z" />
+          <path class="lookup-map__marker-leaf" d="M30 9 C35 9 37 5 37 5 C38 12 34 17 27 17 C27 13 28 11 30 9 Z" />
+        </svg>
+      `
       markerElement.addEventListener('click', event => {
         event.preventDefault()
         event.stopPropagation()
