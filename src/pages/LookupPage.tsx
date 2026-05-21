@@ -605,6 +605,7 @@ export default function LookupPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null)
   const [mobileMapOpen, setMobileMapOpen] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => readFavorites())
   const canUseTelLinks = useCanUseTelLinks()
@@ -618,6 +619,7 @@ export default function LookupPage() {
   useEffect(() => {
     setPage(1)
     setSelectedId(null)
+    setPendingScrollId(null)
     setMobileMapOpen(false)
   }, [activeTab.type, debouncedSearch, province, market, product, status])
 
@@ -673,6 +675,18 @@ export default function LookupPage() {
   const favoriteSet = useMemo(() => new Set(favorites), [favorites])
   const totalPages = Math.max(1, Math.ceil(payload.total / payload.limit))
   const selectedItem = (payload.mapItems.length > 0 ? payload.mapItems : payload.items).find(item => item.id === selectedId)
+  const allVisibleMapItems = payload.mapItems.length > 0 ? payload.mapItems : payload.items
+
+  useEffect(() => {
+    if (!pendingScrollId || loading || !payload.items.some(item => item.id === pendingScrollId)) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById(`registry-card-${pendingScrollId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setPendingScrollId(null)
+    })
+  }, [loading, payload.items, pendingScrollId])
 
   function switchTab(tab: RegistryTab) {
     navigate(`/tra-cuu/${tab.slug}`)
@@ -692,9 +706,16 @@ export default function LookupPage() {
 
   function selectItem(item: LookupItem) {
     setSelectedId(item.id)
-    window.requestAnimationFrame(() => {
-      document.getElementById(`registry-card-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    })
+    setPendingScrollId(item.id)
+
+    if (payload.items.some(entry => entry.id === item.id)) {
+      return
+    }
+
+    const itemIndex = allVisibleMapItems.findIndex(entry => entry.id === item.id)
+    if (itemIndex >= 0) {
+      setPage(Math.floor(itemIndex / payload.limit) + 1)
+    }
   }
 
   return (
@@ -827,7 +848,7 @@ export default function LookupPage() {
         </div>
 
         <RegistryMap
-          items={payload.mapItems.length > 0 ? payload.mapItems : payload.items}
+          items={allVisibleMapItems}
           activeType={activeTab.type}
           selectedId={selectedItem?.id ?? null}
           onSelect={selectItem}
