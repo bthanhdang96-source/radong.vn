@@ -179,22 +179,6 @@ function getRouteHeadline(familyLabel: string | null, priceGroupLabel: string | 
   return 'Cập nhật thị trường nông sản'
 }
 
-function getRouteDescription(familyLabel: string | null, priceGroupLabel: string | null) {
-  if (priceGroupLabel) {
-    return `Theo dõi các bài báo giá thuộc nhóm ${priceGroupLabel.toLowerCase()}, kèm cập nhật mới nhất và đường dẫn nhanh sang trang chi tiết.`
-  }
-
-  if (familyLabel === 'Tin giá nông sản') {
-    return 'Tổng hợp các bài báo giá tự động theo mặt hàng, có thể đi tiếp sang từng nhóm nông sản ngay trên trang.'
-  }
-
-  if (familyLabel) {
-    return `Theo dõi các nội dung mới nhất trong chuyên mục ${familyLabel.toLowerCase()}.`
-  }
-
-  return 'Theo dõi tin thị trường, bài báo giá và các nội dung chuyên môn trên cùng một hub dễ truy cập hơn.'
-}
-
 function ArticleCard({ item }: { item: ContentFeedItem }) {
   return (
     <article className="news-index__stream-card">
@@ -511,10 +495,6 @@ export default function NewsIndexPage() {
     <main className="news-index">
       <section className="news-index__hero-shell">
         <div className="news-index__hero-frame">
-          <div className="news-index__hero-topbar">
-            <span className="news-index__eyebrow">Hub tin tức nông sản</span>
-          </div>
-
           <div className="news-index__tabs-shell">
             <div className="news-index__tabs" role="tablist" aria-label="Nhóm nội dung">
               <Link
@@ -577,20 +557,7 @@ export default function NewsIndexPage() {
           ) : null}
 
           <div className="news-index__hero-copy">
-            <div>
-              <span className="news-index__eyebrow">Tin nổi bật</span>
-              <h1>{getRouteHeadline(currentFamilyLabel, currentPriceGroupLabel)}</h1>
-              <p>{getRouteDescription(currentFamilyLabel, currentPriceGroupLabel)}</p>
-            </div>
-            <div className="news-index__hero-copy-meta">
-              <div className="news-index__hero-stats" aria-label="Tổng quan nội dung">
-                <span>{payload?.items.length ?? 0} nội dung mới</span>
-                <span>{modules.length} nhóm truy cập nhanh</span>
-              </div>
-              <p style={{ marginTop: '0.65rem' }}>
-                {loading ? 'Đang nạp dữ liệu...' : `${filteredItems.length} kết quả đang hiển thị`}
-              </p>
-            </div>
+            <h1>{getRouteHeadline(currentFamilyLabel, currentPriceGroupLabel)}</h1>
           </div>
 
           {hero ? (
