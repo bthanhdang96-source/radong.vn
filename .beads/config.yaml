@@ -52,3 +52,5 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+
+sync.remote: "https://github.com/bthanhdang96-source/radong.vn.git"
