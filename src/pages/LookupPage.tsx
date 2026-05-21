@@ -290,7 +290,7 @@ function PhoneAction({
   const displayPhone = phoneDisplay ?? phone
 
   async function handleCopyPhone() {
-    await copyText(displayPhone)
+    await copyText(phone)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
   }
