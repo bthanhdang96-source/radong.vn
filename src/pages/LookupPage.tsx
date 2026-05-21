@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -423,6 +423,7 @@ function RegistryMap({
   const [mapReady, setMapReady] = useState(false)
   const selectedItem = items.find(item => item.id === selectedId)
   const showSelectedProductLabel = selectedItem ? shouldShowProductLabel(selectedItem.product) : false
+  const selectedFirstPeriod = selectedItem?.approvalPeriods[0]
   const mapItems = useMemo(
     () => items.map(item => ({
       item,
@@ -430,17 +431,6 @@ function RegistryMap({
     })),
     [items],
   )
-
-  const closeMobileMapAndScroll = useCallback((item: LookupItem) => {
-    if (!onCloseMobile) {
-      return
-    }
-
-    onCloseMobile()
-    window.requestAnimationFrame(() => {
-      document.getElementById(`registry-card-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
-  }, [onCloseMobile])
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -518,7 +508,6 @@ function RegistryMap({
         event.preventDefault()
         event.stopPropagation()
         onSelect(item)
-        closeMobileMapAndScroll(item)
       })
 
       return new maplibregl.Marker({ element: markerElement, anchor: 'center' })
@@ -539,7 +528,7 @@ function RegistryMap({
         duration: 450,
       })
     }
-  }, [closeMobileMapAndScroll, mapItems, mapReady, onSelect, selectedId])
+  }, [mapItems, mapReady, onSelect, selectedId])
 
   useEffect(() => {
     const map = mapRef.current
@@ -567,22 +556,29 @@ function RegistryMap({
         <div ref={containerRef} className="lookup-map__real-canvas" />
       </div>
       {selectedItem ? (
-        <div 
-          className="lookup-map__popup"
-          onClick={() => closeMobileMapAndScroll(selectedItem)}
-        >
-          {showSelectedProductLabel ? <span>{selectedItem.product}</span> : null}
+        <div className="lookup-map__popup">
+          <div className="lookup-map__popup-topline">
+            {showSelectedProductLabel ? <span>{selectedItem.product}</span> : null}
+            {selectedItem.market ? <span>{selectedItem.market}</span> : null}
+          </div>
           <strong>{selectedItem.name}</strong>
-          <p>{selectedItem.address}</p>
+          <p>{selectedItem.address ?? 'Chưa có địa chỉ'}</p>
+          <div className="lookup-map__popup-facts">
+            {selectedItem.registryCode ? <span>Mã: {selectedItem.registryCode}</span> : null}
+            {selectedItem.registryType === 'production_area' ? <span>{selectedItem.harvestStatusLabel}</span> : null}
+            {selectedItem.capacity ? <span>Công suất: {selectedItem.capacity}</span> : null}
+            {selectedFirstPeriod ? <span>Đợt {selectedFirstPeriod.round}: {selectedFirstPeriod.startRaw ?? '--'} - {selectedFirstPeriod.endRaw ?? '--'}</span> : null}
+            {selectedItem.certifications.map(certification => (
+              <span key={certification}>{certification}</span>
+            ))}
+          </div>
           {selectedItem.phone ? (
-            <div onClick={event => event.stopPropagation()}>
-              <PhoneAction
-                phone={selectedItem.phone}
-                phoneDisplay={selectedItem.phoneDisplay}
-                className="lookup-map__popup-call"
-                canUseTelLinks={canUseTelLinks}
-              />
-            </div>
+            <PhoneAction
+              phone={selectedItem.phone}
+              phoneDisplay={selectedItem.phoneDisplay}
+              className="lookup-map__popup-call"
+              canUseTelLinks={canUseTelLinks}
+            />
           ) : null}
         </div>
       ) : null}
@@ -605,7 +601,6 @@ export default function LookupPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null)
   const [mobileMapOpen, setMobileMapOpen] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => readFavorites())
   const canUseTelLinks = useCanUseTelLinks()
@@ -619,7 +614,6 @@ export default function LookupPage() {
   useEffect(() => {
     setPage(1)
     setSelectedId(null)
-    setPendingScrollId(null)
     setMobileMapOpen(false)
   }, [activeTab.type, debouncedSearch, province, market, product, status])
 
@@ -677,17 +671,6 @@ export default function LookupPage() {
   const selectedItem = (payload.mapItems.length > 0 ? payload.mapItems : payload.items).find(item => item.id === selectedId)
   const allVisibleMapItems = payload.mapItems.length > 0 ? payload.mapItems : payload.items
 
-  useEffect(() => {
-    if (!pendingScrollId || loading || !payload.items.some(item => item.id === pendingScrollId)) {
-      return
-    }
-
-    window.requestAnimationFrame(() => {
-      document.getElementById(`registry-card-${pendingScrollId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setPendingScrollId(null)
-    })
-  }, [loading, payload.items, pendingScrollId])
-
   function switchTab(tab: RegistryTab) {
     navigate(`/tra-cuu/${tab.slug}`)
     setStatus('all')
@@ -706,16 +689,6 @@ export default function LookupPage() {
 
   function selectItem(item: LookupItem) {
     setSelectedId(item.id)
-    setPendingScrollId(item.id)
-
-    if (payload.items.some(entry => entry.id === item.id)) {
-      return
-    }
-
-    const itemIndex = allVisibleMapItems.findIndex(entry => entry.id === item.id)
-    if (itemIndex >= 0) {
-      setPage(Math.floor(itemIndex / payload.limit) + 1)
-    }
   }
 
   return (
