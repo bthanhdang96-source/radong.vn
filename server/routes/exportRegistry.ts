@@ -6,6 +6,7 @@ import type { ExportRegistryType } from '../services/exportRegistry/types.js'
 
 const router = Router()
 const REGISTRY_TYPES: ExportRegistryType[] = ['production_area', 'packing_facility']
+const REGISTRY_SORTS = ['updated_desc', 'name_asc', 'province_asc'] as const
 
 function parseRegistryTypes(value: unknown): ExportRegistryType[] | undefined {
   if (value === 'all' || value === undefined || value === null || value === '') {
@@ -54,6 +55,9 @@ router.get('/export-registry/entries', async (req, res) => {
       market: typeof req.query.market === 'string' ? req.query.market : undefined,
       product: typeof req.query.product === 'string' ? req.query.product : undefined,
       status: req.query.status === 'harvesting' ? 'harvesting' : 'all',
+      sort: typeof req.query.sort === 'string' && REGISTRY_SORTS.includes(req.query.sort as typeof REGISTRY_SORTS[number])
+        ? req.query.sort as typeof REGISTRY_SORTS[number]
+        : undefined,
       page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
       limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
     })

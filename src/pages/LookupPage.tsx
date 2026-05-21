@@ -25,6 +25,7 @@ const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
 
 
 type RegistryType = 'production_area' | 'packing_facility'
+type LookupSortKey = 'updated_desc' | 'name_asc' | 'province_asc'
 
 type ApprovalPeriod = {
   round: number
@@ -182,12 +183,14 @@ function buildQuery(params: {
   market: string
   product: string
   status: string
+  sort: LookupSortKey
   page: number
 }) {
   const query = new URLSearchParams({
     type: params.type,
     page: String(params.page),
     limit: '24',
+    sort: params.sort,
   })
 
   if (params.search.trim()) {
@@ -596,6 +599,7 @@ export default function LookupPage() {
   const [market, setMarket] = useState('all')
   const [product, setProduct] = useState('all')
   const [status, setStatus] = useState<'all' | 'harvesting'>('all')
+  const [sort, setSort] = useState<LookupSortKey>('updated_desc')
   const [page, setPage] = useState(1)
   const [payload, setPayload] = useState<LookupResponse>(DEFAULT_RESPONSE)
   const [loading, setLoading] = useState(true)
@@ -615,7 +619,7 @@ export default function LookupPage() {
     setPage(1)
     setSelectedId(null)
     setMobileMapOpen(false)
-  }, [activeTab.type, debouncedSearch, province, market, product, status])
+  }, [activeTab.type, debouncedSearch, province, market, product, status, sort])
 
   useEffect(() => {
     let active = true
@@ -631,6 +635,7 @@ export default function LookupPage() {
           market,
           product,
           status: activeTab.type === 'production_area' ? status : 'all',
+          sort,
           page,
         })
         const response = await fetch(buildApiUrl(`/api/export-registry/entries?${query.toString()}`), {
@@ -664,7 +669,7 @@ export default function LookupPage() {
       active = false
       controller.abort()
     }
-  }, [activeTab.type, market, page, product, province, debouncedSearch, status])
+  }, [activeTab.type, market, page, product, province, debouncedSearch, status, sort])
 
   const favoriteSet = useMemo(() => new Set(favorites), [favorites])
   const totalPages = Math.max(1, Math.ceil(payload.total / payload.limit))
@@ -762,6 +767,14 @@ export default function LookupPage() {
                 <select value={market} onChange={event => setMarket(event.target.value)}>
                   <option value="all">Tất cả</option>
                   {payload.filters.markets.map(value => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Sắp xếp</span>
+                <select value={sort} onChange={event => setSort(event.target.value as LookupSortKey)}>
+                  <option value="updated_desc">Ngày cập nhật mới nhất</option>
+                  <option value="name_asc">Tên A-Z</option>
+                  <option value="province_asc">Tỉnh/thành A-Z</option>
                 </select>
               </label>
             </div>

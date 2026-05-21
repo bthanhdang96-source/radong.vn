@@ -1,8 +1,8 @@
 # Improve Plan - Remaining UX Audit Items
 
-Ngày lập: 2026-05-22
+Ngày cập nhật: 2026-05-22
 
-File này ghi lại các hạng mục cải thiện lớn còn lại sau đợt fix P0/P1. Đây không phải các lỗi nhỏ nên cần được tách thành feature/epic riêng, có thiết kế dữ liệu, kiểm thử và tiêu chí nghiệm thu rõ ràng.
+File này chỉ giữ lại các hạng mục cải thiện lớn chưa làm sau đợt fix P0/P1 và sau khi đã bổ sung sort cho trang `/tra-cuu`.
 
 ## 1. Biểu đồ giá theo thời gian
 
@@ -81,17 +81,7 @@ File này ghi lại các hạng mục cải thiện lớn còn lại sau đợt 
 
 **Phạm vi:** đây là phần backend/news ingestion kết hợp UI, không chỉ sửa component.
 
-## 7. Lookup page improvements
-
-**Mục tiêu:** tăng khả năng thao tác trên trang `/tra-cuu`.
-
-**Cần làm:**
-- Thêm sort theo tên, ngày cập nhật, tỉnh/thành hoặc trạng thái mùa vụ.
-- Map popup có nút “Xem chi tiết” khi record có URL/source.
-- Khi không có phone, hiển thị phương án liên hệ khác nếu data có email/source/contact.
-- Chuẩn hóa schema dữ liệu tra cứu để UI không phải đoán field.
-
-## 8. Brand/logo refresh
+## 7. Brand/logo refresh
 
 **Mục tiêu:** logo/icon truyền tải rõ hơn chủ đề nông sản.
 
@@ -109,13 +99,12 @@ File này ghi lại các hạng mục cải thiện lớn còn lại sau đợt 
 2. SEO/meta/schema dùng chung.
 3. Pagination backend chuẩn cho news feed.
 4. Article metadata/caption/source extraction.
-5. Lookup sort và map popup CTA.
-6. Footer/contact/pháp lý đầy đủ sau khi có thông tin thật.
-7. Unit selector sau khi chốt quy tắc quy đổi dữ liệu.
-8. Brand/logo refresh khi có direction thiết kế.
+5. Footer/contact/pháp lý đầy đủ sau khi có thông tin thật.
+6. Unit selector sau khi chốt quy tắc quy đổi dữ liệu.
+7. Brand/logo refresh khi có direction thiết kế.
 
 ## Tiêu chí ưu tiên
 
-- Ưu tiên trước các tính năng giúp người dùng ra quyết định tốt hơn: biểu đồ giá, metadata tin, lookup.
+- Ưu tiên trước các tính năng giúp người dùng ra quyết định tốt hơn: biểu đồ giá và metadata tin.
 - Ưu tiên sau các phần cần thông tin nghiệp vụ hoặc pháp lý từ người vận hành: contact, pháp lý đầy đủ, brand.
 - Không thêm dữ liệu giả để làm UI có vẻ đầy đủ.

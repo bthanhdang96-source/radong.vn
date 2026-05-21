@@ -125,7 +125,7 @@
 
 .lookup-filter-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(140px, 0.7fr));
+  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(132px, 0.7fr));
   gap: 10px;
 }
 

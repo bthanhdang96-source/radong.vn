@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { parseExportRegistryRows } from '../services/exportRegistry/crawler.js'
-import { deriveExportRegistryProduct, filterExportRegistryItems, getHarvestState } from '../services/exportRegistry/service.js'
+import { deriveExportRegistryProduct, filterExportRegistryItems, getHarvestState, sortExportRegistryItems } from '../services/exportRegistry/service.js'
 
 const PRODUCTION_AREA_HTML = `
   <table class="rgMasterTable">
@@ -176,5 +176,89 @@ describe('export registry lookup helpers', () => {
 
     assert.equal(filtered.length, 1)
     assert.equal(filtered[0].id, '1')
+  })
+
+  it('sorts lookup items by name, latest update, and province', () => {
+    const items = [
+      {
+        id: '1',
+        registryType: 'production_area' as const,
+        sourceUrl: 'https://example.test',
+        sourcePage: 2,
+        sourcePosition: 2,
+        sourceRowNumber: 2,
+        name: 'Vung trong Xoai',
+        address: null,
+        phone: null,
+        phoneDisplay: null,
+        market: null,
+        province: 'Tinh Tien Giang',
+        district: null,
+        commune: null,
+        product: 'Xoai',
+        registryCode: null,
+        approvalPeriods: [],
+        harvestStatus: 'unknown' as const,
+        harvestStatusLabel: 'Chua ro mua vu',
+        seasonProgressPct: null,
+        latestCrawledAt: '2026-05-20T00:00:00.000Z',
+        capacity: null,
+        certifications: [],
+      },
+      {
+        id: '2',
+        registryType: 'production_area' as const,
+        sourceUrl: 'https://example.test',
+        sourcePage: 1,
+        sourcePosition: 1,
+        sourceRowNumber: 1,
+        name: 'Vung trong Buoi',
+        address: null,
+        phone: null,
+        phoneDisplay: null,
+        market: null,
+        province: 'Tinh Ben Tre',
+        district: null,
+        commune: null,
+        product: 'Buoi',
+        registryCode: null,
+        approvalPeriods: [],
+        harvestStatus: 'unknown' as const,
+        harvestStatusLabel: 'Chua ro mua vu',
+        seasonProgressPct: null,
+        latestCrawledAt: '2026-05-21T00:00:00.000Z',
+        capacity: null,
+        certifications: [],
+      },
+      {
+        id: '3',
+        registryType: 'production_area' as const,
+        sourceUrl: 'https://example.test',
+        sourcePage: 1,
+        sourcePosition: 3,
+        sourceRowNumber: 3,
+        name: 'Vung trong Cam',
+        address: null,
+        phone: null,
+        phoneDisplay: null,
+        market: null,
+        province: 'Tinh An Giang',
+        district: null,
+        commune: null,
+        product: 'Cam',
+        registryCode: null,
+        approvalPeriods: [],
+        harvestStatus: 'unknown' as const,
+        harvestStatusLabel: 'Chua ro mua vu',
+        seasonProgressPct: null,
+        latestCrawledAt: '2026-05-19T00:00:00.000Z',
+        capacity: null,
+        certifications: [],
+      },
+    ]
+
+    assert.deepEqual(sortExportRegistryItems(items, 'name_asc').map(item => item.id), ['2', '3', '1'])
+    assert.deepEqual(sortExportRegistryItems(items, 'updated_desc').map(item => item.id), ['2', '1', '3'])
+    assert.deepEqual(sortExportRegistryItems(items, 'province_asc').map(item => item.id), ['3', '2', '1'])
   })
 })

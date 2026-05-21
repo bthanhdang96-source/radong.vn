@@ -72,10 +72,13 @@ export type ExportRegistryQueryOptions = {
   market?: string
   product?: string
   status?: 'all' | 'harvesting'
+  sort?: ExportRegistrySortKey
   page?: number
   limit?: number
   now?: Date
 }
+
+export type ExportRegistrySortKey = 'updated_desc' | 'name_asc' | 'province_asc'
 
 type ExportRegistryLookupItem = {
   id: string
@@ -365,6 +368,37 @@ export function filterExportRegistryItems(items: ExportRegistryLookupItem[], opt
     }
 
     return true
+  })
+}
+
+function compareLookupText(left: string | null | undefined, right: string | null | undefined) {
+  return (left ?? '').localeCompare(right ?? '', 'vi', { sensitivity: 'base' })
+}
+
+export function sortExportRegistryItems(items: ExportRegistryLookupItem[], sort: ExportRegistrySortKey = 'updated_desc') {
+  return [...items].sort((left, right) => {
+    switch (sort) {
+    case 'name_asc':
+      return (
+        compareLookupText(left.name, right.name) ||
+        compareLookupText(left.province, right.province) ||
+        right.latestCrawledAt.localeCompare(left.latestCrawledAt)
+      )
+    case 'province_asc':
+      return (
+        compareLookupText(left.province, right.province) ||
+        compareLookupText(left.name, right.name) ||
+        right.latestCrawledAt.localeCompare(left.latestCrawledAt)
+      )
+    case 'updated_desc':
+    default:
+      return (
+        right.latestCrawledAt.localeCompare(left.latestCrawledAt) ||
+        left.sourcePage - right.sourcePage ||
+        left.sourcePosition - right.sourcePosition ||
+        compareLookupText(left.name, right.name)
+      )
+    }
   })
 }
 
@@ -672,7 +706,7 @@ export async function getExportRegistryEntries(
   ])
 
   const allItems = rows.map(row => toLookupItem(row, options.now))
-  const filteredItems = filterExportRegistryItems(allItems, options)
+  const filteredItems = sortExportRegistryItems(filterExportRegistryItems(allItems, options), options.sort)
   const start = (page - 1) * limit
   const items = filteredItems.slice(start, start + limit)
 
