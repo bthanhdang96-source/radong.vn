@@ -44,6 +44,7 @@ type LookupItem = {
 type LookupResponse = {
   success: boolean
   items: LookupItem[]
+  mapItems: LookupItem[]
   total: number
   page: number
   limit: number
@@ -73,6 +74,7 @@ const FAVORITES_KEY = 'nongsanvn_export_registry_favorites'
 const DEFAULT_RESPONSE: LookupResponse = {
   success: true,
   items: [],
+  mapItems: [],
   total: 0,
   page: 1,
   limit: 24,
@@ -455,7 +457,7 @@ export default function LookupPage() {
 
   const favoriteSet = useMemo(() => new Set(favorites), [favorites])
   const totalPages = Math.max(1, Math.ceil(payload.total / payload.limit))
-  const selectedItem = payload.items.find(item => item.id === selectedId)
+  const selectedItem = (payload.mapItems.length > 0 ? payload.mapItems : payload.items).find(item => item.id === selectedId)
 
   function switchTab(tab: RegistryTab) {
     navigate(`/tra-cuu/${tab.slug}`)
@@ -602,7 +604,7 @@ export default function LookupPage() {
         </div>
 
         <RegistryMap
-          items={payload.items}
+          items={payload.mapItems.length > 0 ? payload.mapItems : payload.items}
           activeType={activeTab.type}
           selectedId={selectedItem?.id ?? null}
           onSelect={selectItem}

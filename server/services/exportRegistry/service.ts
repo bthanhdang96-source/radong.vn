@@ -105,6 +105,7 @@ type ExportRegistryLookupItem = {
 
 type ExportRegistryEntriesResponse = {
   items: ExportRegistryLookupItem[]
+  mapItems: ExportRegistryLookupItem[]
   total: number
   page: number
   limit: number
@@ -648,6 +649,7 @@ export async function getExportRegistryEntries(
   if (!client) {
     return {
       items: [],
+      mapItems: [],
       total: 0,
       page,
       limit,
@@ -676,6 +678,7 @@ export async function getExportRegistryEntries(
 
   return {
     items,
+    mapItems: filteredItems,
     total: filteredItems.length,
     page,
     limit,
