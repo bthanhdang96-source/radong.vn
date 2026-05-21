@@ -658,8 +658,8 @@
 
 .lookup-map__popup {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  top: 16px;
+  right: 62px;
   left: 16px;
   max-height: min(42vh, 360px);
   overflow: auto;
@@ -843,6 +843,7 @@
   }
 
   .lookup-page--map-open .lookup-map__popup {
+    right: 16px;
     max-height: 48vh;
   }
 }
