@@ -24,27 +24,8 @@
   max-width: 1220px;
 }
 
-.lookup-hero__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-primary);
-  font-size: 0.76rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.lookup-hero__eyebrow::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-primary-light);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary-light) 18%, transparent);
-}
-
 .lookup-hero h1 {
-  margin: 8px 0 10px;
+  margin: 0 0 10px;
   font-size: 2rem;
   line-height: 1.12;
   letter-spacing: 0;
@@ -254,7 +235,7 @@
   gap: 10px;
 }
 
-.lookup-card__type,
+.lookup-card__product,
 .lookup-card__market,
 .lookup-card__meta span,
 .lookup-card__facility-extra span {
@@ -268,14 +249,12 @@
   font-weight: 800;
 }
 
-.lookup-card__type--production_area {
+.lookup-card__product {
   background: color-mix(in srgb, var(--color-primary) 14%, transparent);
   color: var(--color-primary);
-}
-
-.lookup-card__type--packing_facility {
-  background: rgba(37, 99, 235, 0.12);
-  color: #2563eb;
+  font-size: 0.9rem;
+  line-height: 1.15;
+  padding: 6px 10px;
 }
 
 .lookup-card__market {

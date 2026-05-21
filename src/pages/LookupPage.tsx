@@ -323,7 +323,6 @@ function SeasonBar({ item }: { item: LookupItem }) {
 
 function LookupCard({
   item,
-  index,
   selected,
   favorite,
   onSelect,
@@ -331,7 +330,6 @@ function LookupCard({
   canUseTelLinks,
 }: {
   item: LookupItem
-  index: number
   selected: boolean
   favorite: boolean
   onSelect: (item: LookupItem) => void
@@ -345,19 +343,17 @@ function LookupCard({
       onClick={() => onSelect(item)}
     >
       <div className="lookup-card__topline">
-        <span className={`lookup-card__type lookup-card__type--${item.registryType}`}>
-          {item.registryType === 'production_area' ? 'Vùng trồng' : 'Đóng gói'}
-        </span>
+        <span className="lookup-card__product">{item.product}</span>
         {item.market ? <span className="lookup-card__market">{item.market}</span> : null}
       </div>
 
       <h2>{item.name}</h2>
 
-      <div className="lookup-card__meta">
-        <span>{item.product}</span>
-        {item.registryCode ? <span>Mã: {item.registryCode}</span> : null}
-        {item.sourceRowNumber ? <span>Dòng nguồn: {item.sourceRowNumber}</span> : <span>#{index + 1}</span>}
-      </div>
+      {item.registryCode ? (
+        <div className="lookup-card__meta">
+          <span>Mã: {item.registryCode}</span>
+        </div>
+      ) : null}
 
       <p className="lookup-card__address">{item.address ?? 'Chưa có địa chỉ'}</p>
 
@@ -546,7 +542,7 @@ function RegistryMap({
           className="lookup-map__popup"
           onClick={() => closeMobileMapAndScroll(selectedItem)}
         >
-          <span>{selectedItem.registryType === 'production_area' ? 'Vùng trồng' : 'Cơ sở đóng gói'}</span>
+          <span>{selectedItem.product}</span>
           <strong>{selectedItem.name}</strong>
           <p>{selectedItem.address}</p>
           {selectedItem.phone ? (
@@ -682,7 +678,6 @@ export default function LookupPage() {
         <div className="lookup-main">
           <header className="lookup-hero">
             <div>
-              <span className="lookup-hero__eyebrow">Đồng bộ PPD</span>
               <h1>Tra cứu vùng trồng & cơ sở đóng gói</h1>
               <p>Dữ liệu công khai được chuẩn hóa để người mua, hợp tác xã và đơn vị xuất khẩu quét nhanh theo địa phương, thị trường và mùa vụ.</p>
             </div>
@@ -784,11 +779,10 @@ export default function LookupPage() {
           {!error && (!loading || payload.items.length > 0) && payload.items.length > 0 ? (
             <>
               <section className="lookup-card-grid">
-                {payload.items.map((item, index) => (
+                {payload.items.map(item => (
                   <LookupCard
                     key={item.id}
                     item={item}
-                    index={index}
                     selected={selectedId === item.id}
                     favorite={favoriteSet.has(getFavoriteId(item))}
                     onSelect={selectItem}
