@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useNavigate, useParams } from 'react-router-dom'
 import { resolveRegistryCoordinate } from '../data/vietnamGeo'
@@ -60,10 +60,12 @@ type LookupItem = {
   certifications: string[]
 }
 
+type LookupMapItem = Omit<LookupItem, 'sourceUrl' | 'sourcePage' | 'sourceRowNumber'>
+
 type LookupResponse = {
   success: boolean
   items: LookupItem[]
-  mapItems: LookupItem[]
+  mapItems: LookupMapItem[]
   total: number
   page: number
   limit: number
@@ -75,6 +77,24 @@ type LookupResponse = {
     products: string[]
   }
   error?: string
+}
+
+type LookupMapFeature = {
+  type: 'Feature'
+  geometry: {
+    type: 'Point'
+    coordinates: [number, number]
+  }
+  properties: {
+    id: string
+    registryType: RegistryType
+    name: string
+  }
+}
+
+type LookupMapFeatureCollection = {
+  type: 'FeatureCollection'
+  features: LookupMapFeature[]
 }
 
 type RegistryTab = {
@@ -404,6 +424,93 @@ function LookupCard({
   )
 }
 
+const LOOKUP_MAP_SOURCE_ID = 'lookup-registry-points'
+const LOOKUP_CLUSTER_LAYER_ID = 'lookup-clusters'
+const LOOKUP_CLUSTER_COUNT_LAYER_ID = 'lookup-cluster-count'
+const LOOKUP_POINT_LAYER_ID = 'lookup-unclustered-point'
+const LOOKUP_SELECTED_POINT_LAYER_ID = 'lookup-selected-point'
+const LOOKUP_SPROUT_PRODUCTION_IMAGE = 'lookup-sprout-production'
+const LOOKUP_SPROUT_PACKING_IMAGE = 'lookup-sprout-packing'
+const LOOKUP_SPROUT_SELECTED_IMAGE = 'lookup-sprout-selected'
+
+const EMPTY_FEATURE_COLLECTION: LookupMapFeatureCollection = {
+  type: 'FeatureCollection',
+  features: [],
+}
+
+function createSproutImageData(leafColor: string) {
+  const canvas = document.createElement('canvas')
+  const size = 96
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    return null
+  }
+  const context = ctx
+
+  context.clearRect(0, 0, size, size)
+  context.lineCap = 'round'
+  context.lineJoin = 'round'
+
+  function drawSprout(strokeScale: number, color: string, fillLeaves: boolean) {
+    context.save()
+    context.lineWidth = strokeScale
+    context.strokeStyle = color
+    context.fillStyle = color
+
+    context.beginPath()
+    context.moveTo(16, 70)
+    context.bezierCurveTo(27, 58, 38, 55, 48, 55)
+    context.bezierCurveTo(58, 55, 69, 58, 80, 70)
+    context.stroke()
+
+    context.beginPath()
+    context.moveTo(48, 61)
+    context.bezierCurveTo(46, 46, 39, 35, 28, 22)
+    context.stroke()
+
+    context.beginPath()
+    context.moveTo(48, 61)
+    context.bezierCurveTo(51, 45, 60, 34, 73, 24)
+    context.stroke()
+
+    const leftLeaf = new Path2D('M28 22 C14 18 10 6 10 6 C29 6 40 18 42 35 C36 32 31 28 28 22 Z')
+    const rightLeaf = new Path2D('M73 24 C86 23 91 13 91 13 C93 31 82 43 65 42 C66 34 68 28 73 24 Z')
+    if (fillLeaves) {
+      context.fill(leftLeaf)
+      context.fill(rightLeaf)
+    }
+    context.stroke(leftLeaf)
+    context.stroke(rightLeaf)
+    context.restore()
+  }
+
+  drawSprout(18, 'rgba(255, 255, 255, 0.94)', false)
+  drawSprout(9, '#79512c', false)
+  drawSprout(5, leafColor, true)
+
+  return context.getImageData(0, 0, size, size)
+}
+
+function buildLookupMapFeatureCollection(items: LookupMapItem[]): LookupMapFeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: items.map(item => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: resolveRegistryCoordinate(item),
+      },
+      properties: {
+        id: item.id,
+        registryType: item.registryType,
+        name: item.name,
+      },
+    })),
+  }
+}
+
 function RegistryMap({
   items,
   activeType,
@@ -412,28 +519,28 @@ function RegistryMap({
   onCloseMobile,
   canUseTelLinks,
 }: {
-  items: LookupItem[]
+  items: LookupMapItem[]
   activeType: RegistryType
   selectedId: string | null
-  onSelect: (item: LookupItem) => void
+  onSelect: (item: LookupMapItem) => void
   onCloseMobile?: () => void
   canUseTelLinks: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const maplibreRef = useRef<typeof import('maplibre-gl') | null>(null)
-  const markersRef = useRef<MapLibreMarker[]>([])
+  const itemsRef = useRef(items)
+  const onSelectRef = useRef(onSelect)
   const [mapReady, setMapReady] = useState(false)
   const selectedItem = items.find(item => item.id === selectedId)
   const showSelectedProductLabel = selectedItem ? shouldShowProductLabel(selectedItem.product) : false
   const selectedFirstPeriod = selectedItem?.approvalPeriods[0]
-  const mapItems = useMemo(
-    () => items.map(item => ({
-      item,
-      coordinate: resolveRegistryCoordinate(item),
-    })),
-    [items],
-  )
+  const mapData = useMemo(() => buildLookupMapFeatureCollection(items), [items])
+
+  useEffect(() => {
+    itemsRef.current = items
+    onSelectRef.current = onSelect
+  }, [items, onSelect])
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -450,26 +557,185 @@ function RegistryMap({
       }
 
       maplibreRef.current = maplibregl
-      mapRef.current = new maplibregl.Map({
+      const map = new maplibregl.Map({
         container,
         style: 'https://tiles.openfreemap.org/styles/positron',
         center: [106.3, 16.2],
         zoom: 4.7,
         attributionControl: { compact: true },
       })
-      mapRef.current.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+      mapRef.current = map
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
       resizeObserver = new ResizeObserver(() => {
         mapRef.current?.resize()
       })
       resizeObserver.observe(container)
-      setMapReady(true)
+
+      map.once('load', () => {
+        if (disposed) {
+          return
+        }
+
+        const productionIcon = createSproutImageData('#16803a')
+        const packingIcon = createSproutImageData('#2563eb')
+        const selectedIcon = createSproutImageData('#dc2626')
+        if (productionIcon && !map.hasImage(LOOKUP_SPROUT_PRODUCTION_IMAGE)) {
+          map.addImage(LOOKUP_SPROUT_PRODUCTION_IMAGE, productionIcon, { pixelRatio: 2 })
+        }
+        if (packingIcon && !map.hasImage(LOOKUP_SPROUT_PACKING_IMAGE)) {
+          map.addImage(LOOKUP_SPROUT_PACKING_IMAGE, packingIcon, { pixelRatio: 2 })
+        }
+        if (selectedIcon && !map.hasImage(LOOKUP_SPROUT_SELECTED_IMAGE)) {
+          map.addImage(LOOKUP_SPROUT_SELECTED_IMAGE, selectedIcon, { pixelRatio: 2 })
+        }
+
+        map.addSource(LOOKUP_MAP_SOURCE_ID, {
+          type: 'geojson',
+          data: EMPTY_FEATURE_COLLECTION as Parameters<GeoJSONSource['setData']>[0],
+          cluster: true,
+          clusterMaxZoom: 10,
+          clusterRadius: 46,
+        })
+
+        map.addLayer({
+          id: LOOKUP_CLUSTER_LAYER_ID,
+          type: 'circle',
+          source: LOOKUP_MAP_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#15803d',
+              80,
+              '#0f766e',
+              250,
+              '#1d4ed8',
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              18,
+              80,
+              24,
+              250,
+              30,
+            ],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3,
+            'circle-opacity': 0.92,
+          },
+        })
+
+        map.addLayer({
+          id: LOOKUP_CLUSTER_COUNT_LAYER_ID,
+          type: 'symbol',
+          source: LOOKUP_MAP_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': ['get', 'point_count_abbreviated'],
+            'text-size': 12,
+          },
+          paint: {
+            'text-color': '#ffffff',
+          },
+        })
+
+        map.addLayer({
+          id: LOOKUP_POINT_LAYER_ID,
+          type: 'symbol',
+          source: LOOKUP_MAP_SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          layout: {
+            'icon-image': [
+              'match',
+              ['get', 'registryType'],
+              'packing_facility',
+              LOOKUP_SPROUT_PACKING_IMAGE,
+              LOOKUP_SPROUT_PRODUCTION_IMAGE,
+            ],
+            'icon-size': 0.92,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          },
+        })
+
+        map.addLayer({
+          id: LOOKUP_SELECTED_POINT_LAYER_ID,
+          type: 'symbol',
+          source: LOOKUP_MAP_SOURCE_ID,
+          filter: ['==', ['get', 'id'], ''],
+          layout: {
+            'icon-image': LOOKUP_SPROUT_SELECTED_IMAGE,
+            'icon-size': 1.2,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          },
+        })
+
+        map.on('click', LOOKUP_CLUSTER_LAYER_ID, event => {
+          const feature = map.queryRenderedFeatures(event.point, { layers: [LOOKUP_CLUSTER_LAYER_ID] })[0]
+          const properties = feature?.properties as { cluster_id?: number } | undefined
+          const clusterId = Number(properties?.cluster_id)
+          if (!Number.isFinite(clusterId) || feature?.geometry.type !== 'Point') {
+            return
+          }
+
+          const center = feature.geometry.coordinates as [number, number]
+          const source = map.getSource(LOOKUP_MAP_SOURCE_ID) as GeoJSONSource | undefined
+          void source?.getClusterExpansionZoom(clusterId).then(zoom => {
+            map.easeTo({
+              center,
+              zoom,
+              duration: 350,
+            })
+          })
+        })
+
+        map.on('click', LOOKUP_POINT_LAYER_ID, event => {
+          const feature = map.queryRenderedFeatures(event.point, { layers: [LOOKUP_POINT_LAYER_ID] })[0]
+          const properties = feature?.properties as { id?: string } | undefined
+          const item = properties?.id ? itemsRef.current.find(entry => entry.id === properties.id) : null
+          if (item) {
+            onSelectRef.current(item)
+          }
+        })
+
+        map.on('click', LOOKUP_SELECTED_POINT_LAYER_ID, event => {
+          const feature = map.queryRenderedFeatures(event.point, { layers: [LOOKUP_SELECTED_POINT_LAYER_ID] })[0]
+          const properties = feature?.properties as { id?: string } | undefined
+          const item = properties?.id ? itemsRef.current.find(entry => entry.id === properties.id) : null
+          if (item) {
+            onSelectRef.current(item)
+          }
+        })
+
+        map.on('mouseenter', LOOKUP_CLUSTER_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', LOOKUP_CLUSTER_LAYER_ID, () => {
+          map.getCanvas().style.cursor = ''
+        })
+        map.on('mouseenter', LOOKUP_POINT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', LOOKUP_POINT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = ''
+        })
+        map.on('mouseenter', LOOKUP_SELECTED_POINT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', LOOKUP_SELECTED_POINT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = ''
+        })
+
+        setMapReady(true)
+      })
     })
 
     return () => {
       disposed = true
       resizeObserver?.disconnect()
-      markersRef.current.forEach(marker => marker.remove())
-      markersRef.current = []
       mapRef.current?.remove()
       mapRef.current = null
     }
@@ -482,48 +748,15 @@ function RegistryMap({
       return
     }
 
-    markersRef.current.forEach(marker => marker.remove())
-    markersRef.current = mapItems.map(({ item, coordinate }) => {
-      const markerElement = document.createElement('button')
-      markerElement.type = 'button'
-      markerElement.className = [
-        'lookup-map__marker',
-        `lookup-map__marker--${item.registryType}`,
-        selectedId === item.id ? 'lookup-map__marker--selected' : '',
-      ].filter(Boolean).join(' ')
-      markerElement.title = item.name
-      markerElement.setAttribute('aria-label', item.name)
-      markerElement.innerHTML = `
-        <svg class="lookup-map__marker-icon" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-          <path class="lookup-map__marker-halo" d="M7 29 C11 24 16 22 20 22 C24 22 29 24 33 29" />
-          <path class="lookup-map__marker-halo" d="M20 25 C19 18 17 13 11 8" />
-          <path class="lookup-map__marker-halo" d="M20 25 C21 18 24 13 30 9" />
-          <path class="lookup-map__marker-halo" d="M11 8 C5 6 4 1 4 1 C12 1 17 5 18 12 C15 11 13 10 11 8 Z" />
-          <path class="lookup-map__marker-halo" d="M30 9 C35 9 37 5 37 5 C38 12 34 17 27 17 C27 13 28 11 30 9 Z" />
-          <path class="lookup-map__marker-soil" d="M7 29 C11 24 16 22 20 22 C24 22 29 24 33 29" />
-          <path class="lookup-map__marker-stem" d="M20 25 C19 18 17 13 11 8" />
-          <path class="lookup-map__marker-stem" d="M20 25 C21 18 24 13 30 9" />
-          <path class="lookup-map__marker-leaf" d="M11 8 C5 6 4 1 4 1 C12 1 17 5 18 12 C15 11 13 10 11 8 Z" />
-          <path class="lookup-map__marker-leaf" d="M30 9 C35 9 37 5 37 5 C38 12 34 17 27 17 C27 13 28 11 30 9 Z" />
-        </svg>
-      `
-      markerElement.addEventListener('click', event => {
-        event.preventDefault()
-        event.stopPropagation()
-        onSelect(item)
-      })
+    const source = map.getSource(LOOKUP_MAP_SOURCE_ID) as GeoJSONSource | undefined
+    source?.setData(mapData as Parameters<GeoJSONSource['setData']>[0])
 
-      return new maplibregl.Marker({ element: markerElement, anchor: 'center' })
-        .setLngLat(coordinate)
-        .addTo(map)
-    })
-
-    if (mapItems.length === 1) {
-      map.easeTo({ center: mapItems[0].coordinate, zoom: 8.4, duration: 450 })
-    } else if (mapItems.length > 1) {
-      const bounds = mapItems.reduce(
-        (acc, entry) => acc.extend(entry.coordinate),
-        new maplibregl.LngLatBounds(mapItems[0].coordinate, mapItems[0].coordinate),
+    if (mapData.features.length === 1) {
+      map.easeTo({ center: mapData.features[0].geometry.coordinates, zoom: 8.4, duration: 450 })
+    } else if (mapData.features.length > 1) {
+      const bounds = mapData.features.reduce(
+        (acc, feature) => acc.extend(feature.geometry.coordinates),
+        new maplibregl.LngLatBounds(mapData.features[0].geometry.coordinates, mapData.features[0].geometry.coordinates),
       )
       map.fitBounds(bounds, {
         padding: { top: 72, right: 44, bottom: 120, left: 44 },
@@ -531,7 +764,19 @@ function RegistryMap({
         duration: 450,
       })
     }
-  }, [mapItems, mapReady, onSelect, selectedId])
+  }, [mapData, mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !map.getLayer(LOOKUP_SELECTED_POINT_LAYER_ID)) {
+      return
+    }
+
+    map.setFilter(
+      LOOKUP_SELECTED_POINT_LAYER_ID,
+      selectedId ? ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], selectedId]] : ['==', ['get', 'id'], ''],
+    )
+  }, [mapReady, selectedId])
 
   useEffect(() => {
     const map = mapRef.current
@@ -674,7 +919,7 @@ export default function LookupPage() {
   const favoriteSet = useMemo(() => new Set(favorites), [favorites])
   const totalPages = Math.max(1, Math.ceil(payload.total / payload.limit))
   const selectedItem = (payload.mapItems.length > 0 ? payload.mapItems : payload.items).find(item => item.id === selectedId)
-  const allVisibleMapItems = payload.mapItems.length > 0 ? payload.mapItems : payload.items
+  const allVisibleMapItems: LookupMapItem[] = payload.mapItems.length > 0 ? payload.mapItems : payload.items
 
   function switchTab(tab: RegistryTab) {
     navigate(`/tra-cuu/${tab.slug}`)
@@ -692,7 +937,7 @@ export default function LookupPage() {
     })
   }
 
-  function selectItem(item: LookupItem) {
+  function selectItem(item: { id: string }) {
     setSelectedId(item.id)
   }
 

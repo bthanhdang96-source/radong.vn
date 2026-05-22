@@ -106,9 +106,11 @@ type ExportRegistryLookupItem = {
   certifications: string[]
 }
 
+type ExportRegistryMapItem = Omit<ExportRegistryLookupItem, 'sourceUrl' | 'sourcePage' | 'sourcePosition' | 'sourceRowNumber'>
+
 type ExportRegistryEntriesResponse = {
   items: ExportRegistryLookupItem[]
-  mapItems: ExportRegistryLookupItem[]
+  mapItems: ExportRegistryMapItem[]
   total: number
   page: number
   limit: number
@@ -125,6 +127,8 @@ const SUPABASE_BATCH_SIZE = 100
 const SUPABASE_READ_PAGE_SIZE = 1000
 const DEFAULT_PAGE_SIZE = 24
 const MAX_PAGE_SIZE = 60
+const TRANSFORMED_ROWS_CACHE_TTL_MS = 3 * 60 * 1000
+const transformedRowsCache = new Map<ExportRegistryType, { expiresAt: number; items: ExportRegistryLookupItem[] }>()
 const KNOWN_PRODUCT_RULES: Array<{ label: string; patterns: string[] }> = [
   { label: 'Sầu riêng', patterns: ['sau rieng', 'durian'] },
   { label: 'Thanh long', patterns: ['thanh long', 'dragon fruit'] },
@@ -317,6 +321,30 @@ function toLookupItem(row: ExportRegistryEntryRow, now = new Date()): ExportRegi
     latestCrawledAt: row.crawled_at,
     capacity: null,
     certifications: [],
+  }
+}
+
+function toMapItem(item: ExportRegistryLookupItem): ExportRegistryMapItem {
+  return {
+    id: item.id,
+    registryType: item.registryType,
+    name: item.name,
+    address: item.address,
+    phone: item.phone,
+    phoneDisplay: item.phoneDisplay,
+    market: item.market,
+    province: item.province,
+    district: item.district,
+    commune: item.commune,
+    product: item.product,
+    registryCode: item.registryCode,
+    approvalPeriods: item.approvalPeriods,
+    harvestStatus: item.harvestStatus,
+    harvestStatusLabel: item.harvestStatusLabel,
+    seasonProgressPct: item.seasonProgressPct,
+    latestCrawledAt: item.latestCrawledAt,
+    capacity: item.capacity,
+    certifications: item.certifications,
   }
 }
 
@@ -536,6 +564,8 @@ export async function syncExportRegistryResultsToSupabase(
     throw error
   }
 
+  transformedRowsCache.clear()
+
   return {
     runId,
     registryType,
@@ -672,6 +702,30 @@ async function loadRegistryRows(
   return rows
 }
 
+async function getTransformedRegistryItems(
+  client: NonNullable<ReturnType<typeof getSupabaseReadClient>>,
+  registryType: ExportRegistryType,
+  now?: Date,
+) {
+  const cacheKey = registryType
+  const cached = transformedRowsCache.get(cacheKey)
+  const timestamp = Date.now()
+  if (!now && cached && cached.expiresAt > timestamp) {
+    return cached.items
+  }
+
+  const rows = await loadRegistryRows(client, registryType)
+  const items = rows.map(row => toLookupItem(row, now))
+  if (!now) {
+    transformedRowsCache.set(cacheKey, {
+      expiresAt: timestamp + TRANSFORMED_ROWS_CACHE_TTL_MS,
+      items,
+    })
+  }
+
+  return items
+}
+
 export async function getExportRegistryEntries(
   options: ExportRegistryQueryOptions = {},
 ): Promise<ExportRegistryEntriesResponse> {
@@ -700,19 +754,18 @@ export async function getExportRegistryEntries(
     }
   }
 
-  const [stats, rows] = await Promise.all([
+  const [stats, allItems] = await Promise.all([
     getRegistryStats(client),
-    loadRegistryRows(client, registryType),
+    getTransformedRegistryItems(client, registryType, options.now),
   ])
 
-  const allItems = rows.map(row => toLookupItem(row, options.now))
   const filteredItems = sortExportRegistryItems(filterExportRegistryItems(allItems, options), options.sort)
   const start = (page - 1) * limit
   const items = filteredItems.slice(start, start + limit)
 
   return {
     items,
-    mapItems: filteredItems,
+    mapItems: filteredItems.map(toMapItem),
     total: filteredItems.length,
     page,
     limit,
