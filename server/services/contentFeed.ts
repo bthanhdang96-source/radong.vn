@@ -3,9 +3,9 @@ import {
   buildContentTaxonomy,
   filterContentItems,
   getContentFamilyMeta,
+  getContentItemTimestamp,
   isContentFamilySlug,
   isPublicPriceCommodityGroupSlug,
-  sortContentItems,
 } from './contentTaxonomy.js'
 import { listGeneratedCommodityPricePages, toCommodityContentFeedItem } from './generatedCommodityPricePages/service.js'
 import { listGeneratedPricePages, toContentFeedItem } from './generatedPricePages/service.js'
@@ -22,14 +22,32 @@ type GetContentFeedOptions = {
   priceGroup?: string
   q?: string
   limit?: number
+  cursor?: string
   includeModules?: boolean
 }
 
 export type ContentFeedResponsePayload = {
   items: ContentFeedItem[]
+  nextCursor: string | null
+  hasMore: boolean
   filters: ContentFeedFilters
   taxonomy: ContentFeedTaxonomy
   modules: ContentCategoryModule[]
+}
+
+type ContentFeedCursorPayload = {
+  timestamp: string
+  kind: ContentFeedItem['kind']
+  path: string
+}
+
+const CONTENT_FEED_KINDS = new Set<ContentFeedItem['kind']>(['news', 'price_page', 'commodity_price_page'])
+
+export class InvalidContentFeedCursorError extends Error {
+  constructor() {
+    super('Invalid cursor')
+    this.name = 'InvalidContentFeedCursorError'
+  }
 }
 
 const RAW_FETCH_LIMITS = {
@@ -73,6 +91,89 @@ function sanitizePriceGroupSlug(value: string | undefined) {
   return value && isPublicPriceCommodityGroupSlug(value) ? value : null
 }
 
+function getContentFeedSortKey(item: ContentFeedItem): ContentFeedCursorPayload {
+  return {
+    timestamp: getContentItemTimestamp(item),
+    kind: item.kind,
+    path: item.path,
+  }
+}
+
+function compareContentFeedSortKeys(left: ContentFeedCursorPayload, right: ContentFeedCursorPayload) {
+  const timestampOrder = right.timestamp.localeCompare(left.timestamp)
+  if (timestampOrder !== 0) {
+    return timestampOrder
+  }
+
+  const kindOrder = left.kind.localeCompare(right.kind)
+  if (kindOrder !== 0) {
+    return kindOrder
+  }
+
+  return left.path.localeCompare(right.path)
+}
+
+function sortContentFeedItems(items: ContentFeedItem[]) {
+  return [...items].sort((left, right) => compareContentFeedSortKeys(getContentFeedSortKey(left), getContentFeedSortKey(right)))
+}
+
+function encodeContentFeedCursor(item: ContentFeedItem) {
+  return Buffer.from(JSON.stringify(getContentFeedSortKey(item)), 'utf8').toString('base64url')
+}
+
+function decodeContentFeedCursor(cursor: string | undefined) {
+  if (!cursor) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<ContentFeedCursorPayload>
+    if (
+      typeof parsed.timestamp !== 'string' ||
+      !Number.isFinite(new Date(parsed.timestamp).getTime()) ||
+      typeof parsed.kind !== 'string' ||
+      !CONTENT_FEED_KINDS.has(parsed.kind as ContentFeedItem['kind']) ||
+      typeof parsed.path !== 'string' ||
+      parsed.path.length === 0
+    ) {
+      throw new InvalidContentFeedCursorError()
+    }
+
+    return {
+      timestamp: parsed.timestamp,
+      kind: parsed.kind as ContentFeedItem['kind'],
+      path: parsed.path,
+    } satisfies ContentFeedCursorPayload
+  } catch (error) {
+    if (error instanceof InvalidContentFeedCursorError) {
+      throw error
+    }
+
+    throw new InvalidContentFeedCursorError()
+  }
+}
+
+function applyContentFeedCursor(items: ContentFeedItem[], cursor: ContentFeedCursorPayload | null) {
+  if (!cursor) {
+    return items
+  }
+
+  return items.filter(item => compareContentFeedSortKeys(getContentFeedSortKey(item), cursor) > 0)
+}
+
+function paginateContentFeedItems(items: ContentFeedItem[], limit: number, cursor: string | undefined) {
+  const decodedCursor = decodeContentFeedCursor(cursor)
+  const paged = applyContentFeedCursor(items, decodedCursor).slice(0, limit + 1)
+  const visibleItems = paged.slice(0, limit)
+  const lastItem = visibleItems.at(-1)
+
+  return {
+    items: visibleItems,
+    nextCursor: paged.length > limit && lastItem ? encodeContentFeedCursor(lastItem) : null,
+    hasMore: paged.length > limit,
+  }
+}
+
 export async function getContentFeed(options: GetContentFeedOptions = {}): Promise<ContentFeedResponsePayload> {
   const family = sanitizeFamilySlug(options.family)
   const priceGroup = sanitizePriceGroupSlug(options.priceGroup)
@@ -86,7 +187,7 @@ export async function getContentFeed(options: GetContentFeedOptions = {}): Promi
     listGeneratedCommodityPricePages({ limit: RAW_FETCH_LIMITS.commodityPages }),
   ])
 
-  const allItems = sortContentItems([
+  const allItems = sortContentFeedItems([
     ...news.items.map(toNewsFeedItem),
     ...pricePages.map(toContentFeedItem),
     ...commodityPages.map(toCommodityContentFeedItem),
@@ -101,10 +202,12 @@ export async function getContentFeed(options: GetContentFeedOptions = {}): Promi
 
   const taxonomy = buildContentTaxonomy(allItems)
   const modules = includeModules ? buildContentModules(allItems, filters) : []
-  const items = sortContentItems(filterContentItems(allItems, filters)).slice(0, limit)
+  const paginated = paginateContentFeedItems(sortContentFeedItems(filterContentItems(allItems, filters)), limit, options.cursor)
 
   return {
-    items,
+    items: paginated.items,
+    nextCursor: paginated.nextCursor,
+    hasMore: paginated.hasMore,
     filters,
     taxonomy,
     modules,
@@ -115,4 +218,8 @@ export const __contentFeedTestUtils = {
   toNewsFeedItem,
   sanitizeFamilySlug,
   sanitizePriceGroupSlug,
+  sortContentFeedItems,
+  encodeContentFeedCursor,
+  decodeContentFeedCursor,
+  paginateContentFeedItems,
 }

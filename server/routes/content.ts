@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { isContentFamilySlug, isPublicPriceCommodityGroupSlug } from '../services/contentTaxonomy.js'
-import { getContentFeed } from '../services/contentFeed.js'
+import { InvalidContentFeedCursorError, getContentFeed } from '../services/contentFeed.js'
 
 const router = Router()
 
@@ -26,6 +26,7 @@ router.get('/content/feed', async (req, res) => {
     const priceGroup = typeof req.query.priceGroup === 'string' ? req.query.priceGroup : undefined
     const q = typeof req.query.q === 'string' ? req.query.q : undefined
     const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined
     const includeModules = parseBooleanFlag(req.query.includeModules, true)
 
     if (family && !isContentFamilySlug(family)) {
@@ -48,11 +49,17 @@ router.get('/content/feed', async (req, res) => {
       priceGroup,
       q,
       limit: Number.isFinite(limit) ? limit : undefined,
+      cursor,
       includeModules,
     })
 
     res.json({ success: true, ...payload })
   } catch (error) {
+    if (error instanceof InvalidContentFeedCursorError) {
+      res.status(400).json({ success: false, error: 'Invalid cursor' })
+      return
+    }
+
     console.error('[API] Failed to load content feed:', error)
     res.status(500).json({ success: false, error: 'Failed to load content feed' })
   }

@@ -69,6 +69,11 @@ File này chỉ giữ lại các hạng mục cải thiện lớn chưa làm sau
 
 **Lợi ích:** giảm tải API, UX ổn định hơn và tránh nhảy layout khi feed lớn.
 
+**Follow-up sau bước 1:** tối ưu source-level pagination để `/api/content/feed` không cần overfetch nhiều nguồn:
+- Dùng cursor sẵn có của `/api/news/articles` khi lấy nhóm news.
+- Thêm cursor/range cho generated price pages và commodity price pages.
+- Chỉ lấy một cửa sổ nhỏ từ từng nguồn rồi merge/sort ở content feed service.
+
 ## 6. Article metadata nâng cao
 
 **Mục tiêu:** bài viết có tác giả, nguồn ảnh, caption và source metadata tốt hơn.
@@ -97,7 +102,7 @@ File này chỉ giữ lại các hạng mục cải thiện lớn chưa làm sau
 
 1. Biểu đồ giá 30 ngày cho trang giá hàng hóa.
 2. SEO/meta/schema dùng chung.
-3. Pagination backend chuẩn cho news feed.
+3. Pagination backend chuẩn cho news feed - bước 2: source-level pagination optimization.
 4. Article metadata/caption/source extraction.
 5. Footer/contact/pháp lý đầy đủ sau khi có thông tin thật.
 6. Unit selector sau khi chốt quy tắc quy đổi dữ liệu.

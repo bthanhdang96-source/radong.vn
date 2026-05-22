@@ -6,6 +6,7 @@ import {
   classifyNewsContentFamily,
   filterContentItems,
 } from '../services/contentTaxonomy.js'
+import { InvalidContentFeedCursorError, __contentFeedTestUtils } from '../services/contentFeed.js'
 import { toCommodityContentFeedItem } from '../services/generatedCommodityPricePages/service.js'
 import { toContentFeedItem } from '../services/generatedPricePages/service.js'
 import type { ContentFeedItem, GeneratedCommodityPricePageSummary, GeneratedPricePageSummary } from '../services/generatedPricePages/types.js'
@@ -186,4 +187,79 @@ test('content item filters keep price family and subgroup constraints', () => {
 
   assert.equal(filtered.length, 1)
   assert.equal(filtered[0]?.kind, 'commodity_price_page')
+})
+
+test('content feed pagination returns limit, cursor, and non-overlapping next page', () => {
+  const first = makeNewsItem()
+  const second = {
+    ...makeNewsItem(),
+    path: '/tin-tuc/second',
+    title: 'Second item',
+    publishedAt: '2026-05-18T08:00:00.000Z',
+    updatedAt: '2026-05-18T08:00:00.000Z',
+  }
+  const third = {
+    ...makeNewsItem(),
+    path: '/tin-tuc/third',
+    title: 'Third item',
+    publishedAt: '2026-05-18T07:00:00.000Z',
+    updatedAt: '2026-05-18T07:00:00.000Z',
+  }
+  const sortedItems = __contentFeedTestUtils.sortContentFeedItems([third, first, second])
+
+  const firstPage = __contentFeedTestUtils.paginateContentFeedItems(sortedItems, 2, undefined)
+  const secondPage = __contentFeedTestUtils.paginateContentFeedItems(sortedItems, 2, firstPage.nextCursor ?? undefined)
+
+  assert.equal(firstPage.items.length, 2)
+  assert.equal(firstPage.hasMore, true)
+  assert.ok(firstPage.nextCursor)
+  assert.deepEqual(firstPage.items.map(item => item.path), ['/tin-tuc/xuat-khau-gao', '/tin-tuc/second'])
+  assert.deepEqual(secondPage.items.map(item => item.path), ['/tin-tuc/third'])
+  assert.equal(secondPage.hasMore, false)
+  assert.equal(secondPage.nextCursor, null)
+})
+
+test('content feed cursor tie-breaks items with the same timestamp', () => {
+  const news = makeNewsItem()
+  const pricePage = {
+    ...toContentFeedItem(makePricePageSummary('Lương thực')),
+    updatedAt: news.publishedAt,
+    publishedAt: news.publishedAt,
+  }
+  const commodityPage = {
+    ...toCommodityContentFeedItem(makeCommodityPageSummary('Chăn nuôi')),
+    updatedAt: news.publishedAt,
+    publishedAt: news.publishedAt,
+  }
+  const sortedItems = __contentFeedTestUtils.sortContentFeedItems([news, pricePage, commodityPage])
+  const firstPage = __contentFeedTestUtils.paginateContentFeedItems(sortedItems, 1, undefined)
+  const secondPage = __contentFeedTestUtils.paginateContentFeedItems(sortedItems, 2, firstPage.nextCursor ?? undefined)
+
+  assert.deepEqual(sortedItems.map(item => item.kind), ['commodity_price_page', 'news', 'price_page'])
+  assert.deepEqual(secondPage.items.map(item => item.kind), ['news', 'price_page'])
+})
+
+test('content feed pagination applies filters before cursor paging', () => {
+  const items: ContentFeedItem[] = [
+    makeNewsItem(),
+    toContentFeedItem(makePricePageSummary('Lương thực')),
+    toCommodityContentFeedItem(makeCommodityPageSummary('Chăn nuôi')),
+  ]
+  const filtered = filterContentItems(__contentFeedTestUtils.sortContentFeedItems(items), {
+    family: 'tin-gia-nong-san',
+    priceGroup: 'chan-nuoi',
+    q: 'heo hơi',
+  })
+  const page = __contentFeedTestUtils.paginateContentFeedItems(filtered, 1, undefined)
+
+  assert.equal(page.items.length, 1)
+  assert.equal(page.items[0]?.kind, 'commodity_price_page')
+  assert.equal(page.hasMore, false)
+})
+
+test('content feed rejects malformed cursors', () => {
+  assert.throws(
+    () => __contentFeedTestUtils.decodeContentFeedCursor('not-a-cursor'),
+    InvalidContentFeedCursorError,
+  )
 })

@@ -133,6 +133,8 @@ export type ContentFeedTaxonomy = {
 export type ContentFeedResponse = {
   success: boolean
   items: ContentFeedItem[]
+  nextCursor: string | null
+  hasMore: boolean
   filters: ContentFeedFilters
   taxonomy: ContentFeedTaxonomy
   modules: ContentCategoryModule[]

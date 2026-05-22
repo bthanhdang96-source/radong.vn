@@ -407,6 +407,12 @@
   box-shadow: var(--shadow-md);
 }
 
+.news-index__load-more button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
 .news-index__module {
   padding: 1rem;
 }

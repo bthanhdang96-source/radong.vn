@@ -18,7 +18,7 @@ import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const CONTENT_FEED_CACHE_PREFIX = 'content-feed-cache:v2:'
+const CONTENT_FEED_CACHE_PREFIX = 'content-feed-cache:v3:'
 const CONTENT_FEED_CACHE_MAX_AGE_MS = 60 * 60 * 1000
 const DEFAULT_FEED_LIMIT = 24
 const FAMILY_FEED_LIMIT = 30
@@ -95,8 +95,8 @@ function getItemImageAlt(item: ContentFeedItem) {
   return 'thumbnailAlt' in item && item.thumbnailAlt ? item.thumbnailAlt : item.title
 }
 
-function buildFeedCacheKey(familySlug: string | null, priceGroupSlug: string | null, limit: number) {
-  return `${CONTENT_FEED_CACHE_PREFIX}${familySlug ?? 'all'}:${priceGroupSlug ?? 'all'}:${limit}`
+function buildFeedCacheKey(familySlug: string | null, priceGroupSlug: string | null, query: string) {
+  return `${CONTENT_FEED_CACHE_PREFIX}${familySlug ?? 'all'}:${priceGroupSlug ?? 'all'}:${query.trim().toLowerCase()}`
 }
 
 function readContentFeedCache(cacheKey: string) {
@@ -111,7 +111,14 @@ function readContentFeedCache(cacheKey: string) {
     }
 
     const parsed = JSON.parse(raw) as Partial<FeedCache>
-    if (typeof parsed.savedAt !== 'string' || !parsed.payload?.items || !parsed.payload?.taxonomy || !parsed.payload?.modules) {
+    if (
+      typeof parsed.savedAt !== 'string' ||
+      !parsed.payload?.items ||
+      !parsed.payload?.taxonomy ||
+      !parsed.payload?.modules ||
+      typeof parsed.payload.hasMore !== 'boolean' ||
+      !('nextCursor' in parsed.payload)
+    ) {
       return null
     }
 
@@ -142,6 +149,27 @@ function writeContentFeedCache(cacheKey: string, payload: ContentFeedResponse) {
   } catch {
     // Best-effort client cache.
   }
+}
+
+function getContentFeedItemKey(item: ContentFeedItem) {
+  return `${item.kind}:${item.path}`
+}
+
+function mergeContentFeedItems(currentItems: ContentFeedItem[], nextItems: ContentFeedItem[]) {
+  const seen = new Set(currentItems.map(getContentFeedItemKey))
+  const merged = [...currentItems]
+
+  for (const item of nextItems) {
+    const key = getContentFeedItemKey(item)
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    merged.push(item)
+  }
+
+  return merged
 }
 
 function filterVisibleItems(items: ContentFeedItem[], query: string) {
@@ -344,22 +372,19 @@ export default function NewsIndexPage() {
   }, [familySlug, priceGroupSlug])
 
   const baseRequestLimit = routeState.family ? FAMILY_FEED_LIMIT : DEFAULT_FEED_LIMIT
-  const [requestLimit, setRequestLimit] = useState(baseRequestLimit)
+  const [searchQuery, setSearchQuery] = useState(queryParam)
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const feedQuery = deferredSearchQuery.trim()
   const cacheKey = useMemo(
-    () => buildFeedCacheKey(routeState.family, routeState.priceGroup, requestLimit),
-    [routeState.family, routeState.priceGroup, requestLimit],
+    () => buildFeedCacheKey(routeState.family, routeState.priceGroup, feedQuery),
+    [feedQuery, routeState.family, routeState.priceGroup],
   )
   const cachedFeed = useMemo(() => readContentFeedCache(cacheKey), [cacheKey])
 
   const [payload, setPayload] = useState<ContentFeedResponse | null>(() => cachedFeed?.payload ?? null)
   const [loading, setLoading] = useState(!cachedFeed && !routeState.invalid)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState(queryParam)
-  const deferredSearchQuery = useDeferredValue(searchQuery)
-
-  useEffect(() => {
-    setRequestLimit(baseRequestLimit)
-  }, [baseRequestLimit, routeState.family, routeState.priceGroup])
 
   useEffect(() => {
     setSearchQuery(queryParam)
@@ -393,11 +418,12 @@ export default function NewsIndexPage() {
     setPayload(cachedFeed?.payload ?? null)
     setError(null)
     setLoading(!cachedFeed)
+    setLoadingMore(false)
 
     async function loadFeed() {
       try {
         const params = new URLSearchParams({
-          limit: String(requestLimit),
+          limit: String(baseRequestLimit),
           includeModules: 'true',
         })
 
@@ -407,6 +433,10 @@ export default function NewsIndexPage() {
 
         if (routeState.priceGroup) {
           params.set('priceGroup', routeState.priceGroup)
+        }
+
+        if (feedQuery) {
+          params.set('q', feedQuery)
         }
 
         const response = await fetch(buildApiUrl(`/api/content/feed?${params.toString()}`), {
@@ -447,7 +477,60 @@ export default function NewsIndexPage() {
       active = false
       controller.abort()
     }
-  }, [cacheKey, cachedFeed, requestLimit, routeState.family, routeState.invalid, routeState.priceGroup])
+  }, [baseRequestLimit, cacheKey, cachedFeed, feedQuery, routeState.family, routeState.invalid, routeState.priceGroup])
+
+  async function loadMoreFeedItems() {
+    if (!payload?.nextCursor || loadingMore) {
+      return
+    }
+
+    setLoadingMore(true)
+    setError(null)
+
+    try {
+      const params = new URLSearchParams({
+        limit: String(baseRequestLimit),
+        includeModules: 'false',
+        cursor: payload.nextCursor,
+      })
+
+      if (routeState.family) {
+        params.set('family', routeState.family)
+      }
+
+      if (routeState.priceGroup) {
+        params.set('priceGroup', routeState.priceGroup)
+      }
+
+      if (feedQuery) {
+        params.set('q', feedQuery)
+      }
+
+      const response = await fetch(buildApiUrl(`/api/content/feed?${params.toString()}`))
+      const json: ContentFeedResponse & { error?: string } = await response.json()
+      if (!response.ok || !json.success) {
+        throw new Error(json.error ?? 'Không thể tải thêm nội dung')
+      }
+
+      setPayload(current => {
+        const mergedPayload: ContentFeedResponse = current
+          ? {
+              ...json,
+              items: mergeContentFeedItems(current.items, json.items),
+              taxonomy: current.taxonomy,
+              modules: current.modules.length > 0 ? current.modules : json.modules,
+            }
+          : json
+
+        writeContentFeedCache(cacheKey, mergedPayload)
+        return mergedPayload
+      })
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải thêm nội dung')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const families: ContentFamilySummary[] = payload?.taxonomy.families ?? CONTENT_FAMILY_DEFINITIONS.map((item, index) => ({
     slug: item.slug,
@@ -476,7 +559,7 @@ export default function NewsIndexPage() {
   const hero = filteredItems[0] ?? null
   const featured = filteredItems.slice(1, 5)
   const streamItems = filteredItems.length > 5 ? filteredItems.slice(5) : filteredItems.slice(1)
-  const canLoadMore = !loading && !routeState.invalid && Boolean(payload) && (payload?.items.length ?? 0) >= requestLimit
+  const canLoadMore = !loading && !routeState.invalid && Boolean(payload?.hasMore && payload.nextCursor)
 
   if (routeState.invalid) {
     return (
@@ -621,8 +704,8 @@ export default function NewsIndexPage() {
 
           {canLoadMore ? (
             <div className="news-index__load-more">
-              <button type="button" onClick={() => setRequestLimit(current => current + baseRequestLimit)}>
-                Xem thêm
+              <button type="button" onClick={loadMoreFeedItems} disabled={loadingMore}>
+                {loadingMore ? 'Đang tải...' : 'Xem thêm'}
               </button>
             </div>
           ) : null}
