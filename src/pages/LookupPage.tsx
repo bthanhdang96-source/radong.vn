@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useNavigate, useParams } from 'react-router-dom'
 import { resolveRegistryCoordinate } from '../data/vietnamGeo'
@@ -425,72 +425,17 @@ function LookupCard({
 }
 
 const LOOKUP_MAP_SOURCE_ID = 'lookup-registry-points'
+const LOOKUP_SELECTED_SOURCE_ID = 'lookup-selected-registry-point'
 const LOOKUP_CLUSTER_LAYER_ID = 'lookup-clusters'
 const LOOKUP_CLUSTER_COUNT_LAYER_ID = 'lookup-cluster-count'
 const LOOKUP_POINT_LAYER_ID = 'lookup-unclustered-point'
+const LOOKUP_POINT_COUNT_LAYER_ID = 'lookup-unclustered-point-count'
 const LOOKUP_SELECTED_POINT_LAYER_ID = 'lookup-selected-point'
-const LOOKUP_SPROUT_PRODUCTION_IMAGE = 'lookup-sprout-production'
-const LOOKUP_SPROUT_PACKING_IMAGE = 'lookup-sprout-packing'
-const LOOKUP_SPROUT_SELECTED_IMAGE = 'lookup-sprout-selected'
+const LOOKUP_SELECTED_POINT_COUNT_LAYER_ID = 'lookup-selected-point-count'
 
 const EMPTY_FEATURE_COLLECTION: LookupMapFeatureCollection = {
   type: 'FeatureCollection',
   features: [],
-}
-
-function createSproutImageData(leafColor: string) {
-  const canvas = document.createElement('canvas')
-  const size = 96
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    return null
-  }
-  const context = ctx
-
-  context.clearRect(0, 0, size, size)
-  context.lineCap = 'round'
-  context.lineJoin = 'round'
-
-  function drawSprout(strokeScale: number, color: string, fillLeaves: boolean) {
-    context.save()
-    context.lineWidth = strokeScale
-    context.strokeStyle = color
-    context.fillStyle = color
-
-    context.beginPath()
-    context.moveTo(16, 70)
-    context.bezierCurveTo(27, 58, 38, 55, 48, 55)
-    context.bezierCurveTo(58, 55, 69, 58, 80, 70)
-    context.stroke()
-
-    context.beginPath()
-    context.moveTo(48, 61)
-    context.bezierCurveTo(46, 46, 39, 35, 28, 22)
-    context.stroke()
-
-    context.beginPath()
-    context.moveTo(48, 61)
-    context.bezierCurveTo(51, 45, 60, 34, 73, 24)
-    context.stroke()
-
-    const leftLeaf = new Path2D('M28 22 C14 18 10 6 10 6 C29 6 40 18 42 35 C36 32 31 28 28 22 Z')
-    const rightLeaf = new Path2D('M73 24 C86 23 91 13 91 13 C93 31 82 43 65 42 C66 34 68 28 73 24 Z')
-    if (fillLeaves) {
-      context.fill(leftLeaf)
-      context.fill(rightLeaf)
-    }
-    context.stroke(leftLeaf)
-    context.stroke(rightLeaf)
-    context.restore()
-  }
-
-  drawSprout(18, 'rgba(255, 255, 255, 0.94)', false)
-  drawSprout(9, '#79512c', false)
-  drawSprout(5, leafColor, true)
-
-  return context.getImageData(0, 0, size, size)
 }
 
 function buildLookupMapFeatureCollection(items: LookupMapItem[]): LookupMapFeatureCollection {
@@ -576,25 +521,16 @@ function RegistryMap({
           return
         }
 
-        const productionIcon = createSproutImageData('#16803a')
-        const packingIcon = createSproutImageData('#2563eb')
-        const selectedIcon = createSproutImageData('#dc2626')
-        if (productionIcon && !map.hasImage(LOOKUP_SPROUT_PRODUCTION_IMAGE)) {
-          map.addImage(LOOKUP_SPROUT_PRODUCTION_IMAGE, productionIcon, { pixelRatio: 2 })
-        }
-        if (packingIcon && !map.hasImage(LOOKUP_SPROUT_PACKING_IMAGE)) {
-          map.addImage(LOOKUP_SPROUT_PACKING_IMAGE, packingIcon, { pixelRatio: 2 })
-        }
-        if (selectedIcon && !map.hasImage(LOOKUP_SPROUT_SELECTED_IMAGE)) {
-          map.addImage(LOOKUP_SPROUT_SELECTED_IMAGE, selectedIcon, { pixelRatio: 2 })
-        }
-
         map.addSource(LOOKUP_MAP_SOURCE_ID, {
           type: 'geojson',
           data: EMPTY_FEATURE_COLLECTION as Parameters<GeoJSONSource['setData']>[0],
           cluster: true,
           clusterMaxZoom: 10,
           clusterRadius: 46,
+        })
+        map.addSource(LOOKUP_SELECTED_SOURCE_ID, {
+          type: 'geojson',
+          data: EMPTY_FEATURE_COLLECTION as Parameters<GeoJSONSource['setData']>[0],
         })
 
         map.addLayer({
@@ -643,33 +579,69 @@ function RegistryMap({
 
         map.addLayer({
           id: LOOKUP_POINT_LAYER_ID,
+          type: 'circle',
+          source: LOOKUP_MAP_SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': [
+              'match',
+              ['get', 'registryType'],
+              'packing_facility',
+              '#2563eb',
+              '#15803d',
+            ],
+            'circle-radius': 13,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3,
+            'circle-opacity': 0.94,
+          },
+        })
+
+        map.addLayer({
+          id: LOOKUP_POINT_COUNT_LAYER_ID,
           type: 'symbol',
           source: LOOKUP_MAP_SOURCE_ID,
           filter: ['!', ['has', 'point_count']],
           layout: {
-            'icon-image': [
-              'match',
-              ['get', 'registryType'],
-              'packing_facility',
-              LOOKUP_SPROUT_PACKING_IMAGE,
-              LOOKUP_SPROUT_PRODUCTION_IMAGE,
-            ],
-            'icon-size': 0.92,
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
+            'text-field': '1',
+            'text-size': 10,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0, 0, 0, 0.16)',
+            'text-halo-width': 0.5,
           },
         })
 
         map.addLayer({
           id: LOOKUP_SELECTED_POINT_LAYER_ID,
+          type: 'circle',
+          source: LOOKUP_SELECTED_SOURCE_ID,
+          paint: {
+            'circle-color': '#ef4444',
+            'circle-radius': 19,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 4,
+            'circle-opacity': 0.98,
+          },
+        })
+
+        map.addLayer({
+          id: LOOKUP_SELECTED_POINT_COUNT_LAYER_ID,
           type: 'symbol',
-          source: LOOKUP_MAP_SOURCE_ID,
-          filter: ['==', ['get', 'id'], ''],
+          source: LOOKUP_SELECTED_SOURCE_ID,
           layout: {
-            'icon-image': LOOKUP_SPROUT_SELECTED_IMAGE,
-            'icon-size': 1.2,
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
+            'text-field': '1',
+            'text-size': 12,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(127, 29, 29, 0.35)',
+            'text-halo-width': 0.75,
           },
         })
 
@@ -692,23 +664,19 @@ function RegistryMap({
           })
         })
 
-        map.on('click', LOOKUP_POINT_LAYER_ID, event => {
-          const feature = map.queryRenderedFeatures(event.point, { layers: [LOOKUP_POINT_LAYER_ID] })[0]
+        const selectRenderedPoint = (event: MapMouseEvent, layers: string[]) => {
+          const feature = map.queryRenderedFeatures(event.point, { layers })[0]
           const properties = feature?.properties as { id?: string } | undefined
           const item = properties?.id ? itemsRef.current.find(entry => entry.id === properties.id) : null
           if (item) {
             onSelectRef.current(item)
           }
-        })
+        }
 
-        map.on('click', LOOKUP_SELECTED_POINT_LAYER_ID, event => {
-          const feature = map.queryRenderedFeatures(event.point, { layers: [LOOKUP_SELECTED_POINT_LAYER_ID] })[0]
-          const properties = feature?.properties as { id?: string } | undefined
-          const item = properties?.id ? itemsRef.current.find(entry => entry.id === properties.id) : null
-          if (item) {
-            onSelectRef.current(item)
-          }
-        })
+        map.on('click', LOOKUP_POINT_LAYER_ID, event => selectRenderedPoint(event, [LOOKUP_POINT_LAYER_ID]))
+        map.on('click', LOOKUP_POINT_COUNT_LAYER_ID, event => selectRenderedPoint(event, [LOOKUP_POINT_COUNT_LAYER_ID]))
+        map.on('click', LOOKUP_SELECTED_POINT_LAYER_ID, event => selectRenderedPoint(event, [LOOKUP_SELECTED_POINT_LAYER_ID]))
+        map.on('click', LOOKUP_SELECTED_POINT_COUNT_LAYER_ID, event => selectRenderedPoint(event, [LOOKUP_SELECTED_POINT_COUNT_LAYER_ID]))
 
         map.on('mouseenter', LOOKUP_CLUSTER_LAYER_ID, () => {
           map.getCanvas().style.cursor = 'pointer'
@@ -722,10 +690,22 @@ function RegistryMap({
         map.on('mouseleave', LOOKUP_POINT_LAYER_ID, () => {
           map.getCanvas().style.cursor = ''
         })
+        map.on('mouseenter', LOOKUP_POINT_COUNT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', LOOKUP_POINT_COUNT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = ''
+        })
         map.on('mouseenter', LOOKUP_SELECTED_POINT_LAYER_ID, () => {
           map.getCanvas().style.cursor = 'pointer'
         })
         map.on('mouseleave', LOOKUP_SELECTED_POINT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = ''
+        })
+        map.on('mouseenter', LOOKUP_SELECTED_POINT_COUNT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', LOOKUP_SELECTED_POINT_COUNT_LAYER_ID, () => {
           map.getCanvas().style.cursor = ''
         })
 
@@ -768,15 +748,15 @@ function RegistryMap({
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !mapReady || !map.getLayer(LOOKUP_SELECTED_POINT_LAYER_ID)) {
+    if (!map || !mapReady) {
       return
     }
 
-    map.setFilter(
-      LOOKUP_SELECTED_POINT_LAYER_ID,
-      selectedId ? ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], selectedId]] : ['==', ['get', 'id'], ''],
+    const source = map.getSource(LOOKUP_SELECTED_SOURCE_ID) as GeoJSONSource | undefined
+    source?.setData(
+      buildLookupMapFeatureCollection(selectedItem ? [selectedItem] : []) as Parameters<GeoJSONSource['setData']>[0],
     )
-  }, [mapReady, selectedId])
+  }, [mapReady, selectedItem])
 
   useEffect(() => {
     const map = mapRef.current
