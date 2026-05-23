@@ -1,0 +1,384 @@
+.admin-ai {
+  min-height: 100vh;
+  padding: 24px;
+  background: #f3f5f2;
+  color: #17231d;
+}
+
+.admin-ai__topbar,
+.admin-ai__filters,
+.admin-ai__workspace {
+  max-width: 1500px;
+  margin: 0 auto 16px;
+}
+
+.admin-ai__topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-ai__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #4b6f58;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-ai h1,
+.admin-ai h2,
+.admin-ai p {
+  margin: 0;
+}
+
+.admin-ai h1 {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.admin-ai__key-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-ai input,
+.admin-ai button,
+.admin-ai a {
+  font: inherit;
+}
+
+.admin-ai input {
+  width: min(320px, 70vw);
+  border: 1px solid #c9d3cc;
+  border-radius: 8px;
+  background: #fff;
+  color: #17231d;
+  padding: 10px 12px;
+}
+
+.admin-ai button,
+.admin-ai a {
+  border: 1px solid #244f36;
+  border-radius: 8px;
+  background: #244f36;
+  color: #fff;
+  padding: 10px 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-ai button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.admin-ai__button--secondary,
+.admin-ai__actions a {
+  background: #fff;
+  color: #244f36;
+}
+
+.admin-ai__filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.admin-ai__filter {
+  border-color: #c9d3cc;
+  background: #fff;
+  color: #3a4b40;
+  white-space: nowrap;
+}
+
+.admin-ai__filter--active {
+  border-color: #244f36;
+  background: #244f36;
+  color: #fff;
+}
+
+.admin-ai__notice {
+  max-width: 1500px;
+  margin: 0 auto 16px;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.admin-ai__notice--error {
+  border: 1px solid #e2a7a0;
+  background: #fff1ef;
+  color: #992f24;
+}
+
+.admin-ai__workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-ai__list,
+.admin-ai__preview {
+  min-height: calc(100vh - 150px);
+  border: 1px solid #d7ded8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admin-ai__list {
+  position: sticky;
+  top: 16px;
+  overflow: hidden;
+}
+
+.admin-ai__list-head,
+.admin-ai__preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e3e8e4;
+  padding: 14px 16px;
+}
+
+.admin-ai__list-head span,
+.admin-ai__article-row span,
+.admin-ai__article-row time,
+.admin-ai__preview-meta,
+.admin-ai__article-head dd,
+.admin-ai__article-head p {
+  color: #627166;
+}
+
+.admin-ai__article-list {
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+
+.admin-ai__article-row {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  border: 0;
+  border-bottom: 1px solid #edf0ed;
+  border-radius: 0;
+  background: #fff;
+  color: #17231d;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.admin-ai__article-row:hover,
+.admin-ai__article-row--active {
+  background: #f0f6f1;
+}
+
+.admin-ai__article-row strong {
+  line-height: 1.3;
+}
+
+.admin-ai__status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.admin-ai__status--draft {
+  background: #fff3ca;
+  color: #7d5a00;
+}
+
+.admin-ai__status--published {
+  background: #dff2e5;
+  color: #176337;
+}
+
+.admin-ai__status--archived {
+  background: #e9ecef;
+  color: #47505a;
+}
+
+.admin-ai__status--failed {
+  background: #ffe0dc;
+  color: #9b2f24;
+}
+
+.admin-ai__preview {
+  overflow: hidden;
+}
+
+.admin-ai__preview-meta,
+.admin-ai__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-ai__actions {
+  justify-content: flex-end;
+}
+
+.admin-ai__article-head {
+  display: grid;
+  gap: 14px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e3e8e4;
+}
+
+.admin-ai__article-head h2 {
+  max-width: 920px;
+  font-size: 2rem;
+  line-height: 1.14;
+}
+
+.admin-ai__article-head p {
+  max-width: 860px;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.admin-ai__article-head dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-ai__article-head dl div {
+  border: 1px solid #e3e8e4;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.admin-ai__article-head dt {
+  margin-bottom: 4px;
+  color: #627166;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.admin-ai__article-head dd {
+  margin: 0;
+}
+
+.admin-ai__body {
+  max-width: 880px;
+  padding: 26px 24px;
+  line-height: 1.75;
+}
+
+.admin-ai__body h2,
+.admin-ai__body h3 {
+  margin: 1.5em 0 0.5em;
+  line-height: 1.25;
+}
+
+.admin-ai__body p,
+.admin-ai__body ul,
+.admin-ai__body ol,
+.admin-ai__body table {
+  margin: 0 0 1.1em;
+}
+
+.admin-ai__body table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow-x: auto;
+}
+
+.admin-ai__body th,
+.admin-ai__body td {
+  border: 1px solid #dfe5e0;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-ai__body--text {
+  white-space: pre-line;
+}
+
+.admin-ai__facts {
+  border-top: 1px solid #e3e8e4;
+  padding: 16px 24px 24px;
+}
+
+.admin-ai__facts summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.admin-ai__facts pre {
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #f5f7f5;
+  padding: 14px;
+  color: #26372d;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.admin-ai__empty {
+  padding: 18px;
+  color: #627166;
+}
+
+@media (max-width: 980px) {
+  .admin-ai {
+    padding: 16px;
+  }
+
+  .admin-ai__topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-ai__key-form {
+    justify-content: flex-start;
+  }
+
+  .admin-ai__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-ai__list {
+    position: static;
+    min-height: auto;
+  }
+
+  .admin-ai__article-list {
+    max-height: 360px;
+  }
+
+  .admin-ai__preview {
+    min-height: 420px;
+  }
+
+  .admin-ai__preview-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-ai__actions {
+    justify-content: flex-start;
+  }
+
+  .admin-ai__article-head dl {
+    grid-template-columns: 1fr;
+  }
+}

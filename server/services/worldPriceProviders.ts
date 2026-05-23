@@ -506,7 +506,7 @@ export const thaiRiceWeeklyProvider: WorldPriceProvider = {
 
 export const worldBankMonthlyProvider: WorldPriceProvider = {
   id: 'world_bank_pink_sheet',
-  async fetch(forceRefresh = false) {
+  async fetch() {
     const crawledAt = new Date().toISOString()
     return markPinkSheetMonthlyItems(await fetchPinkSheetWorldPrices(), crawledAt)
   },

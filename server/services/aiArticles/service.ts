@@ -415,7 +415,11 @@ function aggregateExportCommodityFacts(rows: CustomsExportObservationRow[]) {
   }
 
   return [...byCommodity.values()]
-    .map(({ valueTotal: _valueTotal, quantityTotal: _quantityTotal, ...fact }) => fact)
+    .map(({ valueTotal, quantityTotal, ...fact }) => {
+      void valueTotal
+      void quantityTotal
+      return fact
+    })
     .sort((left, right) => (right.valueUsd ?? 0) - (left.valueUsd ?? 0))
 }
 
@@ -1337,7 +1341,7 @@ export async function generateAiArticles(options: GenerateAiArticlesOptions = {}
   }
 }
 
-export async function listAiArticles(options: { limit?: number; includeDrafts?: boolean } = {}) {
+export async function listAiArticles(options: { limit?: number; includeDrafts?: boolean; status?: AiArticleStatus | 'all' } = {}) {
   const client = options.includeDrafts ? getSupabaseAdminClient() : getSupabaseReadClient()
   if (!client) {
     return []
@@ -1352,6 +1356,8 @@ export async function listAiArticles(options: { limit?: number; includeDrafts?: 
 
   if (!options.includeDrafts) {
     query.eq('status', 'published')
+  } else if (options.status && options.status !== 'all') {
+    query.eq('status', options.status)
   }
 
   const { data, error } = await query
@@ -1377,6 +1383,54 @@ export async function getAiArticle(slug: string, options: { includeDrafts?: bool
   }
 
   const { data, error } = await query.maybeSingle()
+  if (error) {
+    if (isRelationMissing(error)) {
+      return null
+    }
+    throw error
+  }
+
+  return data ? toArticleDetail(data as AiArticleRow) : null
+}
+
+export async function updateAiArticleStatus(slug: string, status: Exclude<AiArticleStatus, 'failed'>) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    throw new Error('Supabase admin client is required to update AI articles')
+  }
+
+  const existing = await client
+    .from('ai_generated_articles')
+    .select('published_at')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (existing.error) {
+    if (isRelationMissing(existing.error)) {
+      return null
+    }
+    throw existing.error
+  }
+
+  if (!existing.data) {
+    return null
+  }
+
+  const publishedAt =
+    status === 'published'
+      ? ((existing.data as Pick<AiArticleRow, 'published_at'>).published_at ?? new Date().toISOString())
+      : null
+
+  const { data, error } = await client
+    .from('ai_generated_articles')
+    .update({
+      status,
+      published_at: publishedAt,
+    })
+    .eq('slug', slug)
+    .select('*')
+    .maybeSingle()
+
   if (error) {
     if (isRelationMissing(error)) {
       return null

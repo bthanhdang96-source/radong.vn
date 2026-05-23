@@ -1,6 +1,7 @@
 import { Route, Routes, useLocation } from 'react-router-dom'
 import Footer from './components/Footer'
 import Navbar from './components/Navbar'
+import AdminAiArticlesPage from './pages/AdminAiArticlesPage'
 import AgriWeatherPage from './pages/AgriWeatherPage'
 import AssminReportPage from './pages/AssminReportPage'
 import GeneratedCommodityPricePage from './pages/GeneratedCommodityPricePage'
@@ -17,11 +18,13 @@ import './App.css'
 export default function App() {
   const location = useLocation()
   const isAssminRoute = location.pathname === '/assmin'
+  const isAdminRoute = location.pathname.startsWith('/admin')
 
-  if (isAssminRoute) {
+  if (isAssminRoute || isAdminRoute) {
     return (
       <Routes>
         <Route path="/assmin" element={<AssminReportPage />} />
+        <Route path="/admin/ai-articles" element={<AdminAiArticlesPage />} />
       </Routes>
     )
   }
