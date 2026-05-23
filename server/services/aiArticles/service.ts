@@ -263,9 +263,23 @@ export type GenerateAiArticlesResult = {
 const PROMPT_VERSION = 'ai-articles-v1'
 const AI_ARTICLE_SOURCE_LABEL = 'NongSanVN AI'
 const AI_ARTICLE_SOURCE_KEY = 'nongsanvn_ai'
-const DEFAULT_MODEL = 'gemini-3.1-flash'
+const DEFAULT_MODEL = 'gemini-3.1-flash-lite'
 const DEFAULT_THUMBNAIL_URL =
   'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
+const AI_ARTICLE_COMMODITY_LABELS: Record<string, string> = {
+  'rice-5pct': 'Gạo 5% tấm',
+  'rice-25pct': 'Gạo 25% tấm',
+  'rice-thai': 'Gạo Thái A.1 Super',
+  'coffee-robusta': 'Cà phê Robusta',
+  'coffee-arabica': 'Cà phê Arabica',
+  'rubber-rss3': 'Cao su RSS3',
+  'rubber-tsr20': 'Cao su TSR20',
+  cashew: 'Hạt điều',
+  cassava: 'Sắn',
+  'ho-tieu': 'Hồ tiêu',
+  'pepper-black': 'Tiêu đen',
+  'tea-avg': 'Chè',
+}
 
 function parseBoolean(value: string | undefined, fallback: boolean) {
   if (!value) {
@@ -324,7 +338,12 @@ function articlePath(slug: string) {
 }
 
 function getModelName() {
-  return process.env.GEMINI_MODEL?.trim() || process.env.AI_ARTICLE_MODEL?.trim() || DEFAULT_MODEL
+  const configuredModel = process.env.GEMINI_MODEL?.trim() || process.env.AI_ARTICLE_MODEL?.trim() || DEFAULT_MODEL
+  if (configuredModel === 'gemini-3.1-flash') {
+    return DEFAULT_MODEL
+  }
+
+  return configuredModel
 }
 
 function getPublishStatus(): AiArticleStatus {
@@ -340,6 +359,10 @@ function getArticleTimestamp(row: AiArticleRow) {
 }
 
 function getCommodityName(slug: string) {
+  if (AI_ARTICLE_COMMODITY_LABELS[slug]) {
+    return AI_ARTICLE_COMMODITY_LABELS[slug]
+  }
+
   return getCommodityDisplayName(slug, slug)
 }
 
@@ -544,7 +567,12 @@ export function buildWorldDailyArticleContextFromRows(rows: WorldPriceRow[], obs
     return null
   }
 
-  const referenceRows = rows.filter(row => row.data_granularity !== 'daily')
+  const referenceRows = rows.filter(row =>
+    row.data_granularity === 'weekly' ||
+    row.data_granularity === 'monthly' ||
+    row.data_granularity === 'period' ||
+    row.data_granularity === 'as_published',
+  )
   return {
     articleType: 'world_daily_price_update',
     articleScopeKey: selectedObservedOn,
@@ -582,43 +610,85 @@ function markdownToHtml(markdown: string) {
   const lines = markdown.split(/\r?\n/)
   const html: string[] = []
   let listItems: string[] = []
+  let tableRows: string[][] = []
+
+  const inlineHtml = (value: string) =>
+    escapeHtml(value)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
 
   const flushList = () => {
     if (listItems.length > 0) {
-      html.push(`<ul>${listItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`)
+      html.push(`<ul>${listItems.map(item => `<li>${inlineHtml(item)}</li>`).join('')}</ul>`)
       listItems = []
     }
   }
+
+  const flushTable = () => {
+    if (tableRows.length === 0) {
+      return
+    }
+
+    const [head, ...body] = tableRows
+    html.push(
+      [
+        '<table>',
+        `<thead><tr>${head.map(cell => `<th>${inlineHtml(cell)}</th>`).join('')}</tr></thead>`,
+        `<tbody>${body.map(row => `<tr>${row.map(cell => `<td>${inlineHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`,
+        '</table>',
+      ].join(''),
+    )
+    tableRows = []
+  }
+
+  const isMarkdownTableLine = (line: string) => line.startsWith('|') && line.endsWith('|')
+  const parseTableCells = (line: string) => line.split('|').slice(1, -1).map(cell => cell.trim())
+  const isTableDivider = (cells: string[]) => cells.every(cell => /^:?-{3,}:?$/.test(cell))
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
     if (!line) {
       flushList()
+      flushTable()
+      continue
+    }
+
+    if (isMarkdownTableLine(line)) {
+      flushList()
+      const cells = parseTableCells(line)
+      if (!isTableDivider(cells)) {
+        tableRows.push(cells)
+      }
       continue
     }
 
     if (line.startsWith('### ')) {
       flushList()
-      html.push(`<h3>${escapeHtml(line.slice(4))}</h3>`)
+      flushTable()
+      html.push(`<h3>${inlineHtml(line.slice(4))}</h3>`)
       continue
     }
 
     if (line.startsWith('## ')) {
       flushList()
-      html.push(`<h2>${escapeHtml(line.slice(3))}</h2>`)
+      flushTable()
+      html.push(`<h2>${inlineHtml(line.slice(3))}</h2>`)
       continue
     }
 
-    if (line.startsWith('- ')) {
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      flushTable()
       listItems.push(line.slice(2))
       continue
     }
 
     flushList()
-    html.push(`<p>${escapeHtml(line)}</p>`)
+    flushTable()
+    html.push(`<p>${inlineHtml(line)}</p>`)
   }
 
   flushList()
+  flushTable()
   return html.join('\n')
 }
 
@@ -681,6 +751,7 @@ function buildArticlePrompt(context: AiArticleContext) {
     'Neu articleType=export_monthly_report, goi la bao cao thang vi SOURCE_FACTS da co du ky trong thang.',
     'Neu articleType=world_daily_price_update, chi goi daily voi dailySignals; referenceBenchmarks khong duoc goi la bien dong ngay.',
     'Viet theo SEO va AEO: co cau tra loi ngan o dau bai, heading ro, FAQ ngan neu phu hop.',
+    'Co the dung bang Markdown don gian neu can so sanh so lieu; khong dung HTML raw.',
     'Tra ve JSON hop le duy nhat: title, excerpt, answerSummary, bodyMarkdown, topicTags, seo.title, seo.description, seo.faq.',
   ]
 
@@ -732,9 +803,23 @@ function validateDraft(context: AiArticleContext, draft: AiDraft) {
     warnings.push('Period article mentions monthly report wording')
   }
 
-  if (context.articleType === 'world_daily_price_update' && folded.includes('gao') && folded.includes('bien dong ngay')) {
+  if (context.articleType === 'world_daily_price_update') {
     const hasDailyRice = context.dailySignals.some(item => item.commoditySlug.startsWith('rice-'))
-    if (!hasDailyRice) {
+    const impliesDailyRice = foldText(draft.bodyMarkdown)
+      .split(/\n|[.!?;]/)
+      .some(segment => {
+        const movementIndex = segment.indexOf('bien dong')
+        if (movementIndex < 0) {
+          return false
+        }
+
+        const riceIndexes = [
+          segment.indexOf('gao'),
+          segment.search(/\brice\b/),
+        ].filter(index => index >= 0)
+        return riceIndexes.some(index => Math.abs(index - movementIndex) <= 80)
+      })
+    if (!hasDailyRice && impliesDailyRice) {
       warnings.push('Article may imply rice has a daily signal without a daily rice source')
     }
   }

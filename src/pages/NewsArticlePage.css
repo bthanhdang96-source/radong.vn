@@ -208,6 +208,29 @@
   padding-left: 1.2rem;
 }
 
+.news-article__body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.news-article__body th,
+.news-article__body td {
+  border: 1px solid var(--color-border);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.news-article__body th {
+  background: color-mix(in srgb, var(--color-border) 36%, transparent);
+  color: var(--color-text);
+  font-weight: 700;
+}
+
 .news-article__loading-panel {
   padding: 0 1.4rem 1.6rem;
 }

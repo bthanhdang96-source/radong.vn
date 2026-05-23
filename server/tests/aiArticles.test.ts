@@ -124,6 +124,20 @@ test('world daily context only promotes daily rows to daily signals', () => {
       source_observation_label: 'Thai rice FOB 2026-05-20',
       observed_on: '2026-05-20',
     }),
+    worldRow({
+      commodity_slug: 'shrimp',
+      exchange: 'Legacy fallback',
+      price_usd: 8.5,
+      price_unit: 'USD/kg',
+      change_1d: null,
+      change_1d_pct: null,
+      data_granularity: 'unknown',
+      benchmark_type: 'unknown',
+      source_id: 'legacy',
+      source_url: null,
+      source_observation_label: 'Legacy fallback shrimp',
+      observed_on: '2026-05-20',
+    }),
   ])
 
   assert.equal(context?.articleType, 'world_daily_price_update')
