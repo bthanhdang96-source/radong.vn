@@ -33,3 +33,5 @@ server/.runtime/
 .dolt/
 *.db
 .beads-credential-key
+
+.vercel
