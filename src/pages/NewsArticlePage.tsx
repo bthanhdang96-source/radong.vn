@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import type { NewsDetailResponse, NewsListItem } from '../data/newsTypes'
 import { buildContentFamilyPath } from '../data/contentTaxonomy'
-import { buildApiUrl } from '../lib/api'
+import { buildNewsArticleApiUrl } from '../lib/api'
 import './NewsArticlePage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
@@ -330,7 +330,7 @@ export default function NewsArticlePage() {
 
     async function loadArticle() {
       try {
-        const response = await fetch(buildApiUrl(`/api/news/articles/${slug}`), { signal: controller.signal })
+        const response = await fetch(buildNewsArticleApiUrl(currentSlug), { signal: controller.signal })
         const json = (await response.json()) as NewsDetailResponse & { success?: boolean; error?: string }
         if (!response.ok || !json.success) {
           throw new Error(json.error ?? 'Không thể tải chi tiết bài viết')
