@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import aiArticlesRouter from './aiArticles.js';
 import assminReportRouter from './assminReport.js';
 import agriWeatherRouter from './agriWeather.js';
 import commodityPricePagesRouter from './commodityPricePages.js';
@@ -12,6 +13,7 @@ import vnPricesRouter from './vnPrices.js';
 
 const router = Router();
 
+router.use(aiArticlesRouter);
 router.use(assminReportRouter);
 router.use(newsRouter);
 router.use(contentRouter);

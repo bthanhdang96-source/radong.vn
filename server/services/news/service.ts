@@ -756,13 +756,14 @@ async function performNewsSourceAttempt(source: NewsSourceConfig): Promise<NewsS
 }
 
 export async function crawlNewsSource(sourceKey: NewsSourceKey, options?: NewsCrawlOptions): Promise<NewsCrawlResult> {
-  if (!isNewsSourceVisible(sourceKey)) {
+  const sourceConfig = getNewsSourceConfig(sourceKey)
+  if (!sourceConfig.active) {
     throw new Error(`Source ${sourceKey} is disabled`)
   }
 
   const source = {
-    ...getNewsSourceConfig(sourceKey),
-    maxArticlesPerRun: options?.maxArticlesPerRun ?? getNewsSourceConfig(sourceKey).maxArticlesPerRun,
+    ...sourceConfig,
+    maxArticlesPerRun: options?.maxArticlesPerRun ?? sourceConfig.maxArticlesPerRun,
   }
   const startedAt = new Date().toISOString()
   const attempted = await retryTransientResult(

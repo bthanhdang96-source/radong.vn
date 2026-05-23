@@ -4,9 +4,9 @@ import cron from 'node-cron';
 import express from 'express';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
+import { generateAiArticles } from './services/aiArticles/service.js';
 import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
-import { readShopeeSessionMetadata } from './services/crawlers/shopeeSession.js';
 import { generateCommodityPricePages } from './services/generatedCommodityPricePages/service.js';
 import { generatePricePages } from './services/generatedPricePages/service.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
@@ -20,6 +20,8 @@ const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
 let priceContentRefreshRunning = false;
+let aiArticleExportRunning = false;
+let aiArticleWorldRunning = false;
 const appScheduleConfig = getAppScheduleConfig();
 const {
   timezone: TZ,
@@ -29,6 +31,9 @@ const {
   priceContentStaleHours: PRICE_CONTENT_STALE_HOURS,
   worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
   worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+  aiArticleEnabled: AI_ARTICLE_ENABLED,
+  aiArticleExportCron: AI_ARTICLE_EXPORT_CRON,
+  aiArticleWorldDailyCron: AI_ARTICLE_WORLD_DAILY_CRON,
 } =
   appScheduleConfig;
 
@@ -66,19 +71,6 @@ function toHealthResponse() {
   };
 }
 
-function sanitizeShopeeSession(metadata: Awaited<ReturnType<typeof readShopeeSessionMetadata>>) {
-  return {
-    status: metadata.status,
-    refreshedAt: metadata.refreshedAt,
-    expiresAt: metadata.expiresAt,
-    checkedAt: metadata.checkedAt,
-    headless: metadata.headless,
-    keyword: metadata.keyword,
-    sampleCount: metadata.sampleCount,
-    responseStatus: metadata.responseStatus,
-  };
-}
-
 app.use(
   cors({
     origin(origin, callback) {
@@ -106,10 +98,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.get('/api/health/details', requireAdminApiKey, async (_req, res) => {
-  const [shopeeSession, news] = await Promise.all([
-    readShopeeSessionMetadata(),
-    getNewsHealth(),
-  ]);
+  const news = await getNewsHealth();
 
   res.json({
     ...toHealthResponse(),
@@ -117,7 +106,6 @@ app.get('/api/health/details', requireAdminApiKey, async (_req, res) => {
       schedule: getCrawlerScheduleConfig(),
       newsSchedule: getNewsSchedulerConfig(),
       appSchedule: appScheduleConfig,
-      shopeeSession: sanitizeShopeeSession(shopeeSession),
     },
     news,
   });
@@ -194,4 +182,45 @@ if (WORLD_PRICE_CRAWL_ENABLED) {
   });
 } else {
   console.log('[App Scheduler] World price refresh schedule is disabled');
+}
+
+if (AI_ARTICLE_ENABLED) {
+  registerAppCron('ai-export-articles-generate', AI_ARTICLE_EXPORT_CRON, async () => {
+    if (aiArticleExportRunning) {
+      console.log('[AI Articles] Export article generation skipped: previous run still in progress');
+      return;
+    }
+
+    aiArticleExportRunning = true;
+    try {
+      console.log(`[AI Articles] Export article generation started (${AI_ARTICLE_EXPORT_CRON})`);
+      await generateAiArticles({ articleType: 'export_period_report' });
+      await generateAiArticles({ articleType: 'export_monthly_report' });
+      console.log('[AI Articles] Export article generation completed');
+    } catch (error) {
+      console.error('[AI Articles] Export article generation failed:', error);
+    } finally {
+      aiArticleExportRunning = false;
+    }
+  });
+
+  registerAppCron('ai-world-daily-articles-generate', AI_ARTICLE_WORLD_DAILY_CRON, async () => {
+    if (aiArticleWorldRunning) {
+      console.log('[AI Articles] World daily article generation skipped: previous run still in progress');
+      return;
+    }
+
+    aiArticleWorldRunning = true;
+    try {
+      console.log(`[AI Articles] World daily article generation started (${AI_ARTICLE_WORLD_DAILY_CRON})`);
+      await generateAiArticles({ articleType: 'world_daily_price_update' });
+      console.log('[AI Articles] World daily article generation completed');
+    } catch (error) {
+      console.error('[AI Articles] World daily article generation failed:', error);
+    } finally {
+      aiArticleWorldRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] AI article generation schedule is disabled');
 }

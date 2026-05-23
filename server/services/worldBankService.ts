@@ -28,6 +28,8 @@ export interface WorldCommodityItem {
   high52w: number
   currency: 'USD'
   lastUpdate: string
+  sourcePeriod?: string
+  sourceObservedOn?: string
 }
 
 const PINK_SHEET_URLS = [
@@ -259,6 +261,21 @@ function parsePinkSheetRows(sheet: ExcelJS.Worksheet) {
   return rows
 }
 
+function pinkSheetPeriodToObservedOn(period: string) {
+  const match = period.match(/^(\d{4})M(\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return null
+  }
+
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10)
+}
+
 function findCommoditySeries(rows: PinkSheetRow[], labels: string[]) {
   const normalizedLabels = labels.map(label => normalizePinkSheetLabel(label))
   return rows
@@ -294,7 +311,7 @@ async function fetchPinkSheetWorkbook() {
   return null
 }
 
-async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
+export async function fetchPinkSheetWorldPrices(): Promise<WorldCommodityItem[] | null> {
   try {
     const buffer = await fetchPinkSheetWorkbook()
     if (!buffer) {
@@ -360,6 +377,8 @@ async function fetchAndParsePinkSheet(): Promise<WorldCommodityItem[] | null> {
         high52w,
         currency: 'USD',
         lastUpdate: now,
+        sourcePeriod: latest.period,
+        sourceObservedOn: pinkSheetPeriodToObservedOn(latest.period) ?? now.slice(0, 10),
       })
     }
 
@@ -378,7 +397,7 @@ export async function getWorldPrices(forceRefresh = false): Promise<WorldCommodi
     return cached
   }
 
-  const liveData = await fetchAndParsePinkSheet()
+  const liveData = await fetchPinkSheetWorldPrices()
   if (liveData && liveData.length > 0) {
     const fallback = buildFallbackData()
     const liveIds = new Set(liveData.map(item => item.id))

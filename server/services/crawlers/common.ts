@@ -17,7 +17,6 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   chogia: 86,
   dongnai_sct_daugiay: 89,
   vietfood: 88,
-  vpsaspice: 84,
   giaca_nsvl: 82,
   banggianongsan: 76,
   giahotieu: 77,
@@ -26,7 +25,6 @@ const SOURCE_PRIORITIES: Record<SourceId, number> = {
   coop: 74,
   customs: 96,
   agroinfo_fruit_report: 85,
-  shopee: 70,
   fallback: 0,
 };
 

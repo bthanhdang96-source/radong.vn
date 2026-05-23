@@ -80,8 +80,8 @@ const PUBLIC_PRICE_GROUP_SLUGS = PRICE_COMMODITY_GROUP_DEFINITIONS
   .filter(group => group.slug !== 'khac')
   .map(group => group.slug) as Array<Exclude<PriceCommodityGroupSlug, 'khac'>>
 
-const PROFESSIONAL_SOURCE_KEYS = new Set<NewsSourceKey>(['khuyennongvn', 'coa'])
-const EXPORT_SOURCE_KEYS = new Set<NewsSourceKey>(['congthuong', 'vinacas', 'vasep'])
+const PROFESSIONAL_SOURCE_KEYS = new Set<NewsSourceKey>(['coa'])
+const EXPORT_SOURCE_KEYS = new Set<NewsSourceKey>(['congthuong'])
 
 const PROFESSIONAL_SIGNALS = [
   'khuyen nong',
@@ -218,7 +218,7 @@ export function classifyNewsContentFamily(input: NewsClassificationInput): Conte
 }
 
 export function getContentItemTimestamp(item: ContentFeedItem) {
-  return item.kind === 'news' ? item.publishedAt : item.updatedAt
+  return item.kind === 'news' || item.kind === 'ai_article' ? item.publishedAt : item.updatedAt
 }
 
 export function sortContentItems(items: ContentFeedItem[]) {

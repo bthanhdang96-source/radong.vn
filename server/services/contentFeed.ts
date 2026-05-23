@@ -7,6 +7,7 @@ import {
   isContentFamilySlug,
   isPublicPriceCommodityGroupSlug,
 } from './contentTaxonomy.js'
+import { listAiArticles, toAiArticleContentFeedItem } from './aiArticles/service.js'
 import { listGeneratedCommodityPricePages, toCommodityContentFeedItem } from './generatedCommodityPricePages/service.js'
 import { listGeneratedPricePages, toContentFeedItem } from './generatedPricePages/service.js'
 import type {
@@ -41,7 +42,7 @@ type ContentFeedCursorPayload = {
   path: string
 }
 
-const CONTENT_FEED_KINDS = new Set<ContentFeedItem['kind']>(['news', 'price_page', 'commodity_price_page'])
+const CONTENT_FEED_KINDS = new Set<ContentFeedItem['kind']>(['news', 'price_page', 'commodity_price_page', 'ai_article'])
 
 export class InvalidContentFeedCursorError extends Error {
   constructor() {
@@ -54,6 +55,7 @@ const RAW_FETCH_LIMITS = {
   news: 80,
   pricePages: 80,
   commodityPages: 40,
+  aiArticles: 40,
 } as const
 
 function toNewsFeedItem(item: Awaited<ReturnType<typeof getNewsArticles>>['items'][number]): ContentFeedItem {
@@ -181,14 +183,16 @@ export async function getContentFeed(options: GetContentFeedOptions = {}): Promi
   const includeModules = options.includeModules ?? true
   const limit = Math.min(Math.max(options.limit ?? (family ? 30 : 24), 1), 60)
 
-  const [news, pricePages, commodityPages] = await Promise.all([
+  const [news, pricePages, commodityPages, aiArticles] = await Promise.all([
     getNewsArticles({ limit: RAW_FETCH_LIMITS.news }),
     listGeneratedPricePages({ limit: RAW_FETCH_LIMITS.pricePages }),
     listGeneratedCommodityPricePages({ limit: RAW_FETCH_LIMITS.commodityPages }),
+    listAiArticles({ limit: RAW_FETCH_LIMITS.aiArticles }),
   ])
 
   const allItems = sortContentFeedItems([
     ...news.items.map(toNewsFeedItem),
+    ...aiArticles.map(toAiArticleContentFeedItem),
     ...pricePages.map(toContentFeedItem),
     ...commodityPages.map(toCommodityContentFeedItem),
   ])

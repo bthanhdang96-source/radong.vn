@@ -13,10 +13,8 @@ const LIVE_SOURCE_KEYS: NewsSourceKey[] = [
   'vietnambiz',
   'congthuong',
   'nongnghiepmoitruong',
-  'vpsaspice',
   'vietfood',
   'kinhtenongthon',
-  'vinacas',
   'coa',
 ]
 

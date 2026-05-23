@@ -12,7 +12,6 @@ import { crawlNongnghiep } from './crawlers/nongnghiepCrawler.js';
 import { crawlVietnambiz } from './crawlers/vietnambizCrawler.js';
 import { crawlVietnambizDurianFromRss } from './crawlers/vietnambizDurianCrawler.js';
 import { crawlVietfood } from './crawlers/vietfoodCrawler.js';
-import { crawlVpsaspice } from './crawlers/vpsaspiceCrawler.js';
 import { retryCrawlerResult } from './crawlers/common.js';
 import type {
   CommoditySummary,
@@ -268,7 +267,7 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
   const date = timestamp.slice(0, 10);
   const errors: string[] = [];
 
-  const [nongnghiep, vietnambiz, vietnambizDurian, congthuong, chogiaDurian, daklakSctDurian, dongnaiDauGiay, vpsaspice, banggianongsan, vietfood, giacaNsvl, giahotieuAgriculture, kimhungTea, agroinfoFruitReport] = await Promise.all([
+  const [nongnghiep, vietnambiz, vietnambizDurian, congthuong, chogiaDurian, daklakSctDurian, dongnaiDauGiay, banggianongsan, vietfood, giacaNsvl, giahotieuAgriculture, kimhungTea, agroinfoFruitReport] = await Promise.all([
     retryCrawlerResult(() => crawlNongnghiep()),
     retryCrawlerResult(() => crawlVietnambiz()),
     retryCrawlerResult(() => crawlVietnambizDurianFromRss()),
@@ -276,7 +275,6 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     retryCrawlerResult(() => crawlChogiaDurian()),
     retryCrawlerResult(() => crawlDaklakSctDurian()),
     retryCrawlerResult(() => crawlDongnaiDauGiay()),
-    retryCrawlerResult(() => crawlVpsaspice()),
     retryCrawlerResult(() => crawlBanggianongsan()),
     retryCrawlerResult(() => crawlVietfood()),
     retryCrawlerResult(() => crawlGiacaNsvl()),
@@ -292,7 +290,6 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...chogiaDurian.items,
     ...daklakSctDurian.items,
     ...dongnaiDauGiay.items,
-    ...vpsaspice.items,
     ...banggianongsan.items,
     ...vietfood.items,
     ...giacaNsvl.items,
@@ -308,7 +305,6 @@ export async function fetchLiveDayData(): Promise<{ dayData: CrawledDayData | nu
     ...chogiaDurian.sources,
     ...daklakSctDurian.sources,
     ...dongnaiDauGiay.sources,
-    ...vpsaspice.sources,
     ...banggianongsan.sources,
     ...vietfood.sources,
     ...giacaNsvl.sources,

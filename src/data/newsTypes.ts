@@ -4,13 +4,10 @@ export type NewsSourceKey =
   | 'vietnambiz'
   | 'congthuong'
   | 'nongnghiepmoitruong'
-  | 'vpsaspice'
   | 'vietfood'
-  | 'khuyennongvn'
   | 'kinhtenongthon'
-  | 'vinacas'
   | 'coa'
-  | 'vasep'
+  | 'nongsanvn_ai'
 
 export interface NewsSource {
   key: NewsSourceKey

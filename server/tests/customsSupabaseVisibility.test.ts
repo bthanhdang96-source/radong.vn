@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { getCustomsReportPeriod } from '../services/crawlers/customsCrawler.js'
 import { resolveSourceSnapshotIds, selectLatestObservationRows } from '../services/supabaseMarketDataService.js'
 
 test('resolveSourceSnapshotIds includes customs in the default source snapshot query set', () => {
@@ -41,4 +42,19 @@ test('selectLatestObservationRows keeps only the newest customs export row per c
   assert.equal(rows.length, 1)
   assert.equal(rows[0]?.recorded_at, '2026-05-07T12:31:10.043Z')
   assert.equal(rows[0]?.price_vnd, 187377.54)
+})
+
+test('customs report period metadata identifies semimonthly aggregate coverage', () => {
+  const period = getCustomsReportPeriod({
+    code: '2026-t4-k2',
+    title: 'Xuat khau hang hoa theo ky 2 thang 4 nam 2026',
+    periodNumber: 2,
+    reportMonth: 4,
+    reportYear: 2026,
+  })
+
+  assert.equal(period.type, 'customs_semimonthly')
+  assert.equal(period.label, 'Ky 2 thang 4 nam 2026')
+  assert.equal(period.startsOn, '2026-04-16')
+  assert.equal(period.endsOn, '2026-04-30')
 })

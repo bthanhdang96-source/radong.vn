@@ -5,7 +5,6 @@ export type SourceId =
   | 'chogia'
   | 'daklak_sct'
   | 'dongnai_sct_daugiay'
-  | 'vpsaspice'
   | 'banggianongsan'
   | 'giahotieu'
   | 'kimhungmarket'
@@ -13,7 +12,6 @@ export type SourceId =
   | 'giaca_nsvl'
   | 'bhx'
   | 'coop'
-  | 'shopee'
   | 'customs'
   | 'agroinfo_fruit_report'
   | 'fallback';
@@ -57,6 +55,19 @@ export interface CrawledPriceItem {
   countryCode?: string | null;
   exchangeRate?: number | null;
   priceUsd?: number | null;
+  dataGranularity?: 'point_in_time' | 'daily' | 'period' | 'monthly' | 'unknown';
+  temporalCoverage?: 'observation_time' | 'calendar_day' | 'report_period' | 'calendar_month' | 'unknown';
+  periodType?: string | null;
+  periodCode?: string | null;
+  periodLabel?: string | null;
+  periodYear?: number | null;
+  periodMonth?: number | null;
+  periodNumber?: number | null;
+  periodStartDate?: string | null;
+  periodEndDate?: string | null;
+  aggregationMethod?: string | null;
+  geographicScope?: 'market_or_region' | 'province' | 'national' | 'world' | 'unknown';
+  sourceDetail?: string | null;
   dedupeKey?: string | null;
   extra?: Record<string, unknown>;
   previousPrice?: number | null;

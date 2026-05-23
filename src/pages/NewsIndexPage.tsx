@@ -88,7 +88,7 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
 }
 
 function getItemTimestamp(item: ContentFeedItem) {
-  return item.kind === 'news' ? item.publishedAt : item.updatedAt
+  return item.kind === 'news' || item.kind === 'ai_article' ? item.publishedAt : item.updatedAt
 }
 
 function getItemImageAlt(item: ContentFeedItem) {

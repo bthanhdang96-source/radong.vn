@@ -1,6 +1,5 @@
 import '../env.js'
 import { getCrawlerScheduleConfig } from '../services/crawlerScheduler.js'
-import { readShopeeSessionMetadata } from '../services/crawlers/shopeeSession.js'
 import { getSupabaseRuntimeStatus } from '../services/supabaseClient.js'
 
 async function main() {
@@ -8,7 +7,6 @@ async function main() {
     timestamp: new Date().toISOString(),
     supabase: getSupabaseRuntimeStatus(),
     schedule: getCrawlerScheduleConfig(),
-    shopeeSession: await readShopeeSessionMetadata(),
   }
 
   console.log(JSON.stringify(payload, null, 2))

@@ -61,24 +61,6 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     articleSelectors: ['.detail__content', '.baiviet-content', 'article'],
     topicTags: ['nong-nghiep', 'trong-trot', 'chan-nuoi'],
   },
-  vpsaspice: {
-    key: 'vpsaspice',
-    label: 'VPSA Spice',
-    baseUrl: 'https://vpsaspice.org',
-    discoverUrl: 'https://vpsaspice.org/feed/',
-    discoverMode: 'rss',
-    priority: 'P0',
-    phase: 1,
-    accessState: 'partial',
-    active: true,
-    fullTextCapable: true,
-    browserRequired: false,
-    rateLimitMs: P0_RATE_LIMIT_MS,
-    maxArticlesPerRun: 30,
-    articleUrlPattern: /^https:\/\/vpsaspice\.org\/(?!log-in\/?$|membership-registration\/?$).+$/i,
-    articleSelectors: ['.entry-content', '.td-post-content', 'article'],
-    topicTags: ['ho-tieu', 'gia-vi', 'xuat-khau'],
-  },
   vietfood: {
     key: 'vietfood',
     label: 'Vietfood / VFA',
@@ -103,24 +85,6 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     ],
     topicTags: ['gao', 'lua-gao', 'thi-truong'],
   },
-  khuyennongvn: {
-    key: 'khuyennongvn',
-    label: 'Khuyến nông Việt Nam',
-    baseUrl: 'https://khuyennongvn.gov.vn',
-    discoverUrl: 'https://khuyennongvn.gov.vn/sitemap.xml',
-    discoverMode: 'sitemap',
-    priority: 'P1',
-    phase: 2,
-    accessState: 'public_ok',
-    active: false,
-    fullTextCapable: true,
-    browserRequired: false,
-    rateLimitMs: P1_RATE_LIMIT_MS,
-    maxArticlesPerRun: 25,
-    articleUrlPattern: /^https:\/\/khuyennongvn\.gov\.vn\/.+$/i,
-    articleSelectors: ['.entry-content', '.single-content', 'article'],
-    topicTags: ['khuyen-nong', 'ky-thuat', 'nong-nghiep'],
-  },
   kinhtenongthon: {
     key: 'kinhtenongthon',
     label: 'Kinh tế Nông thôn',
@@ -140,25 +104,6 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     articleSelectors: ['.detail-content', '.entry-content', 'article'],
     topicTags: ['nong-thon', 'thi-truong', 'nong-san'],
   },
-  vinacas: {
-    key: 'vinacas',
-    label: 'VINACAS',
-    baseUrl: 'https://vinacas.com.vn',
-    discoverUrl: 'https://vinacas.com.vn/',
-    discoverMode: 'html',
-    priority: 'P1',
-    phase: 2,
-    accessState: 'public_ok',
-    active: true,
-    fullTextCapable: true,
-    browserRequired: false,
-    rateLimitMs: P1_RATE_LIMIT_MS,
-    maxArticlesPerRun: 25,
-    articleUrlPattern: /^https:\/\/vinacas\.com\.vn\/.+-bv\d+\.htm$/i,
-    listingSelectors: ['a.a_ye', '.conboxl_hot a', '.ul_bvkhac a'],
-    articleSelectors: ['.f-detail', '.content_box_left', '.entry-content', '.post-content', 'article'],
-    topicTags: ['dieu', 'xuat-khau', 'thi-truong'],
-  },
   coa: {
     key: 'coa',
     label: 'COA Organic',
@@ -177,31 +122,34 @@ export const NEWS_SOURCE_REGISTRY: Record<NewsSourceKey, NewsSourceConfig> = {
     articleSelectors: ['.news-detail', '.entry-content', 'article'],
     topicTags: ['huu-co', 'nong-nghiep', 'chung-nhan'],
   },
-  vasep: {
-    key: 'vasep',
-    label: 'VASEP',
-    baseUrl: 'https://seafood.vasep.com.vn',
-    discoverUrl: 'https://seafood.vasep.com.vn/total-seafood-trade/news',
+  nongsanvn_ai: {
+    key: 'nongsanvn_ai',
+    label: 'NongSanVN AI',
+    baseUrl: 'https://nongsanvn.vn',
+    discoverUrl: 'https://nongsanvn.vn',
     discoverMode: 'html',
     priority: 'P2',
-    phase: 3,
-    accessState: 'partial',
+    phase: 4,
+    accessState: 'public_ok',
     active: false,
-    fullTextCapable: false,
+    fullTextCapable: true,
     browserRequired: false,
     rateLimitMs: P2_RATE_LIMIT_MS,
-    maxArticlesPerRun: 15,
-    articleUrlPattern: /^https:\/\/seafood\.vasep\.com\.vn\/(?:[^/?#]+\/)*news\/[^?#]+-\d+\.html$/i,
-    listingSelectors: ['.item-content h3 a', '.title-style04 h3 a', 'h3 a'],
-    articleSelectors: ['.entry-content', '.contentdetail', '.news-content', 'article'],
-    topicTags: ['thuy-san', 'xuat-khau', 'doanh-nghiep'],
+    maxArticlesPerRun: 0,
+    topicTags: ['ai', 'du-lieu', 'nong-san'],
   },
 }
 
 export const NEWS_SOURCE_KEYS = Object.keys(NEWS_SOURCE_REGISTRY) as NewsSourceKey[]
+const NEWS_SOURCE_CONFIGS_BY_KEY = NEWS_SOURCE_REGISTRY as Partial<Record<string, NewsSourceConfig>>
 
 export function getNewsSourceConfig(sourceKey: NewsSourceKey) {
-  return NEWS_SOURCE_REGISTRY[sourceKey]
+  const source = NEWS_SOURCE_CONFIGS_BY_KEY[sourceKey]
+  if (!source) {
+    throw new Error(`Unknown news source: ${sourceKey}`)
+  }
+
+  return source
 }
 
 export function listNewsSourceConfigs() {
@@ -209,7 +157,7 @@ export function listNewsSourceConfigs() {
 }
 
 export function isNewsSourceVisible(sourceKey: NewsSourceKey) {
-  return NEWS_SOURCE_REGISTRY[sourceKey].active
+  return Boolean(NEWS_SOURCE_CONFIGS_BY_KEY[sourceKey]?.active)
 }
 
 export function listVisibleNewsSourceConfigs() {

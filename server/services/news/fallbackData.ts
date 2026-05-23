@@ -84,20 +84,6 @@ const FALLBACK_ARTICLE_SEEDS: Array<{
       '<p>Việc mở rộng tiêu thụ qua kênh chế biến giúp nông sản có thêm đầu ra ổn định hơn so với giao dịch ngắn hạn.</p><p>Cùng lúc, các vùng nguyên liệu đang được yêu cầu chuẩn hóa nhật ký sản xuất, truy xuất và quy trình sơ chế.</p>',
   },
   {
-    sourceKey: 'vpsaspice',
-    sourceLabel: 'VPSA Spice',
-    title: 'Hồ tiêu Việt Nam hưởng lợi từ đơn hàng gia vị cuối quý',
-    category: 'Gia vị',
-    topicTags: ['ho-tieu', 'gia-vi', 'xuat-khau'],
-    canonicalUrl: 'https://vpsaspice.org/ho-tieu-viet-nam-huong-loi-tu-don-hang-gia-vi-cuoi-quy/',
-    publishedAt: offsetHours(18),
-    thumbnailUrl: 'https://images.unsplash.com/photo-1459183885421-5cc683b8dbba?auto=format&fit=crop&w=1200&q=80',
-    excerpt:
-      'Các lô hàng giao ngắn hạn cải thiện thanh khoản thị trường hồ tiêu nội địa trong bối cảnh nguồn cung không quá dư thừa.',
-    contentHtml:
-      '<p>Hiệp hội ghi nhận doanh nghiệp xuất khẩu tiếp tục ưu tiên các thị trường có vòng quay đơn hàng nhanh.</p><p>Diễn biến giá hồ tiêu trong nước nhìn chung bám sát kỳ vọng về nguồn cung và nhu cầu đầu quý sau.</p>',
-  },
-  {
     sourceKey: 'vietfood',
     sourceLabel: 'Vietfood / VFA',
     title: 'Doanh nghiệp lúa gạo theo sát nhu cầu mua hàng ở phân khúc chất lượng cao',

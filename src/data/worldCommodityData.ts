@@ -24,6 +24,17 @@ export interface WorldCommodityItem {
   low52w: number;
   high52w: number;
   priceVndKg?: number | null;
+  observedOn?: string | null;
+  crawlRecordedAt?: string | null;
+  dataGranularity?: string | null;
+  temporalCoverage?: string | null;
+  benchmarkType?: string | null;
+  sourceId?: string | null;
+  sourceLicenseNote?: string | null;
+  qualityGrade?: string | null;
+  contractSymbol?: string | null;
+  sourceObservationLabel?: string | null;
+  isDailySignal?: boolean;
   currency: 'USD';
   lastUpdate: string;
 }

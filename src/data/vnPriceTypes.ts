@@ -5,7 +5,6 @@ export type SourceId =
   | 'chogia'
   | 'daklak_sct'
   | 'dongnai_sct_daugiay'
-  | 'vpsaspice'
   | 'banggianongsan'
   | 'giahotieu'
   | 'kimhungmarket'
@@ -13,7 +12,6 @@ export type SourceId =
   | 'giaca_nsvl'
   | 'bhx'
   | 'coop'
-  | 'shopee'
   | 'customs'
   | 'agroinfo_fruit_report'
   | 'fallback';
@@ -133,7 +131,6 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   chogia: 'chogia.vn',
   daklak_sct: 'socongthuong.daklak.gov.vn',
   dongnai_sct_daugiay: 'sct.dongnai.gov.vn',
-  vpsaspice: 'vpsa.org.vn',
   banggianongsan: 'banggianongsan.com',
   giahotieu: 'giahotieu.com',
   kimhungmarket: 'kimhungmarket.com',
@@ -141,7 +138,6 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   giaca_nsvl: 'giacansvl.vn',
   bhx: 'Bách Hóa Xanh',
   coop: 'Co.op Online',
-  shopee: 'Shopee',
   customs: 'customs.gov.vn',
   agroinfo_fruit_report: 'thitruongnongsan.gov.vn',
   fallback: 'Dự phòng',

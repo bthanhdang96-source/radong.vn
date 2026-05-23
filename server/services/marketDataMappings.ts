@@ -199,7 +199,6 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   chogia: 0.76,
   daklak_sct: 0.88,
   dongnai_sct_daugiay: 0.84,
-  vpsaspice: 0.8,
   banggianongsan: 0.73,
   giahotieu: 0.74,
   kimhungmarket: 0.69,
@@ -207,7 +206,6 @@ export const SOURCE_BASE_CONFIDENCE: Record<SourceId, number> = {
   giaca_nsvl: 0.79,
   bhx: 0.72,
   coop: 0.72,
-  shopee: 0.7,
   customs: 0.95,
   agroinfo_fruit_report: 0.83,
   fallback: 0.35,
@@ -220,7 +218,6 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   chogia: 'crawl_news',
   daklak_sct: 'crawl_gov',
   dongnai_sct_daugiay: 'crawl_gov',
-  vpsaspice: 'crawl_news',
   banggianongsan: 'crawl_news',
   giahotieu: 'crawl_news',
   kimhungmarket: 'crawl_news',
@@ -228,7 +225,6 @@ export const SOURCE_TYPE_BY_SOURCE_ID: Record<SourceId, SourceType> = {
   giaca_nsvl: 'crawl_news',
   bhx: 'crawl_ecom',
   coop: 'crawl_ecom',
-  shopee: 'crawl_ecom',
   customs: 'customs',
   agroinfo_fruit_report: 'crawl_gov',
   fallback: 'api_partner',
@@ -608,4 +604,3 @@ export function getRegionLabelFromObservation(
 
   return 'Không rõ khu vực'
 }
-

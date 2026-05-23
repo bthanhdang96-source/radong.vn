@@ -1,9 +1,6 @@
 import '../env.js'
-import { access } from 'node:fs/promises'
-import { chromium } from 'playwright'
 import { getCrawlerScheduleConfig } from '../services/crawlerScheduler.js'
 import { hasBhxApiCredentials } from '../services/crawlers/bhxCrawler.js'
-import { getShopeeSessionMetadataPath, getShopeeStorageStatePath, readShopeeSessionMetadata } from '../services/crawlers/shopeeSession.js'
 import { getSupabaseRuntimeStatus } from '../services/supabaseClient.js'
 
 type CheckResult = {
@@ -12,44 +9,11 @@ type CheckResult = {
   detail: string
 }
 
-async function pathExists(pathValue: string) {
-  try {
-    await access(pathValue)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function checkPlaywrightBrowser(): Promise<CheckResult> {
-  try {
-    const executablePath = chromium.executablePath()
-    const exists = await pathExists(executablePath)
-    return {
-      name: 'playwright_chromium',
-      ok: exists,
-      detail: exists ? executablePath : `Chromium executable not found at ${executablePath}`,
-    }
-  } catch (error) {
-    return {
-      name: 'playwright_chromium',
-      ok: false,
-      detail: error instanceof Error ? error.message : 'Unable to resolve Chromium executable',
-    }
-  }
-}
-
 async function main() {
   const schedule = getCrawlerScheduleConfig()
   const supabase = getSupabaseRuntimeStatus()
-  const shopeeSession = await readShopeeSessionMetadata()
-  const storageStatePath = getShopeeStorageStatePath()
-  const metadataPath = getShopeeSessionMetadataPath()
-  const shopeeEnabled = schedule.shopeeRefreshEnabled || schedule.shopeeCrawlEnabled
   const bhxRequested = process.env.BHX_CRAWL_ENABLED?.trim().toLowerCase() !== 'false'
   const bhxCredentialsConfigured = hasBhxApiCredentials()
-  const hasShopeeMetadata = await pathExists(metadataPath)
-  const hasShopeeStorageState = await pathExists(storageStatePath)
 
   const checks: CheckResult[] = [
     {
@@ -84,30 +48,6 @@ async function main() {
         ? `enabled with cron ${schedule.customsCron}`
         : 'disabled; safe default until production rollout',
     },
-    {
-      name: 'shopee_scheduler_flags',
-      ok: !schedule.shopeeRefreshEnabled || !schedule.shopeeCrawlEnabled || schedule.shopeeBlockCooldownMinutes >= 0,
-      detail: `refreshEnabled=${schedule.shopeeRefreshEnabled} crawlEnabled=${schedule.shopeeCrawlEnabled} cooldown=${schedule.shopeeBlockCooldownMinutes}m`,
-    },
-    {
-      name: 'shopee_session_metadata',
-      ok: !shopeeEnabled || hasShopeeMetadata,
-      detail: !shopeeEnabled
-        ? 'skipped; Shopee schedulers are disabled'
-        : hasShopeeMetadata
-          ? `${metadataPath} (${shopeeSession.status})`
-          : `Missing metadata file at ${metadataPath}`,
-    },
-    {
-      name: 'shopee_storage_state',
-      ok: !shopeeEnabled || hasShopeeStorageState,
-      detail: !shopeeEnabled
-        ? 'skipped; Shopee schedulers are disabled'
-        : hasShopeeStorageState
-          ? `Storage state present at ${storageStatePath}`
-          : `Storage state missing at ${storageStatePath}`,
-    },
-    await checkPlaywrightBrowser(),
   ]
 
   const failed = checks.filter(check => !check.ok)

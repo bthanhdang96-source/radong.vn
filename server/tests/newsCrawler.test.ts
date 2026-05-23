@@ -32,17 +32,17 @@ function withEnv(values: Record<string, string | undefined>, callback: () => voi
   }
 }
 
-test('parseLooseDate supports Vinacas and VASEP date formats', () => {
-  const vinacasDate = new Date(parseLooseDate('Ngày đăng: 13-05-2026 14:44:00'))
+test('parseLooseDate supports source date formats', () => {
+  const longDate = new Date(parseLooseDate('Ngay dang: 13-05-2026 14:44:00'))
   const shortDate = new Date(parseLooseDate('(09/5/2026)'))
-  const vasepDate = new Date(parseLooseDate('15:12 02/04/2026'))
+  const timeFirstDate = new Date(parseLooseDate('15:12 02/04/2026'))
 
-  assert.equal(vinacasDate.getUTCFullYear(), 2026)
-  assert.equal(vinacasDate.getUTCMonth(), 4)
+  assert.equal(longDate.getUTCFullYear(), 2026)
+  assert.equal(longDate.getUTCMonth(), 4)
   assert.equal(shortDate.getUTCFullYear(), 2026)
   assert.equal(shortDate.getUTCMonth(), 4)
-  assert.equal(vasepDate.getUTCFullYear(), 2026)
-  assert.equal(vasepDate.getUTCMonth(), 3)
+  assert.equal(timeFirstDate.getUTCFullYear(), 2026)
+  assert.equal(timeFirstDate.getUTCMonth(), 3)
 })
 
 test('getNewsSchedulerConfig includes all active sources by default', () => {
@@ -52,18 +52,26 @@ test('getNewsSchedulerConfig includes all active sources by default', () => {
     },
     () => {
       const config = getNewsSchedulerConfig()
+      const expectedSources: NewsSourceKey[] = [
+        'vietnambiz',
+        'congthuong',
+        'nongnghiepmoitruong',
+        'vietfood',
+        'kinhtenongthon',
+        'coa',
+      ]
 
-      for (const sourceKey of ['congthuong', 'kinhtenongthon', 'vinacas', 'coa'] as NewsSourceKey[]) {
+      for (const sourceKey of expectedSources) {
         assert.ok(config.sourceKeys.includes(sourceKey))
       }
 
-      assert.ok(!config.sourceKeys.includes('vasep'))
+      assert.deepEqual([...config.sourceKeys].sort(), [...expectedSources].sort())
     },
   )
 })
 
-test('crawlNewsSource rejects disabled sources', async () => {
-  await assert.rejects(() => crawlNewsSource('vasep'), /Source vasep is disabled/)
+test('crawlNewsSource rejects unknown sources', async () => {
+  await assert.rejects(() => crawlNewsSource('unknown-source' as NewsSourceKey), /Unknown news source/)
 })
 
 test('classifyNewsArticle hides Vietnambiz domestic rice price roundups from the news feed', () => {

@@ -309,6 +309,30 @@ export type ContentFeedItem =
       locationCount: number
       renderMode: CommodityPricePageRenderMode
     }
+  | {
+      kind: 'ai_article'
+      path: string
+      title: string
+      excerpt: string | null
+      thumbnailUrl: string | null
+      thumbnailAlt: string | null
+      publishedAt: string
+      updatedAt: string
+      category: string | null
+      topicTags: string[]
+      badgeLabel: string
+      contentFamilySlug: ContentFamilySlug
+      contentFamilyLabel: string
+      contentFamilyOrder: number
+      familyPath: string
+      subcategoryPath: string | null
+      priceGroupSlug: PriceCommodityGroupSlug | null
+      priceGroupLabel: string | null
+      sourceLabel: string
+      sourceKey: string
+      articleType: 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update'
+      dataGranularity: 'daily' | 'period' | 'monthly' | 'as_published' | 'mixed' | 'unknown'
+    }
 
 export type ContentFamilySummary = {
   slug: ContentFamilySlug

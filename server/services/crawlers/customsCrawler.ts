@@ -27,6 +27,17 @@ type CustomsReportInfo = {
   reportYear: number
 }
 
+type CustomsReportPeriod = {
+  type: 'customs_semimonthly'
+  code: string
+  label: string
+  year: number
+  month: number
+  number: number
+  startsOn: string
+  endsOn: string
+}
+
 type CustomsAggregateRow = {
   commoditySlug: string
   commodityName: string
@@ -414,6 +425,29 @@ function parseReportInfo(text: string): CustomsReportInfo {
   }
 }
 
+function formatDateKey(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+export function getCustomsReportPeriod(report: CustomsReportInfo): CustomsReportPeriod {
+  const startDay = report.periodNumber === 1 ? 1 : 16
+  const endDay =
+    report.periodNumber === 1
+      ? 15
+      : new Date(Date.UTC(report.reportYear, report.reportMonth, 0)).getUTCDate()
+
+  return {
+    type: 'customs_semimonthly',
+    code: report.code,
+    label: `Ky ${report.periodNumber} thang ${report.reportMonth} nam ${report.reportYear}`,
+    year: report.reportYear,
+    month: report.reportMonth,
+    number: report.periodNumber,
+    startsOn: formatDateKey(report.reportYear, report.reportMonth, startDay),
+    endsOn: formatDateKey(report.reportYear, report.reportMonth, endDay),
+  }
+}
+
 function findCommodityTarget(sourceLabel: string) {
   const folded = foldText(sourceLabel)
   return CUSTOMS_COMMODITY_TARGETS.find(target => target.matchers.some(matcher => matcher.test(folded))) ?? null
@@ -557,6 +591,8 @@ function buildCustomsItems(
   exchangeRate: number,
   timestamp: string,
 ) {
+  const period = getCustomsReportPeriod(report)
+
   return rows.map<CrawledPriceItem>(row => {
     const priceUsdPerTon = row.valueUsd / row.quantityTon
     const priceUsdPerKg = priceUsdPerTon / 1000
@@ -580,11 +616,35 @@ function buildCustomsItems(
       countryCode: 'VNM',
       exchangeRate: roundNumber(exchangeRate),
       priceUsd: Number(priceUsdPerKg.toFixed(4)),
+      dataGranularity: 'period',
+      temporalCoverage: 'report_period',
+      periodType: period.type,
+      periodCode: period.code,
+      periodLabel: period.label,
+      periodYear: period.year,
+      periodMonth: period.month,
+      periodNumber: period.number,
+      periodStartDate: period.startsOn,
+      periodEndDate: period.endsOn,
+      aggregationMethod: 'unit_value_from_aggregate_quantity_value',
+      geographicScope: 'national',
+      sourceDetail: 'customs_export_pdf_aggregate',
       dedupeKey,
       previousPrice: null,
       extra: {
         reportCode: report.code,
         reportUrl,
+        periodType: period.type,
+        periodLabel: period.label,
+        periodYear: period.year,
+        periodMonth: period.month,
+        periodNumber: period.number,
+        periodStartDate: period.startsOn,
+        periodEndDate: period.endsOn,
+        dataGranularity: 'period',
+        temporalCoverage: 'report_period',
+        aggregationMethod: 'unit_value_from_aggregate_quantity_value',
+        geographicScope: 'national',
         sourceFormat: 'pdf_aggregate',
         coverageMode: 'aggregate_pdf',
         sourceLabel: row.sourceLabel,
@@ -621,6 +681,7 @@ export async function crawlCustoms(options: CrawlCustomsOptions = {}): Promise<C
 
     const filteredRows = parsed.rows.filter(row => enabledSlugs.has(row.commoditySlug))
     const items = buildCustomsItems(filteredRows, parsed.report, resolved.url, exchangeRate, fetchedAt)
+    const period = getCustomsReportPeriod(parsed.report)
     const metadata = {
       reportCode: parsed.report.code,
       reportTitle: parsed.report.title,
@@ -633,6 +694,18 @@ export async function crawlCustoms(options: CrawlCustomsOptions = {}): Promise<C
       enabledSlugs: [...enabledSlugs],
       candidateCount: resolved.candidateCount,
       coverageMode: 'aggregate_pdf',
+      dataGranularity: 'period',
+      temporalCoverage: 'report_period',
+      periodType: period.type,
+      periodCode: period.code,
+      periodLabel: period.label,
+      periodYear: period.year,
+      periodMonth: period.month,
+      periodNumber: period.number,
+      periodStartDate: period.startsOn,
+      periodEndDate: period.endsOn,
+      aggregationMethod: 'unit_value_from_aggregate_quantity_value',
+      geographicScope: 'national',
       parsedRowCount: parsed.rows.length,
       keptRowCount: filteredRows.length,
     }

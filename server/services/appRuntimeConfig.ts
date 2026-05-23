@@ -23,6 +23,9 @@ export function getAppScheduleConfig() {
     priceContentStaleHours: Number(process.env.PRICE_CONTENT_STALE_HOURS ?? 36),
     worldPriceCrawlEnabled: parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true),
     worldPriceCrawlCron: process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *',
+    aiArticleEnabled: parseBoolean(process.env.AI_ARTICLE_ENABLED, false),
+    aiArticleExportCron: process.env.AI_ARTICLE_EXPORT_CRON ?? '45 8 * * *',
+    aiArticleWorldDailyCron: process.env.AI_ARTICLE_WORLD_DAILY_CRON ?? '45 7,13 * * *',
     timezone: process.env.TZ ?? 'UTC',
   }
 }

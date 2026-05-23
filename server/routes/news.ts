@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
+import { getAiArticleAsNewsDetail } from '../services/aiArticles/service.js'
 import {
   crawlNewsSource,
   getNewsArticle,
@@ -40,7 +41,7 @@ router.get('/news/articles', async (req, res) => {
 
 router.get('/news/articles/:slug', async (req, res) => {
   try {
-    const payload = await getNewsArticle(req.params.slug)
+    const payload = await getNewsArticle(req.params.slug) ?? await getAiArticleAsNewsDetail(req.params.slug)
     if (!payload) {
       res.status(404).json({ success: false, error: 'Article not found' })
       return

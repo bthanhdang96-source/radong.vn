@@ -34,6 +34,7 @@ import {
 } from './priceQuality.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from './supabaseClient.js'
 import { getTrendDirection, roundTrendNumber, type CommoditySparkPoint } from './trendUtils.js'
+import { fetchWorldPriceProviderItems, type WorldPriceProviderItem } from './worldPriceProviders.js'
 
 type LatestObservationRow = {
   recorded_at: string
@@ -109,11 +110,24 @@ type RawCrawlLogRow = {
 
 type LatestWorldPriceRow = {
   recorded_at: string
+  observed_on?: string | null
+  crawl_recorded_at?: string | null
   commodity_slug: string
   exchange: string
   price_usd: number
   price_unit: string
   price_vnd_kg: number | null
+  change_1d?: number | null
+  change_1d_pct?: number | null
+  change_1w_pct?: number | null
+  data_granularity?: string | null
+  temporal_coverage?: string | null
+  benchmark_type?: string | null
+  source_id?: string | null
+  source_license_note?: string | null
+  quality_grade?: string | null
+  contract_symbol?: string | null
+  source_observation_label?: string | null
   source_url: string | null
   raw_payload: Partial<WorldCommodityItem> & Record<string, unknown>
 }
@@ -126,7 +140,22 @@ type WorldPricesResponse = {
   exchangeRate: number
   categories: string[]
   lastUpdated: string
-  data: Array<WorldCommodityItem & { priceVndKg?: number | null }>
+  data: Array<
+    WorldCommodityItem & {
+      priceVndKg?: number | null
+      observedOn?: string | null
+      crawlRecordedAt?: string | null
+      dataGranularity?: string | null
+      temporalCoverage?: string | null
+      benchmarkType?: string | null
+      sourceId?: string | null
+      sourceLicenseNote?: string | null
+      qualityGrade?: string | null
+      contractSymbol?: string | null
+      sourceObservationLabel?: string | null
+      isDailySignal?: boolean
+    }
+  >
 }
 
 type VnPriceQueryOptions = {
@@ -183,7 +212,6 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'chogia',
   'daklak_sct',
   'dongnai_sct_daugiay',
-  'vpsaspice',
   'banggianongsan',
   'giahotieu',
   'kimhungmarket',
@@ -191,7 +219,6 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
   'giaca_nsvl',
   'bhx',
   'coop',
-  'shopee',
   'customs',
   'agroinfo_fruit_report',
 ]
@@ -1368,6 +1395,27 @@ function convertWorldPriceToVndKg(item: WorldCommodityItem, factor?: number | nu
   return roundNumber(usdKg * USD_VND_RATE)
 }
 
+function isDailyWorldPriceItem(item: Pick<WorldPriceProviderItem, 'dataGranularity'>) {
+  return item.dataGranularity === 'daily'
+}
+
+function buildWorldPriceRawPayload(item: WorldPriceProviderItem) {
+  return {
+    ...item,
+    observedOn: item.observedOn,
+    crawlRecordedAt: item.crawlRecordedAt,
+    dataGranularity: item.dataGranularity,
+    temporalCoverage: item.temporalCoverage,
+    benchmarkType: item.benchmarkType,
+    sourceId: item.sourceId,
+    sourceLicenseNote: item.sourceLicenseNote,
+    qualityGrade: item.qualityGrade,
+    contractSymbol: item.contractSymbol,
+    sourceObservationLabel: item.sourceObservationLabel,
+    isDailySignal: isDailyWorldPriceItem(item),
+  }
+}
+
 async function syncWorldPricesToSupabase(forceRefresh: boolean) {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -1377,17 +1425,9 @@ async function syncWorldPricesToSupabase(forceRefresh: boolean) {
   const commodityLookup = await loadCommodityLookup(client)
   const commodityWorldLookup = await loadCommodityWorldLookup()
 
-  const items = await getLegacyWorldPrices(forceRefresh)
-  const today = new Date().toISOString().slice(0, 10)
-
-  const deleteResponse = await client
-    .from('world_prices')
-    .delete()
-    .gte('recorded_at', `${today}T00:00:00.000Z`)
-    .lt('recorded_at', `${today}T23:59:59.999Z`)
-
-  if (deleteResponse.error) {
-    throw deleteResponse.error
+  const { items, errors } = await fetchWorldPriceProviderItems(forceRefresh)
+  if (errors.length > 0) {
+    console.warn('[World Prices] Provider errors:', errors.join('; '))
   }
 
   const rows = items
@@ -1400,31 +1440,46 @@ async function syncWorldPricesToSupabase(forceRefresh: boolean) {
 
       const priceUsdKg = convertWorldPriceToUsdKg(item.priceCurrent, item.unit, commodityMeta.world_to_kg_factor)
       const change1wPct =
-        item.priceLastWeek > 0 ? roundNumber(((item.priceCurrent - item.priceLastWeek) / item.priceLastWeek) * 100) : 0
+        item.priceLastWeek > 0 && isDailyWorldPriceItem(item)
+          ? roundNumber(((item.priceCurrent - item.priceLastWeek) / item.priceLastWeek) * 100)
+          : null
 
       return {
-        recorded_at: item.lastUpdate,
+        recorded_at: item.crawlRecordedAt,
+        observed_on: item.observedOn,
+        crawl_recorded_at: item.crawlRecordedAt,
         commodity_id: commodityId,
+        commodity_slug: item.id,
         exchange: item.exchange,
         contract_month: null,
+        contract_symbol: item.contractSymbol,
         price_raw: item.priceCurrent,
         price_unit_raw: item.unit,
         price_usd_kg: priceUsdKg,
         price_vnd_kg: convertWorldPriceToVndKg(item, commodityMeta.world_to_kg_factor),
         exchange_rate: USD_VND_RATE,
-        change_1d: item.change,
-        change_1d_pct: item.changePct,
+        change_1d: isDailyWorldPriceItem(item) ? item.change : null,
+        change_1d_pct: isDailyWorldPriceItem(item) ? item.changePct : null,
         change_1w_pct: change1wPct,
         volume: null,
         open_interest: null,
-        source_url: null,
-        raw_payload: item,
+        source_url: item.sourceUrl,
+        data_granularity: item.dataGranularity,
+        temporal_coverage: item.temporalCoverage,
+        benchmark_type: item.benchmarkType,
+        source_id: item.sourceId,
+        source_license_note: item.sourceLicenseNote,
+        quality_grade: item.qualityGrade,
+        source_observation_label: item.sourceObservationLabel,
+        raw_payload: buildWorldPriceRawPayload(item),
       }
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
 
   if (rows.length > 0) {
-    const insertResponse = await client.from('world_prices').insert(rows)
+    const insertResponse = await client.from('world_prices').upsert(rows, {
+      onConflict: 'source_id,commodity_slug,benchmark_type,observed_on,contract_symbol',
+    })
     if (insertResponse.error) {
       throw insertResponse.error
     }
@@ -1441,14 +1496,38 @@ async function getLatestWorldRows() {
 
   const { data, error } = await client
     .from('latest_world_prices_public')
-    .select('recorded_at, commodity_slug, exchange, price_usd, price_unit, price_vnd_kg, source_url, raw_payload')
+    .select(
+      [
+        'recorded_at',
+        'observed_on',
+        'crawl_recorded_at',
+        'commodity_slug',
+        'exchange',
+        'price_usd',
+        'price_unit',
+        'price_vnd_kg',
+        'change_1d',
+        'change_1d_pct',
+        'change_1w_pct',
+        'data_granularity',
+        'temporal_coverage',
+        'benchmark_type',
+        'source_id',
+        'source_license_note',
+        'quality_grade',
+        'contract_symbol',
+        'source_observation_label',
+        'source_url',
+        'raw_payload',
+      ].join(', '),
+    )
     .order('commodity_slug', { ascending: true })
 
   if (error) {
     throw error
   }
 
-  return data as LatestWorldPriceRow[]
+  return data as unknown as LatestWorldPriceRow[]
 }
 
 async function buildWorldResponseFromSupabase(): Promise<WorldPricesResponse | null> {
@@ -1471,13 +1550,30 @@ async function buildWorldResponseFromSupabase(): Promise<WorldPricesResponse | n
       priceYesterday: typeof raw.priceYesterday === 'number' ? raw.priceYesterday : row.price_usd,
       priceLastWeek: typeof raw.priceLastWeek === 'number' ? raw.priceLastWeek : row.price_usd,
       priceLastMonth: typeof raw.priceLastMonth === 'number' ? raw.priceLastMonth : row.price_usd,
-      change: typeof raw.change === 'number' ? raw.change : 0,
-      changePct: typeof raw.changePct === 'number' ? raw.changePct : 0,
+      change: typeof row.change_1d === 'number' ? row.change_1d : typeof raw.change === 'number' ? raw.change : 0,
+      changePct:
+        typeof row.change_1d_pct === 'number' ? row.change_1d_pct : typeof raw.changePct === 'number' ? raw.changePct : 0,
       low52w: typeof raw.low52w === 'number' ? raw.low52w : row.price_usd,
       high52w: typeof raw.high52w === 'number' ? raw.high52w : row.price_usd,
       priceVndKg: row.price_vnd_kg,
+      observedOn: row.observed_on ?? (typeof raw.observedOn === 'string' ? raw.observedOn : row.recorded_at.slice(0, 10)),
+      crawlRecordedAt: row.crawl_recorded_at ?? row.recorded_at,
+      dataGranularity:
+        row.data_granularity ?? (typeof raw.dataGranularity === 'string' ? raw.dataGranularity : null),
+      temporalCoverage:
+        row.temporal_coverage ?? (typeof raw.temporalCoverage === 'string' ? raw.temporalCoverage : null),
+      benchmarkType: row.benchmark_type ?? (typeof raw.benchmarkType === 'string' ? raw.benchmarkType : null),
+      sourceId: row.source_id ?? (typeof raw.sourceId === 'string' ? raw.sourceId : null),
+      sourceLicenseNote:
+        row.source_license_note ?? (typeof raw.sourceLicenseNote === 'string' ? raw.sourceLicenseNote : null),
+      qualityGrade: row.quality_grade ?? (typeof raw.qualityGrade === 'string' ? raw.qualityGrade : null),
+      contractSymbol: row.contract_symbol ?? (typeof raw.contractSymbol === 'string' ? raw.contractSymbol : null),
+      sourceObservationLabel:
+        row.source_observation_label ??
+        (typeof raw.sourceObservationLabel === 'string' ? raw.sourceObservationLabel : null),
+      isDailySignal: (row.data_granularity ?? raw.dataGranularity) === 'daily',
       currency: 'USD' as const,
-      lastUpdate: row.recorded_at,
+      lastUpdate: row.observed_on ? `${row.observed_on}T00:00:00.000Z` : row.recorded_at,
     }
   })
   const lastUpdated = rows.reduce(

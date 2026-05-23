@@ -57,6 +57,19 @@ export type NormalizedObservation = {
   source_url: string | null
   article_title: string | null
   dedupe_key: string
+  data_granularity: 'point_in_time' | 'daily' | 'period' | 'monthly' | 'unknown'
+  temporal_coverage: 'observation_time' | 'calendar_day' | 'report_period' | 'calendar_month' | 'unknown'
+  period_type: string | null
+  period_code: string | null
+  period_label: string | null
+  period_year: number | null
+  period_month: number | null
+  period_number: number | null
+  period_start_date: string | null
+  period_end_date: string | null
+  aggregation_method: string | null
+  geographic_scope: 'market_or_region' | 'province' | 'national' | 'world' | 'unknown'
+  source_detail: string | null
   confidence: number
   flags: string[]
   raw_payload: Record<string, unknown>
@@ -334,6 +347,19 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         explicitKey: item.dedupeKey ?? null,
         extra: item.extra ?? null,
       }),
+      data_granularity: item.dataGranularity ?? 'point_in_time',
+      temporal_coverage: item.temporalCoverage ?? 'observation_time',
+      period_type: item.periodType ?? null,
+      period_code: item.periodCode ?? null,
+      period_label: item.periodLabel ?? null,
+      period_year: item.periodYear ?? null,
+      period_month: item.periodMonth ?? null,
+      period_number: item.periodNumber ?? null,
+      period_start_date: item.periodStartDate ?? null,
+      period_end_date: item.periodEndDate ?? null,
+      aggregation_method: item.aggregationMethod ?? null,
+      geographic_scope: item.geographicScope ?? (provinceCode ? 'province' : 'market_or_region'),
+      source_detail: item.sourceDetail ?? null,
       confidence: SOURCE_BASE_CONFIDENCE[message.source] ?? 0.65,
       flags,
       raw_payload: {
@@ -347,6 +373,19 @@ function normalizeObservation(message: IngestionQueueMessage, commodityLookup: M
         normalizedUnitKey,
         unitQuantity: item.unitQuantity ?? null,
         dedupeKey: item.dedupeKey ?? null,
+        dataGranularity: item.dataGranularity ?? 'point_in_time',
+        temporalCoverage: item.temporalCoverage ?? 'observation_time',
+        periodType: item.periodType ?? null,
+        periodCode: item.periodCode ?? null,
+        periodLabel: item.periodLabel ?? null,
+        periodYear: item.periodYear ?? null,
+        periodMonth: item.periodMonth ?? null,
+        periodNumber: item.periodNumber ?? null,
+        periodStartDate: item.periodStartDate ?? null,
+        periodEndDate: item.periodEndDate ?? null,
+        aggregationMethod: item.aggregationMethod ?? null,
+        geographicScope: item.geographicScope ?? (provinceCode ? 'province' : 'market_or_region'),
+        sourceDetail: item.sourceDetail ?? null,
       },
     },
     penalties,

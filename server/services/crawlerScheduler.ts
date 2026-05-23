@@ -4,9 +4,7 @@ import { retryCrawlerResult } from './crawlers/common.js'
 import { crawlBhx } from './crawlers/bhxCrawler.js'
 import { crawlCoop } from './crawlers/coopCrawler.js'
 import { crawlCustoms } from './crawlers/customsCrawler.js'
-import { crawlShopee } from './crawlers/shopeeCrawler.js'
 import type { CrawlerResult } from './crawlers/types.js'
-import { ensureFreshShopeeSession, readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
 import { crawlExportRegistry } from './exportRegistry/crawler.js'
 import { syncExportRegistryResultsToSupabase } from './exportRegistry/service.js'
 import { syncCrawlerResultToSupabase } from './ingestion/sourceSync.js'
@@ -23,12 +21,6 @@ type CrawlerScheduleConfig = {
   coopEnabledRegions: string[]
   coopEnabledCategories: string[]
   coopMaxPagesPerCategory: number
-  shopeeRefreshEnabled: boolean
-  shopeeRefreshCron: string
-  shopeeCrawlEnabled: boolean
-  shopeeCrawlCron: string
-  shopeeDryRun: boolean
-  shopeeBlockCooldownMinutes: number
   customsEnabled: boolean
   customsCron: string
   customsDryRun: boolean
@@ -43,12 +35,9 @@ type CrawlerScheduleConfig = {
 
 const DEFAULT_BHX_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_COOP_CRAWL_CRON = '20 6,14 * * *'
-const DEFAULT_SHOPEE_REFRESH_CRON = '0 */6 * * *'
-const DEFAULT_SHOPEE_CRAWL_CRON = '15 6,14 * * *'
 const DEFAULT_CUSTOMS_CRON = '0 8 * * 3'
 const DEFAULT_EXPORT_REGISTRY_CRON = '30 2 * * *'
 const DEFAULT_DURIAN_EXPORT_CRON = '0 9 * * 3'
-const DEFAULT_SHOPEE_BLOCK_COOLDOWN_MINUTES = 180
 
 const runningJobs = new Set<string>()
 let schedulesRegistered = false
@@ -101,7 +90,6 @@ function parseCsvCategorySlugs(value: string | undefined, fallback: string[]) {
 }
 
 export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
-  const shopeeSchedulerEnabled = parseBoolean(process.env.SHOPEE_SCHEDULER_ENABLED, false)
   const bhxRequested = parseBoolean(process.env.BHX_CRAWL_ENABLED, true)
   return {
     bhxCrawlEnabled: bhxRequested,
@@ -119,15 +107,6 @@ export function getCrawlerScheduleConfig(): CrawlerScheduleConfig {
       '/c/thuy-hai-san',
     ]),
     coopMaxPagesPerCategory: parsePositiveInteger(process.env.COOP_MAX_PAGES_PER_CATEGORY, 2) || 2,
-    shopeeRefreshEnabled: parseBoolean(process.env.SHOPEE_SESSION_REFRESH_ENABLED, shopeeSchedulerEnabled),
-    shopeeRefreshCron: process.env.SHOPEE_REFRESH_CRON?.trim() || DEFAULT_SHOPEE_REFRESH_CRON,
-    shopeeCrawlEnabled: parseBoolean(process.env.SHOPEE_CRAWL_ENABLED, shopeeSchedulerEnabled),
-    shopeeCrawlCron: process.env.SHOPEE_CRAWL_CRON?.trim() || DEFAULT_SHOPEE_CRAWL_CRON,
-    shopeeDryRun: parseBoolean(process.env.SHOPEE_SCHEDULE_DRY_RUN, false),
-    shopeeBlockCooldownMinutes: parsePositiveInteger(
-      process.env.SHOPEE_BLOCK_COOLDOWN_MINUTES,
-      DEFAULT_SHOPEE_BLOCK_COOLDOWN_MINUTES,
-    ),
     customsEnabled: parseBoolean(process.env.CUSTOMS_SCHEDULER_ENABLED, true),
     customsCron: process.env.CUSTOMS_CRAWL_CRON?.trim() || DEFAULT_CUSTOMS_CRON,
     customsDryRun: parseBoolean(process.env.CUSTOMS_SCHEDULE_DRY_RUN, false),
@@ -155,21 +134,6 @@ async function runExclusive(jobName: string, job: () => Promise<void>) {
   }
 }
 
-function shouldSkipShopeeCrawlForCooldown(metadata: Awaited<ReturnType<typeof readShopeeSessionMetadata>>, cooldownMinutes: number) {
-  if (metadata.status !== 'blocked' || cooldownMinutes <= 0) {
-    return false
-  }
-
-  const checkedAt = new Date(metadata.checkedAt)
-  if (Number.isNaN(checkedAt.getTime())) {
-    return false
-  }
-
-  const cooldownEndsAt = new Date(checkedAt)
-  cooldownEndsAt.setMinutes(cooldownEndsAt.getMinutes() + cooldownMinutes)
-  return cooldownEndsAt.getTime() > Date.now()
-}
-
 async function syncCrawlerResult(
   jobName: string,
   dryRun: boolean,
@@ -195,42 +159,6 @@ async function syncCrawlerResult(
   console.log(
     `[${jobName}] sync processed=${sync.processedCount} inserted=${sync.insertedCount} failed=${sync.failedCount} enqueued=${sync.enqueuedCount} skippedDuplicate=${sync.skippedDuplicateCount}`,
   )
-}
-
-export async function runShopeeSessionRefreshJob(trigger = 'manual') {
-  await runExclusive('shopee-session-refresh', async () => {
-    console.log(`[Shopee Session Refresh] started (${trigger})`)
-    try {
-      const metadata = await ensureFreshShopeeSession({
-        force: true,
-      })
-      console.log(
-        `[Shopee Session Refresh] status=${metadata.status} refreshedAt=${metadata.refreshedAt ?? 'n/a'} expiresAt=${metadata.expiresAt ?? 'n/a'}`,
-      )
-      if (metadata.message) {
-        console.log(`[Shopee Session Refresh] message=${metadata.message}`)
-      }
-    } catch (error) {
-      console.error('[Shopee Session Refresh] failed:', error)
-    }
-  })
-}
-
-export async function runShopeeCrawlJob(trigger = 'manual') {
-  const config = getCrawlerScheduleConfig()
-  await runExclusive('shopee-crawl', async () => {
-    const sessionMetadata = await readShopeeSessionMetadata()
-    if (shouldSkipShopeeCrawlForCooldown(sessionMetadata, config.shopeeBlockCooldownMinutes)) {
-      console.log(
-        `[Shopee Crawl] skipped (${trigger}) because session status is blocked and cooldown ${config.shopeeBlockCooldownMinutes}m is still active`,
-      )
-      return
-    }
-
-    console.log(`[Shopee Crawl] started (${trigger})`)
-    const result = await retryCrawlerResult(() => crawlShopee())
-    await syncCrawlerResult('Shopee Crawl', config.shopeeDryRun, result)
-  })
 }
 
 export async function runBhxCrawlJob(trigger = 'manual') {
@@ -334,15 +262,6 @@ export function registerCrawlerSchedules() {
     registerSchedule('coop-crawl', config.coopCrawlCron, () => runCoopCrawlJob(`cron:${config.coopCrawlCron}`))
   } else {
     console.log('[Crawler Scheduler] Co.op crawl schedule is disabled')
-  }
-
-  if (config.shopeeRefreshEnabled) {
-    registerSchedule('shopee-session-refresh', config.shopeeRefreshCron, () =>
-      runShopeeSessionRefreshJob(`cron:${config.shopeeRefreshCron}`),
-    )
-    registerSchedule('shopee-crawl', config.shopeeCrawlCron, () => runShopeeCrawlJob(`cron:${config.shopeeCrawlCron}`))
-  } else {
-    console.log('[Crawler Scheduler] Shopee session refresh and crawl schedules are disabled')
   }
 
   if (config.customsEnabled) {
