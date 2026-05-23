@@ -8,7 +8,6 @@ import type {
   ReportWarning,
 } from './assminReportTypes.js'
 import { getCrawlerScheduleConfig } from './crawlerScheduler.js'
-import { readShopeeSessionMetadata } from './crawlers/shopeeSession.js'
 import { getExportRegistryHealth } from './exportRegistry/service.js'
 import { getNewsSchedulerConfig } from './news/scheduler.js'
 import { getNewsHealth, getNewsRuns, getNewsSources } from './news/service.js'
@@ -526,7 +525,6 @@ function buildSchedulerJobs(
   newsSources: Awaited<ReturnType<typeof getNewsSources>>,
   newsRuns: Awaited<ReturnType<typeof getNewsRuns>>,
   vnPriceSources: Awaited<ReturnType<typeof getVnPriceSourceStatus>>,
-  shopeeSession: Awaited<ReturnType<typeof readShopeeSessionMetadata>>,
   datasetTimestamps?: {
     vnPricesLastUpdated?: string | null
     worldPricesLastUpdated?: string | null
@@ -590,26 +588,6 @@ function buildSchedulerJobs(
       cron: crawlerSchedule.coopCrawlCron,
       lastUpdated: sourceLastUpdatedById(vnPriceSources, 'coop'),
       details: [`Regions: ${crawlerSchedule.coopEnabledRegions.join(', ')}`],
-      warnings: [],
-    },
-    {
-      key: 'shopee-session-refresh',
-      label: 'Shopee Session Refresh',
-      enabled: crawlerSchedule.shopeeRefreshEnabled,
-      cron: crawlerSchedule.shopeeRefreshCron,
-      lastUpdated: shopeeSession.refreshedAt ?? shopeeSession.checkedAt,
-      details: [`Session status: ${shopeeSession.status}`, `Headless: ${shopeeSession.headless ? 'yes' : 'no'}`],
-      warnings: shopeeSession.status === 'blocked'
-        ? [makeWarning('shopee_session_blocked', 'warning', 'Shopee session hiện đang blocked.')]
-        : [],
-    },
-    {
-      key: 'shopee-crawl',
-      label: 'Shopee Crawl',
-      enabled: crawlerSchedule.shopeeCrawlEnabled,
-      cron: crawlerSchedule.shopeeCrawlCron,
-      lastUpdated: sourceLastUpdatedById(vnPriceSources, 'shopee'),
-      details: [`Cooldown: ${crawlerSchedule.shopeeBlockCooldownMinutes} phút`],
       warnings: [],
     },
     {
@@ -690,7 +668,6 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     priceChainResult,
     worldPricesResult,
     weatherResult,
-    shopeeSessionResult,
     exportRegistryHealthResult,
   ] = await Promise.allSettled([
     getNewsSources(),
@@ -701,7 +678,6 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     getVnPriceChainResponse(),
     getWorldPricesResponse(false),
     getAgriWeather(null),
-    readShopeeSessionMetadata(),
     getExportRegistryHealth(),
   ])
 
@@ -739,10 +715,9 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
   if (
     newsSourcesResult.status === 'fulfilled' &&
     newsRunsResult.status === 'fulfilled' &&
-    vnPriceSourcesResult.status === 'fulfilled' &&
-    shopeeSessionResult.status === 'fulfilled'
+    vnPriceSourcesResult.status === 'fulfilled'
   ) {
-    jobs.push(...buildSchedulerJobs(newsSources, newsRuns, vnPriceSources, shopeeSessionResult.value, {
+    jobs.push(...buildSchedulerJobs(newsSources, newsRuns, vnPriceSources, {
       vnPricesLastUpdated: vnPricesResult.status === 'fulfilled' ? vnPricesResult.value.lastUpdated : null,
       worldPricesLastUpdated: worldPricesResult.status === 'fulfilled' ? worldPricesResult.value.lastUpdated : null,
     }))
