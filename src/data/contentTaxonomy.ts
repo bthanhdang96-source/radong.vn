@@ -15,8 +15,13 @@ type PriceGroupDefinition = {
 export const CONTENT_FAMILY_DEFINITIONS: FamilyDefinition[] = [
   {
     slug: 'tin-gia-nong-san',
-    label: 'Tin giá nông sản',
+    label: 'Giá nông sản trong nước',
     path: '/tin-tuc/nhom/tin-gia-nong-san',
+  },
+  {
+    slug: 'gia-nong-san-the-gioi',
+    label: 'Giá nông sản thế giới',
+    path: '/tin-tuc/nhom/gia-nong-san-the-gioi',
   },
   {
     slug: 'tin-thi-truong-hang-ngay',

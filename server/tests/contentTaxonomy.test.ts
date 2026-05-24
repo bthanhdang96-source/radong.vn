@@ -149,7 +149,7 @@ test('news classifier maps export signals into export family', () => {
   assert.equal(family, 'xuat-khau-va-doanh-nghiep')
 })
 
-test('taxonomy and modules keep four families and six public price groups', () => {
+test('taxonomy and modules keep five families and six public price groups', () => {
   const items: ContentFeedItem[] = [
     makeNewsItem(),
     toContentFeedItem(makePricePageSummary('Lương thực')),
@@ -162,13 +162,15 @@ test('taxonomy and modules keep four families and six public price groups', () =
     priceGroup: 'chan-nuoi',
   })
 
-  assert.equal(taxonomy.families.length, 4)
+  assert.equal(taxonomy.families.length, 5)
   assert.equal(taxonomy.priceGroups.length, 6)
   assert.equal(taxonomy.priceGroups.find(group => group.slug === 'luong-thuc')?.itemCount, 1)
   assert.equal(taxonomy.priceGroups.find(group => group.slug === 'chan-nuoi')?.itemCount, 1)
-  assert.equal(modules.length, 4)
+  assert.equal(modules.length, 5)
   assert.equal(modules[0]?.familySlug, 'tin-gia-nong-san')
   assert.equal(modules[0]?.subgroups?.length, 6)
+  assert.equal(modules[1]?.familySlug, 'gia-nong-san-the-gioi')
+  assert.equal(modules[1]?.subgroups, undefined)
   assert.equal(modules[0]?.subgroups?.find(group => group.slug === 'chan-nuoi')?.isCurrent, true)
 })
 

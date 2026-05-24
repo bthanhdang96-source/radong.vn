@@ -4,6 +4,7 @@ export type PricePagePrimaryPriceType = 'farm_gate' | 'wholesale' | 'retail' | '
 export type CommodityPricePageRenderMode = 'regional_table' | 'national_article'
 export type ContentFamilySlug =
   | 'tin-gia-nong-san'
+  | 'gia-nong-san-the-gioi'
   | 'tin-thi-truong-hang-ngay'
   | 'xuat-khau-va-doanh-nghiep'
   | 'chuyen-mon-va-chinh-sach'

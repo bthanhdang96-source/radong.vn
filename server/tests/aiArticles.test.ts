@@ -161,9 +161,9 @@ test('AI article feed item keeps news path and taxonomy metadata', () => {
     updatedAt: '2026-05-23T02:00:00.000Z',
     category: 'Gia the gioi',
     topicTags: ['gia-the-gioi'],
-    contentFamilySlug: 'tin-gia-nong-san',
-    contentFamilyLabel: 'Tin gia nong san',
-    familyPath: '/tin-tuc/nhom/tin-gia-nong-san',
+    contentFamilySlug: 'gia-nong-san-the-gioi',
+    contentFamilyLabel: 'Gia nong san the gioi',
+    familyPath: '/tin-tuc/nhom/gia-nong-san-the-gioi',
     badgeLabel: 'Gia the gioi',
     dataGranularity: 'daily',
     primaryPeriodCode: null,
@@ -173,7 +173,8 @@ test('AI article feed item keeps news path and taxonomy metadata', () => {
 
   assert.equal(item.kind, 'ai_article')
   assert.equal(item.path, '/tin-tuc/gia-nong-san-the-gioi-2026-05-22')
-  assert.equal(item.contentFamilySlug, 'tin-gia-nong-san')
+  assert.equal(item.contentFamilySlug, 'gia-nong-san-the-gioi')
+  assert.equal(item.familyPath, '/tin-tuc/nhom/gia-nong-san-the-gioi')
 })
 
 test('AI article slug is stable ASCII', () => {

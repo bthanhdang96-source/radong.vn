@@ -38,30 +38,37 @@ const PRICE_FAMILY_SLUG: ContentFamilySlug = 'tin-gia-nong-san'
 const CONTENT_FAMILY_DEFINITIONS: ContentFamilyDefinition[] = [
   {
     slug: 'tin-gia-nong-san',
-    label: 'Tin giá nông sản',
+    label: 'Giá nông sản trong nước',
     path: '/tin-tuc/nhom/tin-gia-nong-san',
     order: 1,
-    badgeLabel: 'Tin giá nông sản',
+    badgeLabel: 'Giá trong nước',
+  },
+  {
+    slug: 'gia-nong-san-the-gioi',
+    label: 'Giá nông sản thế giới',
+    path: '/tin-tuc/nhom/gia-nong-san-the-gioi',
+    order: 2,
+    badgeLabel: 'Giá thế giới',
   },
   {
     slug: 'tin-thi-truong-hang-ngay',
     label: 'Tin thị trường hằng ngày',
     path: '/tin-tuc/nhom/tin-thi-truong-hang-ngay',
-    order: 2,
+    order: 3,
     badgeLabel: 'Tin hằng ngày',
   },
   {
     slug: 'xuat-khau-va-doanh-nghiep',
     label: 'Xuất khẩu & doanh nghiệp',
     path: '/tin-tuc/nhom/xuat-khau-va-doanh-nghiep',
-    order: 3,
+    order: 4,
     badgeLabel: 'Xuất khẩu & DN',
   },
   {
     slug: 'chuyen-mon-va-chinh-sach',
     label: 'Chuyên môn & chính sách',
     path: '/tin-tuc/nhom/chuyen-mon-va-chinh-sach',
-    order: 4,
+    order: 5,
     badgeLabel: 'Chuyên môn',
   },
 ]
