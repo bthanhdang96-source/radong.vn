@@ -261,7 +261,7 @@ export default function GeneratedCommodityPricePage() {
             <section className="generated-commodity-price-page__varieties">
               <div className="generated-commodity-price-page__section-head">
                 <h2>Giá theo giống</h2>
-                <p>Mỗi giống được tách riêng để người đọc so sánh đúng chất lượng và loại hàng.</p>
+                <p>Mỗi giống được tách riêng để độc giả so sánh đúng chất lượng và loại hàng.</p>
               </div>
 
               <div className="generated-commodity-price-page__variety-list">

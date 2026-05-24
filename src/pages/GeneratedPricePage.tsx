@@ -142,7 +142,7 @@ export default function GeneratedPricePage() {
 
           <header className="generated-price-page__header">
             <div className="generated-price-page__meta">
-              <span className="generated-price-page__badge">Phân tích giá tự động</span>
+              <span className="generated-price-page__badge">Bản tin giá</span>
               {page.category ? <span>{page.category}</span> : null}
               <span>Cập nhật: {formatDateTime(page.updatedAt)}</span>
             </div>

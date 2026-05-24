@@ -97,7 +97,7 @@ export default function WorldPricesPage() {
               </span>
               {lastUpdate ? <span className="world-page__update">Cập nhật: {lastUpdate}</span> : null}
             </div>
-            <span className="world-page__update">Đồng bộ tự động từ máy chủ</span>
+            <span className="world-page__update">Cập nhật theo nguồn giá quốc tế</span>
           </div>
         </div>
         <div className="world-page__hero-line" />

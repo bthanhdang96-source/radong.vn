@@ -180,8 +180,8 @@ export default function AgriWeatherPage() {
           <span className="agri-weather-page__eyebrow">Thời tiết nông nghiệp tổng hợp</span>
           <h1>Dự báo thời tiết phục vụ vận hành ngoài ruộng</h1>
           <p>
-            Dữ liệu được tổng hợp tự động từ các nguồn khả dụng để hỗ trợ theo dõi mưa, nhiệt, gió, UV và các cảnh
-            báo canh tác cơ bản theo từng địa phương.
+            Bản tin tổng hợp các chỉ số mưa, nhiệt, gió, UV và cảnh báo canh tác cơ bản theo từng địa phương để độc
+            giả tiện theo dõi trước khi ra đồng.
           </p>
         </div>
 
@@ -252,8 +252,8 @@ export default function AgriWeatherPage() {
 
             <div className="agri-weather-page__attribution">
               <p className="agri-weather-page__disclaimer">
-                Dự báo được tổng hợp tự động từ các nguồn dữ liệu khả dụng. Khi một số nguồn gián đoạn, hệ thống vẫn
-                tiếp tục hiển thị forecast tổng hợp từ các nguồn còn lại.
+                Bản tin thời tiết được tham khảo từ nhiều nguồn dự báo. Khi một số nguồn gián đoạn, trang vẫn ưu tiên
+                hiển thị phần dự báo còn đủ cơ sở để bạn đọc theo dõi ngắn hạn.
               </p>
               <p className="agri-weather-page__disclaimer">
                 Dữ liệu dùng để tham khảo vận hành ngắn hạn, không thay thế đánh giá thực địa hoặc khuyến cáo chuyên

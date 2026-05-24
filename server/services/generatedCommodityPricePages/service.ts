@@ -1374,18 +1374,18 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
       : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} ${displayUnit.replace(/^VND\//, 'đồng/')} so với hôm qua`
   const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu từ các nơi đang có cho thấy mức cao nhất tại ${topLocationLabel} và thấp nhất tại ${bottomLocationLabel}.`
   const excerpt = maybeTruncate(
-    `${answerSummary} Bảng giá theo vùng được tổng hợp từ ${page.locationCount.toLocaleString('vi-VN')} nơi có đủ dữ liệu cùng loại giá.`,
+    `${answerSummary} Bài viết kèm bảng giá theo vùng để độc giả tiện đối chiếu mặt bằng giữa các khu vực.`,
     180,
   )
 
   const faq: PricePageFaqItem[] = [
     {
       question: `Giá ${commodityName} hôm nay là bao nhiêu?`,
-      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} theo dữ liệu cập nhật ngày ${latestDateLabel}.`,
+      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức tham khảo ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} trong ngày ${latestDateLabel}.`,
     },
     {
       question: `Giá ${commodityName} hôm nay khác nhau giữa các vùng ra sao?`,
-      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo khoảng cách ${formatCurrency(page.priceSpreadVnd, displayUnit)} giữa các vùng có đủ dữ liệu.`,
+      answer: `Mức giá cao nhất đang ở ${topLocationLabel} và thấp nhất ở ${bottomLocationLabel}, tạo khoảng cách ${formatCurrency(page.priceSpreadVnd, displayUnit)} giữa các khu vực đang được ghi nhận.`,
     },
     {
       question: `Xem bảng giá ${commodityName} theo vùng ở đâu?`,
@@ -1394,18 +1394,18 @@ function buildRegionalTableCopy(page: CommodityCandidatePage, commodityName: str
   ]
 
   const bodyHtml = [
-    `<section><h2>Tóm tắt diễn biến giá hôm nay</h2><p>${answerSummary} Đây là những thông tin mới nhất được hệ thống tự động ghi nhận và tổng hợp, giúp bà con nông dân, thương lái và các doanh nghiệp dễ dàng nắm bắt được tình hình thị trường.</p></section>`,
-    `<section><h2>Chi tiết bảng giá theo vùng</h2><p>Bảng phân tích bên dưới tập hợp dữ liệu từ ${page.locationCount.toLocaleString('vi-VN')} địa phương khác nhau đang có chung loại ${priceTypeLabel} của ${commodityName}. Để tiện cho việc theo dõi, các thông tin đã được chúng tôi sắp xếp theo thứ tự mức giá giảm dần. Cách trình bày này đặc biệt hữu ích khi người đọc muốn nhanh chóng đối chiếu, so sánh và nhận diện ngay lập tức những khu vực nào đang có mức giá thu mua cao, hoặc nơi nào giá đang ở mức thấp hơn mặt bằng chung.</p></section>`,
+    `<section><h2>Tóm tắt diễn biến giá hôm nay</h2><p>${answerSummary} Bản tin được trình bày theo hướng ngắn gọn để độc giả, bạn đọc và các đơn vị kinh doanh nông sản thuận tiện theo dõi mặt bằng thị trường.</p></section>`,
+    `<section><h2>Chi tiết bảng giá theo vùng</h2><p>Bảng bên dưới so sánh các khu vực đang ghi nhận cùng loại ${priceTypeLabel} của ${commodityName}. Các mức giá được sắp xếp giảm dần để độc giả nhanh chóng nhận diện nơi giá cao, nơi giá thấp và khoảng chênh giữa các vùng.</p></section>`,
     `<section><h2>Tiêu điểm các khu vực đáng chú ý</h2><p>Theo số liệu thu thập được trong ngày hôm nay, ${topLocationLabel} đang ghi nhận là địa phương dẫn đầu với mức giá đạt ${formatCurrency(page.highestPriceVnd, displayUnit)}. Ở chiều ngược lại, ${bottomLocationLabel} hiện đang chốt ở mức thấp nhất, đạt ${formatCurrency(page.lowestPriceVnd, displayUnit)}. Mức độ chênh lệch giữa hai thái cực này trên thị trường hiện rơi vào khoảng ${formatCurrency(page.priceSpreadVnd, displayUnit)}. Khoảng cách này phản ánh sự phân hóa về giá giữa các khu vực phụ thuộc vào yếu tố địa lý, tình trạng nguồn cung, cũng như chi phí vận chuyển đến nơi tiêu thụ.</p></section>`,
     `<section><h2>Đánh giá biến động so với hôm qua</h2><p>Nhìn lại diễn biến trong vòng 24 giờ qua, ${priceTypeLabel} của ${commodityName} hiện ${dayDirection === 'ổn định' ? `đang duy trì trạng thái khá bình ổn. So với hôm qua, giá ít có sự xê dịch, mức lệch ghi nhận chỉ ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` : `${getMovementNarrative(page.dayChangePct)} rõ rệt so với hôm qua. Cụ thể, mức thay đổi thực tế trên mỗi đơn vị đo lường là ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` }. Những thay đổi này trong ngắn hạn thường xuất phát từ sức mua tức thời của thị trường hoặc do lượng hàng đổ về các chợ đầu mối thay đổi.</p></section>`,
-    `<section><h2>Góc nhìn dài hạn trong 7 ngày gần đây</h2><p>Nếu mở rộng góc nhìn ra khung thời gian một tuần, so với mức giá trung bình của 7 ngày trước đó, giá hiện tại đang ${sevenDayDirection === 'ổn định' ? 'được giữ ở mức khá vững chắc. Không có sự biến động quá lớn nào xảy ra' : `${getMovementNarrative(page.change7dPct)}. Điều này tương ứng với mức thay đổi thực tế là ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Việc theo dõi xu hướng 7 ngày có thể giúp người đọc đưa ra những quyết định giao dịch hợp lý hơn, thay vì chỉ nhìn vào biến động của một ngày duy nhất.</p></section>`,
-    `<section><h2>Bức tranh toàn cảnh về khoảng giá</h2><p>Xét chung trên toàn bộ các khu vực, giá của ${commodityName} hiện đang dao động trong ngưỡng từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} cho đến ${formatCurrency(page.highestPriceVnd, displayUnit)}. Biên độ này có thể giãn ra hoặc thu hẹp lại tùy vào từng thời điểm thu hoạch rộ hay trái vụ. Bạn có thể tận dụng bảng so sánh giá theo vùng ở ngay trong bài viết này để trực tiếp kiểm tra xem khu vực của mình đang nằm ở đâu trên thang giá này.</p></section>`,
-    `<section><h2>Nguồn dữ liệu và theo dõi thêm</h2><p>Để có cái nhìn tổng quan về mặt bằng giá chung của nhiều loại nông sản khác, người đọc có thể truy cập trang bảng giá tổng hợp tại <a href="/bang-gia">/bang-gia</a>. Ngoài ra, tính năng chuỗi giá tại <a href="/chuoi-gia">/chuoi-gia</a> cũng sẽ cung cấp các thông tin chi tiết về từng khâu từ thu mua tại vườn cho tới bán lẻ.</p></section>`,
+    `<section><h2>Góc nhìn 7 ngày gần đây</h2><p>Nếu mở rộng góc nhìn ra một tuần, so với mức giá trung bình của 7 ngày trước đó, giá hiện tại đang ${sevenDayDirection === 'ổn định' ? 'được giữ ở mức khá ổn định, chưa xuất hiện biến động lớn' : `${getMovementNarrative(page.change7dPct)}. Điều này tương ứng với mức thay đổi thực tế là ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Theo dõi xu hướng 7 ngày giúp bạn đọc có thêm cơ sở trước khi đánh giá biến động ngắn hạn.</p></section>`,
+    `<section><h2>Bức tranh toàn cảnh về khoảng giá</h2><p>Xét chung trên các khu vực trong bảng, giá của ${commodityName} hiện dao động từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} đến ${formatCurrency(page.highestPriceVnd, displayUnit)}. Biên độ này có thể thay đổi theo mùa vụ, chất lượng hàng và chi phí vận chuyển. Độc giả có thể dùng bảng so sánh trong bài để xem khu vực mình quan tâm đang ở vị trí nào trên mặt bằng giá chung.</p></section>`,
+    `<section><h2>Theo dõi thêm</h2><p>Để có cái nhìn tổng quan về nhiều loại nông sản khác, độc giả có thể truy cập <a href="/bang-gia">bảng giá tổng hợp</a>. Mục <a href="/chuoi-gia">chuỗi giá</a> cũng cung cấp thêm thông tin về các khâu từ thu mua đến bán lẻ.</p></section>`,
   ].join('')
 
   const bodyText = [
     answerSummary,
-    `Bảng giá theo vùng hiện có ${page.locationCount.toLocaleString('vi-VN')} nơi đủ dữ liệu.`,
+    `Bảng giá theo vùng giúp độc giả đối chiếu nhanh các khu vực đang được ghi nhận.`,
     `Khu vực giá cao nhất: ${topLocationLabel}. Khu vực giá thấp nhất: ${bottomLocationLabel}.`,
     ...faq.map(item => `${item.question} ${item.answer}`),
   ].join('\n\n')
@@ -1442,9 +1442,9 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
       : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} ${displayUnit.replace(/^VND\//, 'đồng/')} so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} đang ở mức tham khảo ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Đây là mặt bằng giá chung trên phạm vi ${nationalLabel}; khi mua bán thực tế, bà con và thương lái nên đối chiếu thêm giá tại vựa, chợ đầu mối hoặc điểm thu mua gần nhất.`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} đang ở mức tham khảo ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Đây là mặt bằng giá chung trên phạm vi ${nationalLabel}; khi cần ra quyết định mua bán, độc giả nên đối chiếu thêm giá tại vựa, chợ đầu mối hoặc điểm thu mua gần nhất.`
   const excerpt = maybeTruncate(
-    `${answerSummary} Bản tin giúp nông dân, thương lái và doanh nghiệp nông sản nắm nhanh xu hướng giá trong ngày.`,
+    `${answerSummary} Bản tin giúp độc giả nắm nhanh xu hướng giá trong ngày.`,
     180,
   )
 
@@ -1465,11 +1465,11 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
 
   const bodyHtml = [
     `<section><h2>Diễn biến chính trong ngày</h2><p>${answerSummary} Với những mặt hàng chỉ có giá tham khảo chung ở cấp ${nationalLabel}, cách đọc phù hợp nhất là xem đây như một mốc định hướng trước khi gọi hỏi thêm giá tại địa phương.</p></section>`,
-    `<section><h2>Nông dân và thương lái nên đọc mức giá này thế nào?</h2><p>Mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} cho thấy mặt bằng chung của ${commodityName} trong ngày, nhưng giá nhận tại vườn hoặc tại kho có thể cao thấp khác nhau tùy loại hàng, độ đồng đều, sản lượng, quãng đường vận chuyển và nhu cầu của từng đầu mối. Nếu đang chuẩn bị bán hàng, bà con nên dùng mức này để thương lượng ban đầu, sau đó đối chiếu thêm 2-3 điểm thu mua gần khu vực mình.</p></section>`,
-    `<section><h2>So với hôm qua</h2><p>Trong vòng 24 giờ qua, ${priceTypeLabel} của ${commodityName} ${dayDirection === 'ổn định' ? `giữ khá ổn định. Mức chênh so với hôm qua chỉ là ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}, chưa tạo ra thay đổi lớn cho quyết định mua bán trong ngày` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương đương ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}`}. Biến động ngắn hạn thường chịu tác động từ lượng hàng về chợ, tiến độ thu hoạch, thời tiết và nhu cầu gom hàng của thương lái.</p></section>`,
+    `<section><h2>Độc giả nên đọc mức giá này thế nào?</h2><p>Mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} cho thấy mặt bằng chung của ${commodityName} trong ngày, nhưng giá nhận tại vườn hoặc tại kho có thể cao thấp khác nhau tùy loại hàng, độ đồng đều, sản lượng, quãng đường vận chuyển và nhu cầu của từng đầu mối. Bạn đọc nên xem đây là mốc tham khảo ban đầu, sau đó đối chiếu thêm 2-3 điểm thu mua gần khu vực mình quan tâm.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>Trong vòng 24 giờ qua, ${priceTypeLabel} của ${commodityName} ${dayDirection === 'ổn định' ? `giữ khá ổn định. Mức chênh so với hôm qua chỉ là ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}, chưa tạo ra thay đổi lớn cho quyết định mua bán trong ngày` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương đương ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}`}. Biến động ngắn hạn thường chịu tác động từ lượng hàng về chợ, tiến độ thu hoạch, thời tiết và nhu cầu gom hàng của các đầu mối thu mua.</p></section>`,
     `<section><h2>Xu hướng 7 ngày gần đây</h2><p>So với mặt bằng 7 ngày gần nhất, giá hiện ${sevenDayDirection === 'ổn định' ? 'khá ổn định, chưa cho thấy nhịp tăng giảm rõ rệt' : `${getMovementNarrative(page.change7dPct)}, tương ứng mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Trong tuần, khoảng giá tham khảo dao động từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} đến ${formatCurrency(page.highestPriceVnd, displayUnit)}. Với doanh nghiệp và đơn vị thu mua, xu hướng 7 ngày hữu ích hơn biến động một ngày khi cần lên kế hoạch gom hàng hoặc điều chỉnh giá chào mua.</p></section>`,
     `<section><h2>Lưu ý khi áp dụng cho từng địa phương</h2><p>Giá trong bài là mức tham khảo chung cho ${nationalLabel}, không thay thế báo giá trực tiếp tại từng tỉnh thành. Các vùng có mùa vụ, chất lượng hàng, chi phí vận chuyển và đầu ra khác nhau có thể có mức chênh đáng kể. Khi cần chốt giao dịch lớn, nên kiểm tra thêm giá tại vựa địa phương, chợ đầu mối hoặc đối tác thu mua quen thuộc.</p></section>`,
-    `<section><h2>Theo dõi thêm thông tin</h2><p>Để xem thêm giá của các mặt hàng khác, bà con và doanh nghiệp có thể mở <a href="/bang-gia">bảng giá nông sản</a>. Nếu muốn theo dõi giá ở từng khâu như thu mua, bán buôn hoặc bán lẻ, có thể xem thêm mục <a href="/chuoi-gia">chuỗi giá</a>.</p></section>`,
+    `<section><h2>Theo dõi thêm thông tin</h2><p>Để xem thêm giá của các mặt hàng khác, độc giả có thể mở <a href="/bang-gia">bảng giá nông sản</a>. Nếu muốn theo dõi giá ở từng khâu như thu mua, bán buôn hoặc bán lẻ, có thể xem thêm mục <a href="/chuoi-gia">chuỗi giá</a>.</p></section>`,
   ].join('')
 
   const bodyText = [
