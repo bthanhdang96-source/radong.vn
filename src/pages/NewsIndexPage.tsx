@@ -18,7 +18,7 @@ import { buildApiUrl } from '../lib/api'
 import './NewsIndexPage.css'
 
 const FALLBACK_NEWS_IMAGE = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
-const CONTENT_FEED_CACHE_PREFIX = 'content-feed-cache:v3:'
+const CONTENT_FEED_CACHE_PREFIX = 'content-feed-cache:v4:'
 const CONTENT_FEED_CACHE_MAX_AGE_MS = 60 * 60 * 1000
 const DEFAULT_FEED_LIMIT = 24
 const FAMILY_FEED_LIMIT = 30
@@ -88,7 +88,11 @@ function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
 }
 
 function getItemTimestamp(item: ContentFeedItem) {
-  return item.kind === 'news' || item.kind === 'ai_article' ? item.publishedAt : item.updatedAt
+  if (item.kind === 'ai_article') {
+    return item.sortAt ?? item.publishedAt
+  }
+
+  return item.kind === 'news' ? item.publishedAt : item.updatedAt
 }
 
 function getItemImageAlt(item: ContentFeedItem) {

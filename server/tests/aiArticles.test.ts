@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildExportMonthlyArticleContextsFromRows,
   buildExportMonthlyArticleContextFromRows,
+  buildExportPeriodArticleContextsFromRows,
   buildExportPeriodArticleContextFromRows,
+  buildWorldDailyArticleContextsFromRows,
   buildWorldDailyArticleContextFromRows,
   slugifyAiArticle,
   toAiArticleContentFeedItem,
@@ -83,6 +86,24 @@ test('export period context stays period scoped for one customs period', () => {
   assert.equal(context?.commodities.length, 2)
 })
 
+test('export period contexts cover every eligible customs period and sort newest first', () => {
+  const contexts = buildExportPeriodArticleContextsFromRows([
+    customsRow({
+      period_code: '2026-t4-k2',
+      period_label: 'Ky 2 thang 4 nam 2026',
+      period_month: 4,
+      period_number: 2,
+      period_start_date: '2026-04-16',
+      period_end_date: '2026-04-30',
+    }),
+    customsRow(),
+    customsRow({ commodity_slug: 'ho-tieu' }),
+  ])
+
+  assert.deepEqual(contexts.map(context => context.articleScopeKey), ['2026-t5-k1', '2026-t4-k2'])
+  assert.deepEqual(contexts.map(context => context.commodities.length), [2, 1])
+})
+
 test('export monthly context requires at least two customs periods', () => {
   const onePeriod = buildExportMonthlyArticleContextFromRows([customsRow()])
   assert.equal(onePeriod, null)
@@ -105,6 +126,47 @@ test('export monthly context requires at least two customs periods', () => {
   assert.equal(monthly?.month.periodCount, 2)
   assert.deepEqual(monthly?.month.periodCodes, ['2026-t5-k1', '2026-t5-k2'])
   assert.equal(monthly?.commodities[0]?.valueUsd, 8_050_000)
+})
+
+test('export monthly contexts only include complete months and sort by data date', () => {
+  const contexts = buildExportMonthlyArticleContextsFromRows([
+    customsRow(),
+    customsRow({
+      period_code: '2026-t4-k1',
+      period_label: 'Ky 1 thang 4 nam 2026',
+      period_month: 4,
+      period_number: 1,
+      period_start_date: '2026-04-01',
+      period_end_date: '2026-04-15',
+    }),
+    customsRow({
+      period_code: '2026-t4-k2',
+      period_label: 'Ky 2 thang 4 nam 2026',
+      period_month: 4,
+      period_number: 2,
+      period_start_date: '2026-04-16',
+      period_end_date: '2026-04-30',
+    }),
+    customsRow({
+      period_code: '2026-t3-k1',
+      period_label: 'Ky 1 thang 3 nam 2026',
+      period_month: 3,
+      period_number: 1,
+      period_start_date: '2026-03-01',
+      period_end_date: '2026-03-15',
+    }),
+    customsRow({
+      period_code: '2026-t3-k2',
+      period_label: 'Ky 2 thang 3 nam 2026',
+      period_month: 3,
+      period_number: 2,
+      period_start_date: '2026-03-16',
+      period_end_date: '2026-03-31',
+    }),
+  ])
+
+  assert.deepEqual(contexts.map(context => context.articleScopeKey), ['2026-04', '2026-03'])
+  assert.deepEqual(contexts.map(context => context.primaryObservedOn), ['2026-04-30', '2026-03-31'])
 })
 
 test('world daily context only promotes daily rows to daily signals', () => {
@@ -146,6 +208,32 @@ test('world daily context only promotes daily rows to daily signals', () => {
   assert.deepEqual(context?.referenceBenchmarks.map(item => item.commoditySlug), ['rice-5pct'])
 })
 
+test('world daily contexts cover each observed day with daily signals and exclude future references', () => {
+  const contexts = buildWorldDailyArticleContextsFromRows([
+    worldRow({ observed_on: '2026-05-22', commodity_slug: 'coffee-robusta' }),
+    worldRow({ observed_on: '2026-05-21', commodity_slug: 'pepper-black', exchange: 'IPC', source_id: 'ipc_daily' }),
+    worldRow({
+      observed_on: '2026-05-22',
+      commodity_slug: 'rice-5pct',
+      data_granularity: 'as_published',
+      change_1d: null,
+      change_1d_pct: null,
+      source_id: 'thai_rice_exporters',
+    }),
+    worldRow({
+      observed_on: '2026-05-20',
+      commodity_slug: 'rice-25pct',
+      data_granularity: 'as_published',
+      change_1d: null,
+      change_1d_pct: null,
+      source_id: 'thai_rice_exporters',
+    }),
+  ])
+
+  assert.deepEqual(contexts.map(context => context.articleScopeKey), ['2026-05-22', '2026-05-21'])
+  assert.deepEqual(contexts[1]?.referenceBenchmarks.map(item => item.commoditySlug), ['rice-25pct'])
+})
+
 test('AI article feed item keeps news path and taxonomy metadata', () => {
   const item = toAiArticleContentFeedItem({
     id: 'article-1',
@@ -159,6 +247,7 @@ test('AI article feed item keeps news path and taxonomy metadata', () => {
     sourceLabel: 'NongSanVN AI',
     publishedAt: '2026-05-23T02:00:00.000Z',
     updatedAt: '2026-05-23T02:00:00.000Z',
+    sortAt: '2026-05-22T00:00:00.000Z',
     category: 'Gia the gioi',
     topicTags: ['gia-the-gioi'],
     contentFamilySlug: 'gia-nong-san-the-gioi',
@@ -175,6 +264,7 @@ test('AI article feed item keeps news path and taxonomy metadata', () => {
   assert.equal(item.path, '/tin-tuc/gia-nong-san-the-gioi-2026-05-22')
   assert.equal(item.contentFamilySlug, 'gia-nong-san-the-gioi')
   assert.equal(item.familyPath, '/tin-tuc/nhom/gia-nong-san-the-gioi')
+  assert.equal(item.sortAt, '2026-05-22T00:00:00.000Z')
 })
 
 test('AI article slug is stable ASCII', () => {

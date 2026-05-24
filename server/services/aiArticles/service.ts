@@ -219,6 +219,7 @@ export type AiArticleSummary = {
   sourceLabel: string
   publishedAt: string
   updatedAt: string
+  sortAt: string
   category: string | null
   topicTags: string[]
   contentFamilySlug: ContentFamilySlug
@@ -358,6 +359,14 @@ function getArticleTimestamp(row: AiArticleRow) {
   return row.published_at ?? row.updated_at ?? row.created_at
 }
 
+function toDateTimestamp(value: string | null | undefined) {
+  return value ? `${value.slice(0, 10)}T00:00:00.000Z` : null
+}
+
+function getArticleSortTimestamp(row: Pick<AiArticleRow, 'primary_observed_on' | 'published_at' | 'updated_at' | 'created_at'>) {
+  return toDateTimestamp(row.primary_observed_on) ?? row.published_at ?? row.updated_at ?? row.created_at
+}
+
 function getCommodityName(slug: string) {
   if (AI_ARTICLE_COMMODITY_LABELS[slug]) {
     return AI_ARTICLE_COMMODITY_LABELS[slug]
@@ -475,6 +484,24 @@ export function buildExportPeriodArticleContextFromRows(rows: CustomsExportObser
   }
 }
 
+export function buildExportPeriodArticleContextsFromRows(rows: CustomsExportObservationRow[]) {
+  const byPeriod = new Map<string, CustomsExportObservationRow[]>()
+  for (const row of rows) {
+    if (!row.period_code) {
+      continue
+    }
+
+    const group = byPeriod.get(row.period_code) ?? []
+    group.push(row)
+    byPeriod.set(row.period_code, group)
+  }
+
+  return [...byPeriod.values()]
+    .map(group => buildExportPeriodArticleContextFromRows(group))
+    .filter((context): context is Extract<AiArticleContext, { articleType: 'export_period_report' }> => context !== null)
+    .sort((left, right) => (right.primaryObservedOn ?? '').localeCompare(left.primaryObservedOn ?? ''))
+}
+
 export function buildExportMonthlyArticleContextFromRows(rows: CustomsExportObservationRow[]): AiArticleContext | null {
   if (rows.length === 0) {
     return null
@@ -527,6 +554,25 @@ export function buildExportMonthlyArticleContextFromRows(rows: CustomsExportObse
   }
 }
 
+export function buildExportMonthlyArticleContextsFromRows(rows: CustomsExportObservationRow[]) {
+  const byMonth = new Map<string, CustomsExportObservationRow[]>()
+  for (const row of rows) {
+    if (!row.period_year || !row.period_month) {
+      continue
+    }
+
+    const key = monthKey(row.period_year, row.period_month)
+    const group = byMonth.get(key) ?? []
+    group.push(row)
+    byMonth.set(key, group)
+  }
+
+  return [...byMonth.values()]
+    .map(group => buildExportMonthlyArticleContextFromRows(group))
+    .filter((context): context is Extract<AiArticleContext, { articleType: 'export_monthly_report' }> => context !== null)
+    .sort((left, right) => (right.primaryObservedOn ?? '').localeCompare(left.primaryObservedOn ?? ''))
+}
+
 function toWorldCommodityFact(row: WorldPriceRow): WorldCommodityFact {
   const rawName = typeof row.raw_payload?.name === 'string' ? row.raw_payload.name : row.commodity_slug
   const rawCategory = typeof row.raw_payload?.category === 'string' ? row.raw_payload.category : null
@@ -571,12 +617,16 @@ export function buildWorldDailyArticleContextFromRows(rows: WorldPriceRow[], obs
     return null
   }
 
-  const referenceRows = rows.filter(row =>
-    row.data_granularity === 'weekly' ||
-    row.data_granularity === 'monthly' ||
-    row.data_granularity === 'period' ||
-    row.data_granularity === 'as_published',
-  )
+  const referenceRows = rows.filter(row => {
+    const observedDate = toDateKey(row.observed_on)
+    return (
+      (!observedDate || observedDate <= selectedObservedOn) &&
+      (row.data_granularity === 'weekly' ||
+        row.data_granularity === 'monthly' ||
+        row.data_granularity === 'period' ||
+        row.data_granularity === 'as_published')
+    )
+  })
   return {
     articleType: 'world_daily_price_update',
     articleScopeKey: selectedObservedOn,
@@ -599,6 +649,21 @@ export function buildWorldDailyArticleContextFromRows(rows: WorldPriceRow[], obs
       'Benchmark as_published/monthly chi la tham chieu moi nhat, khong dua vao headline daily.',
     ],
   }
+}
+
+export function buildWorldDailyArticleContextsFromRows(rows: WorldPriceRow[]) {
+  const observedDates = [
+    ...new Set(
+      rows
+        .filter(row => row.data_granularity === 'daily')
+        .map(row => toDateKey(row.observed_on))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ].sort((left, right) => right.localeCompare(left))
+
+  return observedDates
+    .map(observedOn => buildWorldDailyArticleContextFromRows(rows, observedOn))
+    .filter((context): context is Extract<AiArticleContext, { articleType: 'world_daily_price_update' }> => context !== null)
 }
 
 function escapeHtml(value: string) {
@@ -866,6 +931,7 @@ function toArticleSummary(row: AiArticleRow): AiArticleSummary {
     sourceLabel: row.source_label,
     publishedAt: getArticleTimestamp(row),
     updatedAt: row.updated_at,
+    sortAt: getArticleSortTimestamp(row),
     category: row.category,
     topicTags: row.topic_tags ?? [],
     contentFamilySlug: familyMeta.contentFamilySlug,
@@ -919,6 +985,7 @@ export function toAiArticleContentFeedItem(article: AiArticleSummary): ContentFe
     sourceKey: article.sourceKey,
     articleType: article.articleType,
     dataGranularity: article.dataGranularity,
+    sortAt: article.sortAt,
   }
 }
 
@@ -1106,6 +1173,27 @@ async function loadCustomsRowsByPeriod(periodCode: string) {
   return (data ?? []) as CustomsExportObservationRow[]
 }
 
+async function loadAllCustomsRows() {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('customs_export_observations_public')
+    .select('*')
+    .not('period_code', 'is', null)
+    .order('period_end_date', { ascending: false })
+    .order('value_usd', { ascending: false })
+    .limit(5000)
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as CustomsExportObservationRow[]
+}
+
 async function loadLatestCustomsPeriodCode() {
   const client = getSupabaseReadClient()
   if (!client) {
@@ -1265,17 +1353,46 @@ export async function buildAiArticleContext(options: GenerateAiArticlesOptions):
   return null
 }
 
-async function buildDefaultContexts() {
-  const contexts: AiArticleContext[] = []
+function hasSpecificContextSelector(options: GenerateAiArticlesOptions) {
+  return Boolean(options.periodCode || options.observedOn || (typeof options.year === 'number' && typeof options.month === 'number'))
+}
 
-  for (const articleType of ['export_period_report', 'export_monthly_report', 'world_daily_price_update'] as const) {
-    const context = await buildAiArticleContext({ articleType })
-    if (context) {
-      contexts.push(context)
-    }
+export async function buildAiArticleContexts(options: GenerateAiArticlesOptions = {}): Promise<AiArticleContext[]> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return []
   }
 
-  return contexts
+  if (hasSpecificContextSelector(options)) {
+    const context = await buildAiArticleContext(options)
+    return context ? [context] : []
+  }
+
+  if (options.articleType === 'export_period_report') {
+    const rows = await loadAllCustomsRows()
+    return rows ? buildExportPeriodArticleContextsFromRows(rows) : []
+  }
+
+  if (options.articleType === 'export_monthly_report') {
+    const rows = await loadAllCustomsRows()
+    return rows ? buildExportMonthlyArticleContextsFromRows(rows) : []
+  }
+
+  if (options.articleType === 'world_daily_price_update') {
+    const rows = await loadWorldRows()
+    return rows ? buildWorldDailyArticleContextsFromRows(rows) : []
+  }
+
+  const [customsRows, worldRows] = await Promise.all([loadAllCustomsRows(), loadWorldRows()])
+  return [
+    ...(customsRows ? buildExportPeriodArticleContextsFromRows(customsRows) : []),
+    ...(customsRows ? buildExportMonthlyArticleContextsFromRows(customsRows) : []),
+    ...(worldRows ? buildWorldDailyArticleContextsFromRows(worldRows) : []),
+  ].sort((left, right) => (right.primaryObservedOn ?? '').localeCompare(left.primaryObservedOn ?? ''))
+}
+
+async function buildDefaultContexts() {
+  return buildAiArticleContexts()
 }
 
 export async function generateAiArticles(options: GenerateAiArticlesOptions = {}): Promise<GenerateAiArticlesResult> {
@@ -1291,9 +1408,7 @@ export async function generateAiArticles(options: GenerateAiArticlesOptions = {}
     }
   }
 
-  const contexts = options.articleType
-    ? [await buildAiArticleContext(options)].filter((context): context is AiArticleContext => context !== null)
-    : await buildDefaultContexts()
+  const contexts = options.articleType ? await buildAiArticleContexts(options) : await buildDefaultContexts()
 
   if (contexts.length === 0) {
     return {
@@ -1350,6 +1465,7 @@ export async function listAiArticles(options: { limit?: number; includeDrafts?: 
   const query = client
     .from('ai_generated_articles')
     .select('*')
+    .order('primary_observed_on', { ascending: false, nullsFirst: false })
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .limit(Math.min(Math.max(options.limit ?? 40, 1), 100))

@@ -107,6 +107,7 @@ export type ContentFeedItem =
       sourceKey: string
       articleType: 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update'
       dataGranularity: 'daily' | 'period' | 'monthly' | 'as_published' | 'mixed' | 'unknown'
+      sortAt: string
     }
 
 export type ContentFamilySummary = {

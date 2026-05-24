@@ -194,11 +194,12 @@ function withContentFamilyMetadata(article: NewsArticleRecord): NewsArticleRecor
 }
 
 function toArticleRecord(row: NewsArticleRow, sources: NewsSourceRecord[]): NewsArticleRecord {
-  const source = sources.find(item => item.key === row.source_key)
+  const sourceKey = isKnownNewsSourceKey(row.source_key) ? row.source_key : sources[0]?.key ?? 'vietnambiz'
+  const source = sources.find(item => item.key === sourceKey)
   return withContentFamilyMetadata({
     id: row.id,
-    sourceKey: row.source_key,
-    sourceLabel: source?.label ?? getNewsSourceConfig(row.source_key).label,
+    sourceKey,
+    sourceLabel: source?.label ?? getNewsSourceConfig(sourceKey).label,
     canonicalUrl: row.canonical_url,
     slug: row.slug,
     title: row.title,

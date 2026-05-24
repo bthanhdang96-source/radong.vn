@@ -225,7 +225,11 @@ export function classifyNewsContentFamily(input: NewsClassificationInput): Conte
 }
 
 export function getContentItemTimestamp(item: ContentFeedItem) {
-  return item.kind === 'news' || item.kind === 'ai_article' ? item.publishedAt : item.updatedAt
+  if (item.kind === 'ai_article') {
+    return item.sortAt
+  }
+
+  return item.kind === 'news' ? item.publishedAt : item.updatedAt
 }
 
 export function sortContentItems(items: ContentFeedItem[]) {
