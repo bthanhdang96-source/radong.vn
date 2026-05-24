@@ -615,16 +615,16 @@ async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
       .select('*')
       .eq(column, sourceId)
       .order('crawled_at', { ascending: false })
-      .limit(1)
+      .limit(50)
 
     return { data, error }
   }
 
   const bySource = new Map<string, SourceSnapshot>()
   for (const sourceId of requestedSourceIds) {
-    let { data, error } = await runQuery(sourceId, 'source')
+    let { data, error } = await runQuery(sourceId, 'source_name')
     if (error) {
-      const retry = await runQuery(sourceId, 'source_name')
+      const retry = await runQuery(sourceId, 'source')
       data = retry.data
       error = retry.error
     }
@@ -633,18 +633,22 @@ async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
       throw error
     }
 
-    const row = (data as RawCrawlLogRow[] | null | undefined)?.[0]
-    if (!row) {
+    const rows = (data as RawCrawlLogRow[] | null | undefined) ?? []
+    if (rows.length === 0) {
       continue
     }
 
-    const snapshot = row.raw_json?.snapshot
-    const snapshotSourceId = snapshot?.id ?? row.source_name ?? row.source
-    if (!snapshot || !snapshotSourceId || bySource.has(snapshotSourceId)) {
+    const latestCrawledAt = rows[0].crawled_at
+    const snapshots = rows
+      .filter(row => row.crawled_at === latestCrawledAt)
+      .map(row => row.raw_json?.snapshot)
+      .filter((snapshot): snapshot is SourceSnapshot => Boolean(snapshot))
+    const aggregated = aggregateSourceSnapshots(sourceId, snapshots)
+    if (!aggregated || bySource.has(sourceId)) {
       continue
     }
 
-    bySource.set(snapshotSourceId, snapshot)
+    bySource.set(sourceId, aggregated)
   }
 
   return [...bySource.values()]
@@ -794,6 +798,68 @@ function buildSparkline30d(
 
 function toSourceId(value: string): SourceSnapshot['id'] {
   return value in SOURCE_BASE_CONFIDENCE ? (value as SourceSnapshot['id']) : 'fallback'
+}
+
+function latestTimestamp(values: string[]) {
+  return values.sort().at(-1) ?? new Date().toISOString()
+}
+
+function pickSourceLabel(snapshots: SourceSnapshot[]) {
+  const labels = [...new Set(snapshots.map(snapshot => snapshot.label).filter(Boolean))]
+  if (labels.length <= 1) {
+    return labels[0] ?? snapshots[0]?.id ?? 'unknown'
+  }
+
+  const prefixes = labels.map(label => label.split(' - ')[0]?.trim()).filter((prefix): prefix is string => Boolean(prefix))
+  const sharedPrefix = prefixes.length === labels.length && prefixes.every(prefix => prefix === prefixes[0])
+    ? prefixes[0]
+    : null
+
+  return sharedPrefix ? `${sharedPrefix} - ${labels.length} crawlers` : `${snapshots[0]?.id ?? 'source'} - ${labels.length} crawlers`
+}
+
+function aggregateSourceSnapshots(sourceId: SourceSnapshot['id'], snapshots: SourceSnapshot[]): SourceSnapshot | null {
+  if (snapshots.length === 0) {
+    return null
+  }
+
+  if (snapshots.length === 1) {
+    return snapshots[0]
+  }
+
+  const failedSnapshots = snapshots.filter(snapshot => !snapshot.success)
+  const latestSnapshot = [...snapshots].sort((left, right) => right.fetchedAt.localeCompare(left.fetchedAt))[0]
+  const coverage = [...new Set(snapshots.flatMap(snapshot => snapshot.coverage))]
+  const validationErrors = snapshots.flatMap(snapshot => snapshot.validationErrors ?? [])
+  const errors = failedSnapshots
+    .map(snapshot => `${snapshot.label}: ${snapshot.error ?? 'No rows parsed'}`)
+    .filter(Boolean)
+
+  return {
+    id: sourceId,
+    label: pickSourceLabel(snapshots),
+    url: latestSnapshot.url,
+    fetchedAt: latestTimestamp(snapshots.map(snapshot => snapshot.fetchedAt)),
+    success: failedSnapshots.length === 0 && snapshots.some(snapshot => snapshot.itemCount > 0),
+    itemCount: snapshots.reduce((sum, snapshot) => sum + snapshot.itemCount, 0),
+    priority: Math.max(...snapshots.map(snapshot => snapshot.priority)),
+    coverage,
+    latestArticleUrl: latestSnapshot.latestArticleUrl,
+    error: errors.length > 0 ? errors.join('; ') : undefined,
+    droppedCount: snapshots.reduce((sum, snapshot) => sum + (snapshot.droppedCount ?? 0), 0),
+    dedupCount: snapshots.reduce((sum, snapshot) => sum + (snapshot.dedupCount ?? 0), 0),
+    validationErrors,
+    metadata: {
+      aggregatedSnapshotCount: snapshots.length,
+      componentStatuses: snapshots.map(snapshot => ({
+        label: snapshot.label,
+        success: snapshot.success,
+        itemCount: snapshot.itemCount,
+        coverage: snapshot.coverage,
+        error: snapshot.error ?? null,
+      })),
+    },
+  }
 }
 
 function getObservationSource(row: LatestObservationRow) {

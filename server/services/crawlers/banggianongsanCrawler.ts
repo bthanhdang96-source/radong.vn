@@ -111,8 +111,16 @@ function parseCashew(html: string, timestamp: string): CrawledPriceItem[] {
     .slice(2)
     .map(cells => {
       const region = cells[0] ?? ''
-      const price = parseNumber(cells[1] ?? '')
-      if (!region || !Number.isFinite(price) || price <= 0 || foldText(region).includes('phan loai')) {
+      const unitLabel = foldText(`${region} ${cells[1] ?? ''}`)
+      const price = parseRangeAverage(cells[1] ?? '')
+      if (
+        !region ||
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        unitLabel.includes('phan loai') ||
+        unitLabel.includes('nhan') ||
+        unitLabel.includes('usd/kg')
+      ) {
         return null
       }
 
