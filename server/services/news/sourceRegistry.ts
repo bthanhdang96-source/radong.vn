@@ -152,6 +152,10 @@ export function getNewsSourceConfig(sourceKey: NewsSourceKey) {
   return source
 }
 
+export function isKnownNewsSourceKey(sourceKey: string): sourceKey is NewsSourceKey {
+  return Boolean(NEWS_SOURCE_CONFIGS_BY_KEY[sourceKey])
+}
+
 export function listNewsSourceConfigs() {
   return NEWS_SOURCE_KEYS.map(sourceKey => NEWS_SOURCE_REGISTRY[sourceKey])
 }

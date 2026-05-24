@@ -6,7 +6,13 @@ import { discoverFromRss } from './discovery/rssDiscovery.js'
 import { discoverFromSitemap } from './discovery/sitemapDiscovery.js'
 import { extractNewsArticle, hasSuspiciousExtractedBody } from './extract/articleExtractor.js'
 import { getCachedLiveNewsArticles, refreshLiveNewsArticlesCache, rememberLiveNewsArticles } from './liveCache.js'
-import { getNewsSourceConfig, isNewsSourceVisible, listNewsSourceConfigs, listVisibleNewsSourceConfigs } from './sourceRegistry.js'
+import {
+  getNewsSourceConfig,
+  isKnownNewsSourceKey,
+  isNewsSourceVisible,
+  listNewsSourceConfigs,
+  listVisibleNewsSourceConfigs,
+} from './sourceRegistry.js'
 import { classifyNewsContentFamily, getContentFamilyMeta } from '../contentTaxonomy.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 import { retryTransientResult } from '../transientNetwork.js'
@@ -27,7 +33,7 @@ import type {
 } from './types.js'
 
 type NewsSourceRow = {
-  key: NewsSourceKey
+  key: string
   label: string
   base_url: string
   discover_url: string
@@ -47,7 +53,7 @@ type NewsSourceRow = {
 
 type NewsArticleRow = {
   id: string
-  source_key: NewsSourceKey
+  source_key: string
   canonical_url: string
   slug: string
   title: string
@@ -67,7 +73,7 @@ type NewsArticleRow = {
 
 type NewsRunRow = {
   id: string
-  source_key: NewsSourceKey
+  source_key: string
   started_at: string
   finished_at: string | null
   discover_count: number
@@ -89,6 +95,10 @@ let sourceSyncPromise: Promise<void> | null = null
 const READ_CACHE_TTL_MS = 60 * 1000
 let sourceRecordsCache: { value: NewsSourceRecord[]; expiresAt: number } | null = null
 let articleRecordsCache: { value: NewsArticleRecord[]; expiresAt: number } | null = null
+const warnedUnregisteredSourceKeys = new Set<string>()
+
+type KnownNewsSourceRow = NewsSourceRow & { key: NewsSourceKey }
+type KnownNewsArticleRow = NewsArticleRow & { source_key: NewsSourceKey }
 
 function readCachedValue<T>(cache: { value: T; expiresAt: number } | null) {
   if (!cache || cache.expiresAt <= Date.now()) {
@@ -108,6 +118,25 @@ function writeCachedValue<T>(value: T) {
 function clearReadCaches() {
   sourceRecordsCache = null
   articleRecordsCache = null
+}
+
+function maxIsoTimestamp(values: Array<string | null | undefined>) {
+  let maxValue: string | null = null
+  let maxTime = Number.NEGATIVE_INFINITY
+
+  for (const value of values) {
+    if (!value) {
+      continue
+    }
+
+    const timestamp = new Date(value).getTime()
+    if (Number.isFinite(timestamp) && timestamp > maxTime) {
+      maxValue = value
+      maxTime = timestamp
+    }
+  }
+
+  return maxValue
 }
 
 function isRelationMissing(error: unknown) {
@@ -207,6 +236,44 @@ function toArticleRowPayload(article: NewsArticleRecord) {
     fingerprint: article.fingerprint,
     status: article.status,
   }
+}
+
+async function loadLatestArticlePublishedAtBySource(sourceKeys: NewsSourceKey[]) {
+  const latestBySource = new Map<NewsSourceKey, string>()
+  if (sourceKeys.length === 0) {
+    return latestBySource
+  }
+
+  try {
+    const client = getSupabaseReadClient()
+    if (!client) {
+      return latestBySource
+    }
+
+    const { data, error } = await client
+      .from('news_articles')
+      .select('source_key,published_at')
+      .eq('status', 'published')
+      .in('source_key', sourceKeys)
+      .order('published_at', { ascending: false })
+      .limit(Math.max(250, sourceKeys.length * 50))
+
+    if (error) {
+      throw error
+    }
+
+    for (const row of (data ?? []) as Array<Pick<NewsArticleRow, 'source_key' | 'published_at'>>) {
+      if (isKnownNewsSourceKey(row.source_key) && !latestBySource.has(row.source_key)) {
+        latestBySource.set(row.source_key, row.published_at)
+      }
+    }
+  } catch (error) {
+    if (!isRelationMissing(error)) {
+      console.error('[News] Failed to derive source freshness from articles:', error)
+    }
+  }
+
+  return latestBySource
 }
 
 function toListItem(article: NewsArticleRecord): NewsListItem {
@@ -371,9 +438,23 @@ async function loadSourceRecords(): Promise<NewsSourceRecord[]> {
       return FALLBACK_NEWS_SOURCES
     }
 
-    const records = rows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row)).filter(isVisibleSourceRecord)
-    sourceRecordsCache = writeCachedValue(records)
-    return records
+    const knownRows = rows.filter((row): row is KnownNewsSourceRow => isKnownNewsSourceKey(row.key))
+    const ignoredKeys = rows.filter(row => !isKnownNewsSourceKey(row.key)).map(row => row.key)
+    const newIgnoredKeys = ignoredKeys.filter(key => !warnedUnregisteredSourceKeys.has(key))
+    if (newIgnoredKeys.length > 0) {
+      newIgnoredKeys.forEach(key => warnedUnregisteredSourceKeys.add(key))
+      console.warn(`[News] Ignoring unregistered source keys from database: ${newIgnoredKeys.join(', ')}`)
+    }
+
+    const records = knownRows.map(row => toSourceRecord(getNewsSourceConfig(row.key), row)).filter(isVisibleSourceRecord)
+    const latestArticlePublishedAtBySource = await loadLatestArticlePublishedAtBySource(records.map(source => source.key))
+    const enrichedRecords = records.map(source => ({
+      ...source,
+      latestDetectedAt: maxIsoTimestamp([source.latestDetectedAt, latestArticlePublishedAtBySource.get(source.key)]),
+    }))
+
+    sourceRecordsCache = writeCachedValue(enrichedRecords)
+    return enrichedRecords
   } catch (error) {
     if (!isRelationMissing(error)) {
       console.error('[News] Falling back to static sources:', error)
@@ -393,6 +474,11 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
   const runtime = getSupabaseRuntimeStatus()
   const sources = await loadSourceRecords()
   const visibleSourceKeys = new Set(sources.map(source => source.key))
+  if (visibleSourceKeys.size === 0) {
+    articleRecordsCache = writeCachedValue([])
+    return []
+  }
+
   if (!runtime.hasReadConfig) {
     const records = await loadLiveOrFallbackArticles(sources)
     articleRecordsCache = writeCachedValue(records)
@@ -409,6 +495,7 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
       .from('news_articles')
       .select('*')
       .eq('status', 'published')
+      .in('source_key', [...visibleSourceKeys])
       .order('published_at', { ascending: false })
       .limit(250)
 
@@ -424,6 +511,7 @@ async function loadArticleRecords(): Promise<NewsArticleRecord[]> {
     }
 
     const records = rows
+      .filter((row): row is KnownNewsArticleRow => isKnownNewsSourceKey(row.source_key))
       .map(row => toArticleRecord(row, sources))
       .filter(article => visibleSourceKeys.has(article.sourceKey) && isPublicNewsArticle(article))
     const repairedRecords = await repairSuspiciousStoredArticles(records, sources)
@@ -637,29 +725,31 @@ async function persistCrawlResult(
     }
 
     const latestDetectedAt = normalizedArticles[0]?.publishedAt ?? discoveredItems[0]?.publishedAt ?? null
+    const sourcePayload: Record<string, unknown> = {
+      key: source.key,
+      label: source.label,
+      base_url: source.baseUrl,
+      discover_url: source.discoverUrl,
+      discover_mode: source.discoverMode,
+      priority: source.priority,
+      phase: source.phase,
+      access_state: source.accessState,
+      freshness_checked_at: new Date().toISOString(),
+      active: source.active,
+      full_text_capable: source.fullTextCapable,
+      browser_required: source.browserRequired,
+      rate_limit_ms: source.rateLimitMs,
+      max_articles_per_run: source.maxArticlesPerRun,
+      topic_tags: source.topicTags,
+    }
+    if (latestDetectedAt) {
+      sourcePayload.latest_detected_at = latestDetectedAt
+    }
+
     const sourceUpsert = await client
       .from('news_sources')
       .upsert(
-        [
-          {
-            key: source.key,
-            label: source.label,
-            base_url: source.baseUrl,
-            discover_url: source.discoverUrl,
-            discover_mode: source.discoverMode,
-            priority: source.priority,
-            phase: source.phase,
-            access_state: source.accessState,
-            latest_detected_at: latestDetectedAt,
-            freshness_checked_at: new Date().toISOString(),
-            active: source.active,
-            full_text_capable: source.fullTextCapable,
-            browser_required: source.browserRequired,
-            rate_limit_ms: source.rateLimitMs,
-            max_articles_per_run: source.maxArticlesPerRun,
-            topic_tags: source.topicTags,
-          },
-        ],
+        [sourcePayload],
         { onConflict: 'key' },
       )
 
