@@ -313,6 +313,9 @@ test('commodity page copy avoids finance-heavy stable wording', () => {
   assert.match(nationalCopy.bodyHtml, /(ít thay đổi|gần như không thay đổi) so với hôm qua/i)
   assert.match(nationalCopy.bodyHtml, /(Khoảng giá ghi nhận|khoảng giá)/i)
   assert.doesNotMatch(nationalCopy.bodyHtml, /scope/i)
+  assert.doesNotMatch(nationalCopy.answerSummary, /chưa đủ|dữ liệu toàn quốc|hệ thống|tự động|máy chủ/i)
+  assert.doesNotMatch(nationalCopy.bodyHtml, /chưa đủ|dữ liệu toàn quốc|hệ thống|tự động|máy chủ/i)
+  assert.match(nationalCopy.bodyHtml, /bà con|thương lái|doanh nghiệp/i)
 })
 
 test('buildCommodityCandidatePages builds durian variety sections and keeps premium headline separate from hang xo rows', () => {

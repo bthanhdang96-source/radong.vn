@@ -1442,38 +1442,39 @@ function buildNationalArticleCopy(page: CommodityCandidatePage, commodityName: s
     dayDirection === 'ổn định'
       ? 'gần như không thay đổi so với hôm qua'
       : `${dayDirection} ${Math.abs(Math.round(page.dayChangeVnd)).toLocaleString('vi-VN')} ${displayUnit.replace(/^VND\//, 'đồng/')} so với hôm qua`
-  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} theo dữ liệu toàn quốc hiện có ngày ${latestDateLabel} đang ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng so sánh chi tiết.`
+  const answerSummary = `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} của ${commodityName} ngày ${latestDateLabel} đang ở mức tham khảo ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)}, ${daySummaryPhrase} (${formatSignedPercent(page.dayChangePct)}). Đây là mặt bằng giá chung trên phạm vi ${nationalLabel}; khi mua bán thực tế, bà con và thương lái nên đối chiếu thêm giá tại vựa, chợ đầu mối hoặc điểm thu mua gần nhất.`
   const excerpt = maybeTruncate(
-    `${answerSummary} Bài viết được cập nhật tự động theo dữ liệu cấp quốc gia hiện có để phục vụ nhu cầu tra cứu nhanh.`,
+    `${answerSummary} Bản tin giúp nông dân, thương lái và doanh nghiệp nông sản nắm nhanh xu hướng giá trong ngày.`,
     180,
   )
 
   const faq: PricePageFaqItem[] = [
     {
       question: `Giá ${commodityName} hôm nay là bao nhiêu?`,
-      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} hiện ở mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} theo dữ liệu cấp ${nationalLabel} cập nhật ngày ${latestDateLabel}.`,
+      answer: `${priceTypeLabel.charAt(0).toUpperCase()}${priceTypeLabel.slice(1)} đang ở mức tham khảo ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} trong ngày ${latestDateLabel}.`,
     },
     {
-      question: `Vì sao bài giá ${commodityName} hôm nay chưa có bảng theo vùng?`,
-      answer: `Hiện hệ thống mới có dữ liệu đủ dùng ở cấp ${nationalLabel}, nên bài được xuất bản như tin giá tổng quan thay vì bảng so sánh vùng.`,
+      question: `Có thể dùng mức giá này để chốt giao dịch không?`,
+      answer: `Nên xem đây là mức tham khảo chung cho thị trường ${nationalLabel}. Giá chốt tại vườn, vựa hoặc chợ đầu mối có thể khác tùy chất lượng hàng, sản lượng, chi phí vận chuyển và thời điểm giao dịch.`,
     },
     {
       question: `Giá ${commodityName} trong 7 ngày gần đây thay đổi ra sao?`,
-      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)} theo dữ liệu toàn quốc hiện có.`,
+      answer: `So với trung bình 7 ngày, giá hiện ${getMovementNarrative(page.change7dPct)} với mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)}.`,
     },
   ]
 
   const bodyHtml = [
-    `<section><h2>Tóm tắt diễn biến giá hôm nay</h2><p>${answerSummary} Những con số này mang tính chất đại diện để cung cấp cho bà con nông dân cùng các đơn vị thu mua một bức tranh tổng thể về diễn biến thị trường cấp quốc gia trong ngày.</p></section>`,
-    `<section><h2>Đánh giá biến động so với hôm qua</h2><p>Nếu nhìn lại tình hình trong vòng 24 giờ qua, ${priceTypeLabel} của ${commodityName} trên toàn địa bàn ${nationalLabel} hiện đang ${dayDirection === 'ổn định' ? `duy trì trạng thái đi ngang. Sự chênh lệch so với hôm qua là không đáng kể, tương ứng với mức lệch ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` : `${getMovementNarrative(page.dayChangePct)} so với mức giá ghi nhận được vào hôm qua. Cụ thể, mức thay đổi về giá trị tuyệt đối tương đương ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}` }. Các biến động hàng ngày thường phản ánh nhanh nhất sức nóng của thị trường, nhu cầu thu mua và tình hình thời tiết ngắn hạn.</p></section>`,
-    `<section><h2>Xu hướng giá so với 7 ngày gần đây</h2><p>Khi so sánh với mặt bằng chung của 7 ngày gần nhất, mức giá hiện tại ${sevenDayDirection === 'ổn định' ? 'cho thấy một sự bình ổn khá rõ nét. Chưa có đợt sóng tăng giảm mạnh nào xảy ra' : `đang thể hiện xu hướng ${getMovementNarrative(page.change7dPct)}. Mức thay đổi thực tế so với trung bình tuần là ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Xuyên suốt tuần qua, khoảng giá ghi nhận thực tế trên thị trường nằm từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} tới ngưỡng ${formatCurrency(page.highestPriceVnd, displayUnit)}. Phân tích nhịp đập thị trường theo tuần sẽ giúp hạn chế rủi ro cho các quyết định bán ra hay găm hàng.</p></section>`,
-    `<section><h2>Phạm vi dữ liệu khảo sát</h2><p>Ở thời điểm hiện tại, hệ thống máy chủ của chúng tôi mới tổng hợp được các dữ liệu đủ độ tin cậy ở cấp ${nationalLabel}. Chính vì thế, thay vì xuất bản bảng so sánh giá phức tạp cho từng tỉnh thành, trang này được thiết kế và hiển thị dưới dạng một bản tin giá tự động. Bằng cách này, người đọc vẫn hoàn toàn có thể nắm được mức giá chung nhất của mặt hàng ${commodityName} trong ngày hôm nay mà không lo thông tin bị đứt quãng.</p></section>`,
-    `<section><h2>Theo dõi thêm thông tin</h2><p>Khi hệ thống thu thập thêm được đủ dữ liệu chi tiết cho từng địa bàn, trang bài viết này sẽ được tự động làm mới và bổ sung thêm các bảng giá phân tích vùng miền. Trong lúc chờ đợi bản cập nhật tiếp theo, mời bà con và độc giả xem thêm các báo cáo giá nông sản khác tại <a href="/bang-gia">/bang-gia</a>, hoặc kiểm tra sự phân bổ giá ở các khâu qua hệ thống <a href="/chuoi-gia">/chuoi-gia</a>.</p></section>`,
+    `<section><h2>Diễn biến chính trong ngày</h2><p>${answerSummary} Với những mặt hàng chỉ có giá tham khảo chung ở cấp ${nationalLabel}, cách đọc phù hợp nhất là xem đây như một mốc định hướng trước khi gọi hỏi thêm giá tại địa phương.</p></section>`,
+    `<section><h2>Nông dân và thương lái nên đọc mức giá này thế nào?</h2><p>Mức ${formatCurrency(page.headlineLatestPriceVnd, displayUnit)} cho thấy mặt bằng chung của ${commodityName} trong ngày, nhưng giá nhận tại vườn hoặc tại kho có thể cao thấp khác nhau tùy loại hàng, độ đồng đều, sản lượng, quãng đường vận chuyển và nhu cầu của từng đầu mối. Nếu đang chuẩn bị bán hàng, bà con nên dùng mức này để thương lượng ban đầu, sau đó đối chiếu thêm 2-3 điểm thu mua gần khu vực mình.</p></section>`,
+    `<section><h2>So với hôm qua</h2><p>Trong vòng 24 giờ qua, ${priceTypeLabel} của ${commodityName} ${dayDirection === 'ổn định' ? `giữ khá ổn định. Mức chênh so với hôm qua chỉ là ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}, chưa tạo ra thay đổi lớn cho quyết định mua bán trong ngày` : `${getMovementNarrative(page.dayChangePct)} so với hôm qua, tương đương ${formatSignedCurrency(page.dayChangeVnd, displayUnit)}`}. Biến động ngắn hạn thường chịu tác động từ lượng hàng về chợ, tiến độ thu hoạch, thời tiết và nhu cầu gom hàng của thương lái.</p></section>`,
+    `<section><h2>Xu hướng 7 ngày gần đây</h2><p>So với mặt bằng 7 ngày gần nhất, giá hiện ${sevenDayDirection === 'ổn định' ? 'khá ổn định, chưa cho thấy nhịp tăng giảm rõ rệt' : `${getMovementNarrative(page.change7dPct)}, tương ứng mức thay đổi ${formatSignedCurrency(page.change7dVnd, displayUnit)}`}. Trong tuần, khoảng giá tham khảo dao động từ ${formatCurrency(page.lowestPriceVnd, displayUnit)} đến ${formatCurrency(page.highestPriceVnd, displayUnit)}. Với doanh nghiệp và đơn vị thu mua, xu hướng 7 ngày hữu ích hơn biến động một ngày khi cần lên kế hoạch gom hàng hoặc điều chỉnh giá chào mua.</p></section>`,
+    `<section><h2>Lưu ý khi áp dụng cho từng địa phương</h2><p>Giá trong bài là mức tham khảo chung cho ${nationalLabel}, không thay thế báo giá trực tiếp tại từng tỉnh thành. Các vùng có mùa vụ, chất lượng hàng, chi phí vận chuyển và đầu ra khác nhau có thể có mức chênh đáng kể. Khi cần chốt giao dịch lớn, nên kiểm tra thêm giá tại vựa địa phương, chợ đầu mối hoặc đối tác thu mua quen thuộc.</p></section>`,
+    `<section><h2>Theo dõi thêm thông tin</h2><p>Để xem thêm giá của các mặt hàng khác, bà con và doanh nghiệp có thể mở <a href="/bang-gia">bảng giá nông sản</a>. Nếu muốn theo dõi giá ở từng khâu như thu mua, bán buôn hoặc bán lẻ, có thể xem thêm mục <a href="/chuoi-gia">chuỗi giá</a>.</p></section>`,
   ].join('')
 
   const bodyText = [
     answerSummary,
-    `Dữ liệu hiện phản ánh mức giá chung của ${nationalLabel}, chưa đủ vùng để dựng bảng.`,
+    `Mức giá này là tham khảo chung cho ${nationalLabel}; giá chốt thực tế cần đối chiếu thêm tại điểm thu mua địa phương.`,
     ...faq.map(item => `${item.question} ${item.answer}`),
   ].join('\n\n')
 

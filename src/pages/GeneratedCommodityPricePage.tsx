@@ -234,7 +234,7 @@ export default function GeneratedCommodityPricePage() {
               <strong><TrendPercent value={page.change7dPct} /></strong>
             </article>
             <article>
-              <span>{page.renderMode === 'national_article' ? 'Phạm vi dữ liệu' : 'Số khu vực'}</span>
+              <span>{page.renderMode === 'national_article' ? 'Phạm vi tham khảo' : 'Số khu vực'}</span>
               <strong>{page.renderMode === 'national_article' ? (page.nationalScopeLabel ?? 'Việt Nam') : `${page.locationCount} khu vực`}</strong>
             </article>
           </section>
@@ -243,7 +243,7 @@ export default function GeneratedCommodityPricePage() {
             <section className="generated-commodity-price-page__chain">
               <div className="generated-commodity-price-page__section-head">
                 <h2>Chuỗi giá trị</h2>
-                <p>Tóm tắt các lớp giá chính của cùng mặt hàng khi nguồn dữ liệu có đủ thông tin.</p>
+                <p>Tóm tắt các mức giá chính của cùng mặt hàng để tiện đối chiếu trước khi mua bán.</p>
               </div>
               <div className="generated-commodity-price-page__chain-grid">
                 {page.chainCards.map(card => (
@@ -270,7 +270,7 @@ export default function GeneratedCommodityPricePage() {
                     <header className="generated-commodity-price-page__variety-head">
                       <div>
                         <h3>{section.varietyLabel}</h3>
-                        <p>Giá đại diện ưu tiên nhóm chất lượng tham chiếu khi có dữ liệu.</p>
+                        <p>Mức giá đại diện cho nhóm chất lượng đang được theo dõi.</p>
                       </div>
                       <strong>{formatCurrency(section.headlineLatestPriceVnd, section.rows[0]?.latestPriceUnit ?? page.headlineLatestPriceUnit)}</strong>
                     </header>
