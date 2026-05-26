@@ -1,16 +1,18 @@
 # Crawler Ops Runbook
 
-This runbook covers production rollout and routine operations for the dedicated Shopee and customs crawlers.
+This runbook covers production rollout and routine operations for the supported crawler jobs.
 
 ## Scope
 
 - `customs`: weekly aggregate export crawler
-- `shopee-session-refresh`: Playwright session maintenance job
-- `shopee-crawl`: retail crawl that depends on a healthy Shopee browser session
+- `bhx-crawl`: retail crawl for Bach Hoa Xanh
+- `coop-crawl`: retail crawl for Co.op Online
+- `export-registry-crawl`: export registry crawler
+- `durian-export-crawl`: optional durian export crawler
 
 The legacy domestic homepage refresh is intentionally separate and is not part of this runbook.
 
-## Required environment
+## Required Environment
 
 Minimum shared configuration:
 
@@ -34,27 +36,6 @@ CUSTOMS_ENABLED_SLUGS=ca-phe-robusta,cashew,ho-tieu,rice-5pct,cassava,rubber-rss
 PDFTOTEXT_PATH=
 ```
 
-Shopee-specific:
-
-```env
-SHOPEE_SCHEDULER_ENABLED=false
-SHOPEE_SESSION_REFRESH_ENABLED=true
-SHOPEE_CRAWL_ENABLED=false
-SHOPEE_REFRESH_CRON=0 */6 * * *
-SHOPEE_CRAWL_CRON=15 6,14 * * *
-SHOPEE_BLOCK_COOLDOWN_MINUTES=180
-SHOPEE_REFRESH_HEADLESS=true
-SHOPEE_REFRESH_MANUAL_WAIT_MS=60000
-SHOPEE_STORAGE_STATE_PATH=.runtime/shopee-storage-state.json
-SHOPEE_ENABLED_SLUGS=ca-phe-robusta,gao-noi-dia,ho-tieu,ca-tra,shrimp,cashew
-SHOPEE_MAX_PAGES=2
-SHOPEE_MIN_SOLD=5
-SHOPEE_MIN_RATING=4
-SHOPEE_PROXY_SERVER=
-SHOPEE_PROXY_USERNAME=
-SHOPEE_PROXY_PASSWORD=
-```
-
 BHX-specific:
 
 ```env
@@ -65,9 +46,34 @@ BHX_API_BEARER_TOKEN=...
 BHX_API_X_API_KEY=...
 ```
 
-`BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` remain supported as manual overrides, but the live crawler can now bootstrap the authenticated BHX request headers directly from the browser session when those env vars are absent.
+Co.op-specific:
 
-## One-time setup
+```env
+COOP_CRAWL_ENABLED=true
+COOP_CRAWL_CRON=20 6,14 * * *
+COOP_ENABLED_REGIONS=HCM,HNI,DNG
+COOP_ENABLED_CATEGORIES=/c/rau-cu,/c/trai-cay,/c/thit,/c/thuy-hai-san
+COOP_MAX_PAGES_PER_CATEGORY=2
+```
+
+Export registry-specific:
+
+```env
+EXPORT_REGISTRY_CRAWL_ENABLED=true
+EXPORT_REGISTRY_CRAWL_CRON=30 2 * * *
+EXPORT_REGISTRY_SCHEDULE_DRY_RUN=false
+EXPORT_REGISTRY_MAX_PAGES_PER_TYPE=0
+```
+
+Durian export-specific:
+
+```env
+DURIAN_EXPORT_ENABLED=false
+DURIAN_EXPORT_CRON=0 9 * * 3
+DURIAN_EXPORT_SCHEDULE_DRY_RUN=false
+```
+
+## One-Time Setup
 
 1. Install server dependencies:
 
@@ -75,41 +81,32 @@ BHX_API_X_API_KEY=...
 npm --prefix server install
 ```
 
-2. Install Playwright Chromium:
-
-```bash
-npm exec --prefix server playwright install chromium
-```
-
-3. Verify crawler readiness:
+2. Verify crawler readiness:
 
 ```bash
 npm --prefix server run crawler:preflight
 ```
 
-4. Inspect runtime status:
+3. Inspect runtime status:
 
 ```bash
 npm --prefix server run crawler:status
 ```
 
-5. Check protected runtime health details:
+4. Check protected runtime health details:
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" http://localhost:3001/api/health/details
 ```
 
-## Recommended rollout order
+## Recommended Rollout Order
 
 1. Enable customs scheduler first.
-2. Keep Shopee disabled until a session strategy is validated.
-3. Enable only `SHOPEE_SESSION_REFRESH_ENABLED=true` first.
-4. Run a manual headed refresh if Shopee anti-bot is active.
-5. After a healthy Shopee session is stored, enable `SHOPEE_CRAWL_ENABLED=true`.
+2. Enable export registry after customs status is stable.
+3. Enable domestic retail crawlers with dry-run off only after manual crawls return valid items.
+4. Keep optional crawlers disabled until their data is required by a production view.
 
-## Manual operations
-
-### Customs
+## Manual Operations
 
 Dry-run a customs report:
 
@@ -117,107 +114,72 @@ Dry-run a customs report:
 npm --prefix server run crawler:customs -- --dry-run
 ```
 
-Force a known report URL:
+Force a known customs report URL:
 
 ```bash
 npm --prefix server run crawler:customs -- --url=<customs-pdf-url> --dry-run
 ```
 
-### Shopee
-
-Refresh session headless:
+Run domestic retail crawlers:
 
 ```bash
-npm --prefix server run crawler:shopee:refresh-session -- --force
+npm --prefix server run crawler:bhx
+npm --prefix server run crawler:coop
 ```
 
-Refresh session with manual challenge time:
+Run export crawlers:
 
 ```bash
-npm --prefix server run crawler:shopee:refresh-session -- --force --headed --wait-ms=120000
+npm --prefix server run crawler:export-registry
+npm --prefix server run crawler:durian-export
 ```
 
-Live crawl dry-run:
+## Normal Operating Model
 
-```bash
-npm --prefix server run crawler:shopee -- --force-refresh --dry-run
-```
+- Customs runs automatically on its weekly schedule.
+- Domestic retail crawlers run on their configured daily schedules.
+- Export registry runs daily by default.
+- A crawler with invalid cron is skipped at registration time and logged as an error.
+- A crawler does not start a new run while the same job is still in progress.
 
-## Normal operating model
+## Safe Production Toggles
 
-- Customs runs automatically on its own weekly schedule.
-- Shopee session refresh runs on its own schedule.
-- Shopee crawl runs only when the stored session is not in block cooldown.
-- If Shopee is marked `blocked`, the scheduler skips the crawl instead of retrying continuously.
-
-## Blocked Shopee procedure
-
-Symptoms:
-
-- `crawler:status` shows `shopeeSession.status = blocked`
-- metadata message includes `90309999`
-- live crawl exits with `success=false`
-
-Response:
-
-1. Do not disable cooldown unless actively debugging.
-2. Try manual headed refresh:
-
-```bash
-npm --prefix server run crawler:shopee:refresh-session -- --force --headed --wait-ms=120000
-```
-
-3. If the challenge page still appears, switch to a cleaner egress path or set `SHOPEE_PROXY_SERVER`.
-4. After refresh is healthy, rerun:
-
-```bash
-npm --prefix server run crawler:shopee -- --dry-run
-```
-
-5. Only re-enable scheduled Shopee crawl after the dry-run succeeds.
-
-## Safe production toggles
-
-Phase 1:
+Initial rollout:
 
 ```env
 CUSTOMS_SCHEDULER_ENABLED=true
 CUSTOMS_SCHEDULE_DRY_RUN=false
-SHOPEE_SESSION_REFRESH_ENABLED=true
-SHOPEE_CRAWL_ENABLED=false
+EXPORT_REGISTRY_CRAWL_ENABLED=true
+EXPORT_REGISTRY_SCHEDULE_DRY_RUN=false
+BHX_CRAWL_ENABLED=true
+COOP_CRAWL_ENABLED=true
+BHX_SCHEDULE_DRY_RUN=true
+COOP_SCHEDULE_DRY_RUN=true
 ```
 
-Phase 2:
+After validating manual and scheduled dry-runs:
 
 ```env
-SHOPEE_SESSION_REFRESH_ENABLED=true
-SHOPEE_CRAWL_ENABLED=true
-SHOPEE_SCHEDULE_DRY_RUN=true
+BHX_SCHEDULE_DRY_RUN=false
+COOP_SCHEDULE_DRY_RUN=false
 ```
 
-Phase 3:
-
-```env
-SHOPEE_SCHEDULE_DRY_RUN=false
-```
-
-## Health checks
-
-The API health endpoint now exposes crawler scheduler and Shopee session metadata:
+## Health Checks
 
 ```text
 GET /api/health
+GET /api/health/details
 ```
 
 Key fields:
 
 - `crawlers.schedule`
-- `crawlers.shopeeSession.status`
-- `crawlers.shopeeSession.checkedAt`
-- `crawlers.shopeeSession.message`
+- `services.news`
+- `services.vnPrices`
+- `services.exportRegistry`
 
-## Residual risks
+## Residual Risks
 
-- Shopee anti-bot can still block browser-backed sessions.
-- Headed manual refresh may remain necessary in some environments.
+- Retail crawlers may fail when upstream storefront APIs change.
 - `pdf-parse` fallback for customs is not as reliable as `pdftotext`; production should prefer `pdftotext`.
+- Export registry selectors should be reviewed when source pages change layout.

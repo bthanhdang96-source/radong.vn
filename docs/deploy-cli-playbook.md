@@ -57,7 +57,6 @@ railway variables set WORLD_PRICE_CRAWL_CRON="30 7,13 * * *"
 railway variables set BHX_CRAWL_ENABLED=true
 railway variables set COOP_CRAWL_ENABLED=true
 railway variables set CUSTOMS_SCHEDULER_ENABLED=true
-railway variables set SHOPEE_CRAWL_ENABLED=false
 ```
 
 After deploy, generate or copy the Railway public domain and verify:
