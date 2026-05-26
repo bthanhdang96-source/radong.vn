@@ -158,6 +158,44 @@ type WorldPricesResponse = {
   >
 }
 
+type WorldPriceSyncRunStatus = 'running' | 'success' | 'partial' | 'failed'
+
+type WorldPriceSyncRunTrigger = 'scheduler' | 'admin_api' | 'manual' | 'unknown'
+
+type WorldPriceSyncRunRow = {
+  id: string
+  started_at: string
+  finished_at: string | null
+  status: WorldPriceSyncRunStatus
+  force_refresh: boolean
+  trigger: WorldPriceSyncRunTrigger
+  item_count: number
+  upsert_count: number
+  provider_error_count: number
+  provider_errors: string[] | null
+  error_message: string | null
+  metadata: Record<string, unknown> | null
+}
+
+type WorldPriceSyncRunRecord = {
+  id: string
+  startedAt: string
+  finishedAt: string | null
+  status: WorldPriceSyncRunStatus
+  forceRefresh: boolean
+  trigger: WorldPriceSyncRunTrigger
+  itemCount: number
+  upsertCount: number
+  providerErrorCount: number
+  providerErrors: string[]
+  errorMessage: string | null
+  metadata: Record<string, unknown> | null
+}
+
+type WorldPriceSyncContext = {
+  trigger?: WorldPriceSyncRunTrigger
+}
+
 type VnPriceQueryOptions = {
   priceTypes?: PriceType[]
 }
@@ -257,6 +295,16 @@ function isRelationMissing(message: string) {
   return message.includes('relation') || message.includes('does not exist')
 }
 
+function isWorldSyncLogTableMissing(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  return (code === '42P01' || code === 'PGRST204' || code === '42703') && message.includes('world_price_sync_runs')
+}
+
 function isColumnMissing(error: unknown, columnName: string) {
   if (!error || typeof error !== 'object') {
     return false
@@ -269,6 +317,27 @@ function isColumnMissing(error: unknown, columnName: string) {
 
 function normalizeDateKey(value: string) {
   return value.slice(0, 10)
+}
+
+function resolveWorldSyncTrigger(context?: WorldPriceSyncContext): WorldPriceSyncRunTrigger {
+  return context?.trigger ?? 'unknown'
+}
+
+function toWorldPriceSyncRunRecord(row: WorldPriceSyncRunRow): WorldPriceSyncRunRecord {
+  return {
+    id: row.id,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    status: row.status,
+    forceRefresh: row.force_refresh,
+    trigger: row.trigger,
+    itemCount: row.item_count,
+    upsertCount: row.upsert_count,
+    providerErrorCount: row.provider_error_count,
+    providerErrors: row.provider_errors ?? [],
+    errorMessage: row.error_message,
+    metadata: row.metadata ?? null,
+  }
 }
 
 function getRequestedPriceTypes(options?: VnPriceQueryOptions) {
@@ -301,6 +370,72 @@ async function refreshCuratedViews() {
   const { error } = await client.rpc('refresh_curated_views')
   if (error) {
     throw error
+  }
+}
+
+async function startWorldPriceSyncRun(forceRefresh: boolean, trigger: WorldPriceSyncRunTrigger) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('world_price_sync_runs')
+    .insert({
+      started_at: new Date().toISOString(),
+      status: 'running',
+      force_refresh: forceRefresh,
+      trigger,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (!isWorldSyncLogTableMissing(error)) {
+      console.warn('[World Prices] Unable to write sync start log:', error)
+    }
+    return null
+  }
+
+  return (data as { id: string }).id
+}
+
+async function finishWorldPriceSyncRun(
+  runId: string | null,
+  payload: {
+    status: Exclude<WorldPriceSyncRunStatus, 'running'>
+    itemCount: number
+    upsertCount: number
+    providerErrors: string[]
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+  },
+) {
+  if (!runId) {
+    return
+  }
+
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return
+  }
+
+  const { error } = await client
+    .from('world_price_sync_runs')
+    .update({
+      finished_at: new Date().toISOString(),
+      status: payload.status,
+      item_count: payload.itemCount,
+      upsert_count: payload.upsertCount,
+      provider_error_count: payload.providerErrors.length,
+      provider_errors: payload.providerErrors,
+      error_message: payload.errorMessage ?? null,
+      metadata: payload.metadata ?? {},
+    })
+    .eq('id', runId)
+
+  if (error && !isWorldSyncLogTableMissing(error)) {
+    console.warn('[World Prices] Unable to write sync completion log:', error)
   }
 }
 
@@ -1482,76 +1617,117 @@ function buildWorldPriceRawPayload(item: WorldPriceProviderItem) {
   }
 }
 
-async function syncWorldPricesToSupabase(forceRefresh: boolean) {
+async function syncWorldPricesToSupabase(
+  forceRefresh: boolean,
+  context?: WorldPriceSyncContext,
+) {
   const client = getSupabaseAdminClient()
   if (!client) {
     return false
   }
 
-  const commodityLookup = await loadCommodityLookup(client)
-  const commodityWorldLookup = await loadCommodityWorldLookup()
+  const runId = await startWorldPriceSyncRun(forceRefresh, resolveWorldSyncTrigger(context))
+  let itemCount = 0
+  let upsertCount = 0
+  let providerErrors: string[] = []
+  const skippedCommoditySlugs = new Set<string>()
 
-  const { items, errors } = await fetchWorldPriceProviderItems(forceRefresh)
-  if (errors.length > 0) {
-    console.warn('[World Prices] Provider errors:', errors.join('; '))
-  }
+  try {
+    const commodityLookup = await loadCommodityLookup(client)
+    const commodityWorldLookup = await loadCommodityWorldLookup()
 
-  const rows = items
-    .map(item => {
-      const commodityId = commodityLookup.get(item.id)
-      const commodityMeta = commodityWorldLookup?.get(item.id)
-      if (!commodityId || !commodityMeta) {
-        return null
-      }
+    const providerResult = await fetchWorldPriceProviderItems(forceRefresh)
+    const { items, errors } = providerResult
+    itemCount = items.length
+    providerErrors = errors
 
-      const priceUsdKg = convertWorldPriceToUsdKg(item.priceCurrent, item.unit, commodityMeta.world_to_kg_factor)
-      const change1wPct =
-        item.priceLastWeek > 0 && isDailyWorldPriceItem(item)
-          ? roundNumber(((item.priceCurrent - item.priceLastWeek) / item.priceLastWeek) * 100)
-          : null
-
-      return {
-        recorded_at: item.crawlRecordedAt,
-        observed_on: item.observedOn,
-        crawl_recorded_at: item.crawlRecordedAt,
-        commodity_id: commodityId,
-        commodity_slug: item.id,
-        exchange: item.exchange,
-        contract_month: null,
-        contract_symbol: item.contractSymbol,
-        price_raw: item.priceCurrent,
-        price_unit_raw: item.unit,
-        price_usd_kg: priceUsdKg,
-        price_vnd_kg: convertWorldPriceToVndKg(item, commodityMeta.world_to_kg_factor),
-        exchange_rate: USD_VND_RATE,
-        change_1d: isDailyWorldPriceItem(item) ? item.change : null,
-        change_1d_pct: isDailyWorldPriceItem(item) ? item.changePct : null,
-        change_1w_pct: change1wPct,
-        volume: null,
-        open_interest: null,
-        source_url: item.sourceUrl,
-        data_granularity: item.dataGranularity,
-        temporal_coverage: item.temporalCoverage,
-        benchmark_type: item.benchmarkType,
-        source_id: item.sourceId,
-        source_license_note: item.sourceLicenseNote,
-        quality_grade: item.qualityGrade,
-        source_observation_label: item.sourceObservationLabel,
-        raw_payload: buildWorldPriceRawPayload(item),
-      }
-    })
-    .filter((row): row is NonNullable<typeof row> => row !== null)
-
-  if (rows.length > 0) {
-    const insertResponse = await client.from('world_prices').upsert(rows, {
-      onConflict: 'source_id,commodity_slug,benchmark_type,observed_on,contract_symbol',
-    })
-    if (insertResponse.error) {
-      throw insertResponse.error
+    if (errors.length > 0) {
+      console.warn('[World Prices] Provider errors:', errors.join('; '))
     }
-  }
 
-  return true
+    const rows = items
+      .map(item => {
+        const commodityId = commodityLookup.get(item.id)
+        const commodityMeta = commodityWorldLookup?.get(item.id)
+        if (!commodityId || !commodityMeta) {
+          skippedCommoditySlugs.add(item.id)
+          return null
+        }
+
+        const priceUsdKg = convertWorldPriceToUsdKg(item.priceCurrent, item.unit, commodityMeta.world_to_kg_factor)
+        const change1wPct =
+          item.priceLastWeek > 0 && isDailyWorldPriceItem(item)
+            ? roundNumber(((item.priceCurrent - item.priceLastWeek) / item.priceLastWeek) * 100)
+            : null
+
+        return {
+          recorded_at: item.crawlRecordedAt,
+          observed_on: item.observedOn,
+          crawl_recorded_at: item.crawlRecordedAt,
+          commodity_id: commodityId,
+          commodity_slug: item.id,
+          exchange: item.exchange,
+          contract_month: null,
+          contract_symbol: item.contractSymbol,
+          price_raw: item.priceCurrent,
+          price_unit_raw: item.unit,
+          price_usd_kg: priceUsdKg,
+          price_vnd_kg: convertWorldPriceToVndKg(item, commodityMeta.world_to_kg_factor),
+          exchange_rate: USD_VND_RATE,
+          change_1d: isDailyWorldPriceItem(item) ? item.change : null,
+          change_1d_pct: isDailyWorldPriceItem(item) ? item.changePct : null,
+          change_1w_pct: change1wPct,
+          volume: null,
+          open_interest: null,
+          source_url: item.sourceUrl,
+          data_granularity: item.dataGranularity,
+          temporal_coverage: item.temporalCoverage,
+          benchmark_type: item.benchmarkType,
+          source_id: item.sourceId,
+          source_license_note: item.sourceLicenseNote,
+          quality_grade: item.qualityGrade,
+          source_observation_label: item.sourceObservationLabel,
+          raw_payload: buildWorldPriceRawPayload(item),
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+
+    upsertCount = rows.length
+    if (rows.length > 0) {
+      const insertResponse = await client.from('world_prices').upsert(rows, {
+        onConflict: 'source_id,commodity_slug,benchmark_type,observed_on,contract_symbol',
+      })
+      if (insertResponse.error) {
+        throw insertResponse.error
+      }
+    }
+
+    await finishWorldPriceSyncRun(runId, {
+      status: providerErrors.length > 0 || skippedCommoditySlugs.size > 0 ? 'partial' : 'success',
+      itemCount,
+      upsertCount,
+      providerErrors,
+      metadata: {
+        skippedCommodityCount: skippedCommoditySlugs.size,
+        skippedCommoditySlugs: [...skippedCommoditySlugs],
+      },
+    })
+
+    return true
+  } catch (error) {
+    await finishWorldPriceSyncRun(runId, {
+      status: 'failed',
+      itemCount,
+      upsertCount,
+      providerErrors,
+      errorMessage: error instanceof Error ? error.message : 'Unknown world price sync error',
+      metadata: {
+        skippedCommodityCount: skippedCommoditySlugs.size,
+        skippedCommoditySlugs: [...skippedCommoditySlugs],
+      },
+    })
+    throw error
+  }
 }
 
 async function getLatestWorldRows() {
@@ -1730,7 +1906,34 @@ export async function getVnPriceChainResponse(): Promise<VnPriceChainResponse> {
   return buildFallbackPriceChainResponse('VN price chain data is unavailable')
 }
 
-export async function getWorldPricesResponse(forceRefresh = false): Promise<WorldPricesResponse> {
+export async function getWorldPriceSyncRuns(limit = 20): Promise<WorldPriceSyncRunRecord[]> {
+  const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
+  if (!client) {
+    return []
+  }
+
+  const { data, error } = await client
+    .from('world_price_sync_runs')
+    .select(
+      'id, started_at, finished_at, status, force_refresh, trigger, item_count, upsert_count, provider_error_count, provider_errors, error_message, metadata',
+    )
+    .order('started_at', { ascending: false })
+    .limit(Math.max(1, Math.min(limit, 200)))
+
+  if (error) {
+    if (isWorldSyncLogTableMissing(error)) {
+      return []
+    }
+    throw error
+  }
+
+  return ((data ?? []) as WorldPriceSyncRunRow[]).map(toWorldPriceSyncRunRecord)
+}
+
+export async function getWorldPricesResponse(
+  forceRefresh = false,
+  context?: WorldPriceSyncContext,
+): Promise<WorldPricesResponse> {
   const runtime = getSupabaseRuntimeStatus()
   if (!runtime.hasReadConfig) {
     const data = await getLegacyWorldPrices(forceRefresh)
@@ -1752,7 +1955,7 @@ export async function getWorldPricesResponse(forceRefresh = false): Promise<Worl
 
   try {
     if (runtime.hasAdminConfig && forceRefresh) {
-      await syncWorldPricesToSupabase(forceRefresh)
+      await syncWorldPricesToSupabase(forceRefresh, context)
     }
 
     const dbResponse = await buildWorldResponseFromSupabase()

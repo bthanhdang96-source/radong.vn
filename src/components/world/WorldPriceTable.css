@@ -204,8 +204,8 @@
   text-align: right;
 }
 
-.wpt__th--range {
-  min-width: 180px;
+.wpt__th--frequency {
+  min-width: 220px;
   cursor: default;
 }
 
@@ -364,64 +364,28 @@
   color: var(--color-down);
 }
 
-/* ─── 52W Range Bar ──────────────────────────────────── */
+/* ─── Frequency Column ───────────────────────────────── */
 
-.wpt-range {
+.wpt__td--frequency {
+  min-width: 220px;
+}
+
+.wpt__frequency-block {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 150px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
-.wpt-range__low,
-.wpt-range__high {
-  font-size: 0.65rem;
-  font-family: 'Outfit', monospace;
+.wpt__frequency-main {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.wpt__frequency-sub {
+  font-size: 0.68rem;
   color: var(--color-text-muted);
-  white-space: nowrap;
-  min-width: 36px;
-}
-
-.wpt-range__low {
-  text-align: right;
-}
-
-.wpt-range__bar {
-  position: relative;
-  flex: 1;
-  height: 6px;
-  background: var(--color-border);
-  border-radius: 3px;
-  min-width: 60px;
-}
-
-.wpt-range__fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(
-    90deg,
-    var(--color-down) 0%,
-    var(--color-accent) 50%,
-    var(--color-up) 100%
-  );
-  opacity: 0.7;
-  transition: width var(--transition-normal);
-}
-
-.wpt-range__marker {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  background: var(--color-text);
-  border: 2px solid var(--color-surface);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: left var(--transition-normal);
 }
 
 /* ─── Empty State ────────────────────────────────────── */
@@ -505,13 +469,6 @@
 }
 
 /* ─── Responsive ─────────────────────────────────────── */
-
-@media (max-width: 1024px) {
-  .wpt__th--range,
-  .wpt__td--range {
-    display: none;
-  }
-}
 
 @media (max-width: 768px) {
   .wpt {

@@ -172,7 +172,7 @@ if (WORLD_PRICE_CRAWL_ENABLED) {
     worldPriceRefreshRunning = true;
     try {
       console.log(`[World Prices] Scheduled refresh started (${WORLD_PRICE_CRAWL_CRON})`);
-      await getWorldPricesResponse(true);
+      await getWorldPricesResponse(true, { trigger: 'scheduler' });
       console.log('[World Prices] Scheduled refresh completed');
     } catch (error) {
       console.error('[World Prices] Scheduled refresh failed:', error);

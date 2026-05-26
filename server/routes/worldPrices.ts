@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
-import { getWorldPricesResponse } from '../services/supabaseMarketDataService.js'
+import { getWorldPriceSyncRuns, getWorldPricesResponse } from '../services/supabaseMarketDataService.js'
 import type { WorldCategory } from '../services/worldBankService.js'
 
 const router = Router()
@@ -41,13 +41,32 @@ router.get('/world-prices', async (_req, res) => {
 
 router.post('/admin/world-prices/refresh', requireAdminApiKey, async (_req, res) => {
   try {
-    const payload = await getWorldPricesResponse(true)
+    const payload = await getWorldPricesResponse(true, { trigger: 'admin_api' })
     res.json(payload)
   } catch (error) {
     console.error('[API] Error refreshing world prices:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to refresh world commodity prices',
+    })
+  }
+})
+
+router.get('/admin/world-prices/sync-runs', requireAdminApiKey, async (req, res) => {
+  try {
+    const rawLimit = Number(req.query.limit)
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(Math.trunc(rawLimit), 200)) : 20
+    const runs = await getWorldPriceSyncRuns(limit)
+    res.json({
+      success: true,
+      count: runs.length,
+      runs,
+    })
+  } catch (error) {
+    console.error('[API] Error fetching world price sync runs:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch world price sync runs',
     })
   }
 })

@@ -51,7 +51,10 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
       let cmp = 0
       switch (sortKey) {
         case 'name':
-          cmp = a.name.localeCompare(b.name, 'vi')
+          cmp = getCommodityPriority(a) - getCommodityPriority(b)
+          if (cmp === 0) {
+            cmp = a.name.localeCompare(b.name, 'vi')
+          }
           break
         case 'priceCurrent':
           cmp = a.priceCurrent - b.priceCurrent
@@ -73,27 +76,6 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
     }
 
     return <span className="wpt-sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>
-  }
-
-  const renderRangeBar = (item: WorldCommodityItem) => {
-    const range = item.high52w - item.low52w
-    if (range <= 0) {
-      return null
-    }
-
-    const position = ((item.priceCurrent - item.low52w) / range) * 100
-    const clampedPos = Math.max(0, Math.min(100, position))
-
-    return (
-      <div className="wpt-range">
-        <span className="wpt-range__low">{formatPrice(item.low52w)}</span>
-        <div className="wpt-range__bar">
-          <div className="wpt-range__fill" style={{ width: `${clampedPos}%` }} />
-          <div className="wpt-range__marker" style={{ left: `${clampedPos}%` }} />
-        </div>
-        <span className="wpt-range__high">{formatPrice(item.high52w)}</span>
-      </div>
-    )
   }
 
   if (loading) {
@@ -172,7 +154,7 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
               <th className="wpt__th wpt__th--change" onClick={() => handleSort('changePct')}>
                 Thay đổi {renderSortIcon('changePct')}
               </th>
-              <th className="wpt__th wpt__th--range">Dải 52 tuần</th>
+              <th className="wpt__th wpt__th--frequency">Tần suất dữ liệu</th>
             </tr>
           </thead>
           <tbody>
@@ -238,8 +220,13 @@ export default function WorldPriceTable({ data, categories, exchangeRate, loadin
                       </div>
                     </td>
 
-                    <td className="wpt__td wpt__td--range">
-                      {renderRangeBar(item)}
+                    <td className="wpt__td wpt__td--frequency">
+                      <div className="wpt__frequency-block">
+                        <span className="wpt__frequency-main">{getDataFrequencyLabel(item)}</span>
+                        {item.observedOn ? (
+                          <span className="wpt__frequency-sub">Dữ liệu: {formatDateVi(item.observedOn)}</span>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -300,4 +287,76 @@ function getReferenceVndKg(item: WorldCommodityItem, rate: number): number | nul
   }
 
   return null
+}
+
+function getCommodityPriority(item: WorldCommodityItem): number {
+  const haystack = `${item.id} ${item.name} ${item.nameEn}`.toLowerCase()
+
+  if (haystack.includes('coffee') || haystack.includes('cà phê') || haystack.includes('ca phe')) {
+    return 0
+  }
+
+  if (haystack.includes('rice') || haystack.includes('gạo') || haystack.includes('gao')) {
+    return 1
+  }
+
+  if (haystack.includes('pepper') || haystack.includes('tiêu') || haystack.includes('tieu')) {
+    return 2
+  }
+
+  if (haystack.includes('cashew') || haystack.includes('điều') || haystack.includes('dieu')) {
+    return 3
+  }
+
+  return 4
+}
+
+function getDataFrequencyLabel(item: WorldCommodityItem): string {
+  const granularity = (item.dataGranularity ?? '').toLowerCase()
+
+  if (granularity === 'daily') {
+    return 'Cập nhật hàng ngày'
+  }
+
+  if (granularity === 'weekly') {
+    return 'Cập nhật hàng tuần'
+  }
+
+  if (granularity === 'monthly') {
+    return 'Cập nhật hàng tháng'
+  }
+
+  if (granularity === 'period' || granularity === 'as_published') {
+    const periodLabel = resolvePeriodLabel(item)
+    return periodLabel ? `Cập nhật kỳ ${periodLabel}` : 'Cập nhật theo kỳ'
+  }
+
+  return 'Tần suất chưa xác định'
+}
+
+function resolvePeriodLabel(item: WorldCommodityItem): string | null {
+  const sourceLabel = item.sourceObservationLabel ?? ''
+  const dates = [...sourceLabel.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map(match => match[1])
+  if (dates.length >= 2) {
+    return `${formatDateVi(dates[0])} - ${formatDateVi(dates[1])}`
+  }
+
+  if (dates.length === 1) {
+    return `${formatDateVi(dates[0])} - ${formatDateVi(dates[0])}`
+  }
+
+  if (item.observedOn) {
+    return `${formatDateVi(item.observedOn)} - ${formatDateVi(item.observedOn)}`
+  }
+
+  return null
+}
+
+function formatDateVi(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleDateString('vi-VN')
 }
