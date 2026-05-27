@@ -76,11 +76,16 @@ bd close <id>         # Complete work
    ```
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+7. **Pre-handoff check** - Run:
+   ```bash
+   npm run pre:handoff
+   ```
+8. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+- Never hand off before `npm run pre:handoff` passes
 <!-- END BEADS INTEGRATION -->

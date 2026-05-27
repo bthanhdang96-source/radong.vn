@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "pre:handoff": "powershell -ExecutionPolicy Bypass -File ./scripts/pre-handoff-check.ps1",
     "sync:github": "powershell -ExecutionPolicy Bypass -File ./scripts/sync-github.ps1",
     "supabase:start": "npx supabase start",
     "supabase:stop": "npx supabase stop",
