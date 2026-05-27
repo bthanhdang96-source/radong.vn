@@ -26,42 +26,10 @@
   color: var(--color-text-muted);
 }
 
-.exchange-rate-page__hero-meta {
-  display: grid;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-  justify-items: end;
-}
-
-.exchange-rate-page__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.exchange-rate-page__badge--live {
-  background: var(--color-up-bg);
-  border-color: var(--color-up-border);
-  color: var(--color-up);
-}
-
-.exchange-rate-page__badge--fallback {
-  background: var(--color-hold-bg);
-  border-color: hsl(35, 55%, 75%);
-  color: var(--color-hold);
-}
-
 .exchange-rate-page__summary {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .exchange-rate-page__summary article {
@@ -254,9 +222,5 @@
 
   .exchange-rate-page__converter-grid {
     grid-template-columns: 1fr;
-  }
-
-  .exchange-rate-page__hero-meta {
-    justify-items: start;
   }
 }

@@ -245,24 +245,12 @@ export default function ExchangeRatesLookupPage() {
       ? (parsedAmount * fromRate) / toRate
       : null
 
-  const latestObservedOn = payload?.latestObservedOn
-    ? new Date(`${payload.latestObservedOn}T00:00:00.000Z`).toLocaleDateString('vi-VN')
-    : '--'
-  const refreshedAt = payload?.refreshedAt ? new Date(payload.refreshedAt).toLocaleString('vi-VN') : '--'
-
   return (
     <main className="exchange-rate-page">
       <section className="exchange-rate-page__hero">
         <div>
           <h1>Tra cứu tỷ giá VND</h1>
           <p>Theo dõi tỷ giá của các đồng tiền lớn so với VND, cập nhật hằng ngày và lưu lịch sử đến 1 năm.</p>
-        </div>
-        <div className="exchange-rate-page__hero-meta">
-          <span className={`exchange-rate-page__badge exchange-rate-page__badge--${payload?.status ?? 'fallback'}`}>
-            {payload?.status === 'live' ? 'Dữ liệu từ cơ sở dữ liệu' : 'Dữ liệu dự phòng'}
-          </span>
-          <span>Ngày dữ liệu mới nhất: {latestObservedOn}</span>
-          <span>Đồng bộ lúc: {refreshedAt}</span>
         </div>
       </section>
 
@@ -274,10 +262,6 @@ export default function ExchangeRatesLookupPage() {
         <article>
           <span>Khoảng lịch sử</span>
           <strong>{days} ngày</strong>
-        </article>
-        <article>
-          <span>Nguồn</span>
-          <strong>{payload?.items[0]?.source.id ?? 'N/A'}</strong>
         </article>
       </section>
 
@@ -347,12 +331,6 @@ export default function ExchangeRatesLookupPage() {
       </section>
 
       {error ? <div className="exchange-rate-page__state exchange-rate-page__state--error">{error}</div> : null}
-      {payload?.errors?.length ? (
-        <div className="exchange-rate-page__state exchange-rate-page__state--warning">
-          {payload.errors[0]}
-        </div>
-      ) : null}
-
       <section className="exchange-rate-page__table-wrap">
         {loading ? (
           <div className="exchange-rate-page__state">Đang tải dữ liệu...</div>

@@ -8,6 +8,7 @@ import type {
   ReportWarning,
 } from './assminReportTypes.js'
 import { getCrawlerScheduleConfig } from './crawlerScheduler.js'
+import { getExchangeRateLookupResponse, getExchangeRateSyncRuns } from './exchangeRatesService.js'
 import { getExportRegistryHealth } from './exportRegistry/service.js'
 import { getNewsSchedulerConfig } from './news/scheduler.js'
 import { getNewsHealth, getNewsRuns, getNewsSources } from './news/service.js'
@@ -85,6 +86,18 @@ function toFreshnessLabel(value: string | null | undefined): ReportFreshnessLabe
 
 function formatTimestamp(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString('vi-VN') : 'chưa có'
+}
+
+function formatObservedDate(value: string | null | undefined) {
+  if (!value) {
+    return 'chưa có'
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00.000Z`).toLocaleDateString('vi-VN')
+  }
+
+  return formatTimestamp(value)
 }
 
 function maxTimestamp(values: Array<string | null | undefined>) {
@@ -433,6 +446,7 @@ function buildDatasetJobs(
   vnPrices: Awaited<ReturnType<typeof getVnPrices>>,
   priceChain: Awaited<ReturnType<typeof getVnPriceChainResponse>>,
   worldPrices: Awaited<ReturnType<typeof getWorldPricesResponse>>,
+  exchangeRates: Awaited<ReturnType<typeof getExchangeRateLookupResponse>>,
   appSchedule: ReturnType<typeof getAppScheduleConfig>,
 ) {
   const vnPriceWarnings: ReportWarning[] = []
@@ -470,6 +484,31 @@ function buildDatasetJobs(
   }
   if (worldFreshness === 'stale') {
     worldWarnings.push(makeWarning('world_prices_stale', 'warning', `Giá thế giới đã cũ từ ${formatTimestamp(worldPrices.lastUpdated)}.`))
+  }
+
+  const exchangeWarnings: ReportWarning[] = []
+  if (exchangeRates.status === 'fallback') {
+    exchangeWarnings.push(makeWarning('exchange_rates_fallback', 'critical', 'Dataset tỷ giá đang dùng fallback.'))
+  }
+
+  if (exchangeRates.items.length === 0) {
+    exchangeWarnings.push(makeWarning('exchange_rates_empty', 'critical', 'Dataset tỷ giá không có đồng tiền nào.'))
+  }
+
+  if (!exchangeRates.latestObservedOn) {
+    exchangeWarnings.push(makeWarning('exchange_rates_no_data_day', 'warning', 'Dataset tỷ giá chưa có ngày dữ liệu mới nhất.'))
+  } else if (toFreshnessLabel(`${exchangeRates.latestObservedOn}T00:00:00.000Z`) === 'stale') {
+    exchangeWarnings.push(
+      makeWarning(
+        'exchange_rates_stale',
+        'warning',
+        `Dataset tỷ giá đã cũ từ ${formatObservedDate(exchangeRates.latestObservedOn)}.`,
+      ),
+    )
+  }
+
+  for (const error of exchangeRates.errors) {
+    exchangeWarnings.push(makeWarning('exchange_rates_error', 'warning', `Exchange rates: ${error}`))
   }
 
   return [
@@ -518,6 +557,22 @@ function buildDatasetJobs(
       ],
       warnings: worldWarnings,
     },
+    {
+      key: 'exchange-rates-dataset',
+      label: 'Exchange Rates',
+      group: 'dataset',
+      status: maxSeverity(['ok', ...exchangeWarnings.map(warning => warning.severity)]),
+      enabled: appSchedule.exchangeRateSyncEnabled,
+      cron: appSchedule.exchangeRateSyncCron,
+      lastUpdated: exchangeRates.refreshedAt ?? null,
+      details: [
+        `Status: ${exchangeRates.status}`,
+        `Source mode: ${exchangeRates.sourceMode}`,
+        `Mặt hàng: ${exchangeRates.items.length}`,
+        `Ngày dữ liệu mới nhất: ${formatObservedDate(exchangeRates.latestObservedOn)}`,
+      ],
+      warnings: exchangeWarnings,
+    },
   ] satisfies ReportJobRow[]
 }
 
@@ -525,9 +580,11 @@ function buildSchedulerJobs(
   newsSources: Awaited<ReturnType<typeof getNewsSources>>,
   newsRuns: Awaited<ReturnType<typeof getNewsRuns>>,
   vnPriceSources: Awaited<ReturnType<typeof getVnPriceSourceStatus>>,
+  exchangeSyncRuns: Awaited<ReturnType<typeof getExchangeRateSyncRuns>>,
   datasetTimestamps?: {
     vnPricesLastUpdated?: string | null
     worldPricesLastUpdated?: string | null
+    exchangeRatesLastUpdated?: string | null
   },
 ) {
   const appSchedule = getAppScheduleConfig()
@@ -562,6 +619,28 @@ function buildSchedulerJobs(
       warnings: newsWarnings,
     },
   ]
+
+  const latestExchangeSync = exchangeSyncRuns[0]
+  const exchangeSyncWarnings: ReportWarning[] = []
+  if (latestExchangeSync?.status === 'failed') {
+    exchangeSyncWarnings.push(
+      makeWarning(
+        'exchange_sync_failed',
+        'critical',
+        `Exchange Rates Sync thất bại: ${latestExchangeSync.error_message ?? 'không rõ lỗi'}.`,
+      ),
+    )
+  } else if (latestExchangeSync?.status === 'partial') {
+    exchangeSyncWarnings.push(makeWarning('exchange_sync_partial', 'warning', 'Exchange Rates Sync gần nhất ở trạng thái partial.'))
+  } else if (latestExchangeSync?.status === 'running') {
+    exchangeSyncWarnings.push(makeWarning('exchange_sync_running', 'warning', 'Exchange Rates Sync đang chạy.'))
+  }
+
+  if ((latestExchangeSync?.error_count ?? 0) > 0) {
+    exchangeSyncWarnings.push(
+      makeWarning('exchange_sync_error_count', 'warning', `Exchange Rates Sync có ${latestExchangeSync?.error_count} lỗi trong run gần nhất.`),
+    )
+  }
 
   const crawlerJobs: Array<{
     key: string
@@ -617,6 +696,22 @@ function buildSchedulerJobs(
       details: [`Timezone: ${appSchedule.timezone}`],
       warnings: [],
     },
+    {
+      key: 'exchange-rates-sync',
+      label: 'Exchange Rates Sync',
+      enabled: appSchedule.exchangeRateSyncEnabled,
+      cron: appSchedule.exchangeRateSyncCron,
+      lastUpdated:
+        datasetTimestamps?.exchangeRatesLastUpdated ??
+        latestExchangeSync?.finished_at ??
+        latestExchangeSync?.started_at ??
+        null,
+      details: [
+        `Timezone: ${appSchedule.timezone}`,
+        `Backfill days: ${appSchedule.exchangeRateBackfillDays}`,
+      ],
+      warnings: exchangeSyncWarnings,
+    },
   ]
 
   for (const job of crawlerJobs) {
@@ -667,6 +762,8 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     vnPricesResult,
     priceChainResult,
     worldPricesResult,
+    exchangeRatesResult,
+    exchangeSyncRunsResult,
     weatherResult,
     exportRegistryHealthResult,
   ] = await Promise.allSettled([
@@ -677,6 +774,8 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     getVnPrices(false),
     getVnPriceChainResponse(),
     getWorldPricesResponse(false),
+    getExchangeRateLookupResponse({ days: 365 }),
+    getExchangeRateSyncRuns(20),
     getAgriWeather(null),
     getExportRegistryHealth(),
   ])
@@ -687,6 +786,7 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
   const newsSources = newsSourcesResult.status === 'fulfilled' ? newsSourcesResult.value : []
   const newsRuns = newsRunsResult.status === 'fulfilled' ? newsRunsResult.value : []
   const vnPriceSources = vnPriceSourcesResult.status === 'fulfilled' ? vnPriceSourcesResult.value : []
+  const exchangeSyncRuns = exchangeSyncRunsResult.status === 'fulfilled' ? exchangeSyncRunsResult.value : []
 
   if (newsSourcesResult.status === 'fulfilled' && newsHealthResult.status === 'fulfilled') {
     sources.push(...buildNewsSourceRows(newsSourcesResult.value, newsHealthResult.value, newsRuns))
@@ -712,14 +812,19 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     globalWarnings.push(makeWarning('export_registry_report_unavailable', 'warning', 'Khong the tai trang thai export registry.'))
   }
 
+  if (exchangeSyncRunsResult.status !== 'fulfilled') {
+    globalWarnings.push(makeWarning('exchange_sync_runs_unavailable', 'warning', 'Khong the tai lich su run dong bo ty gia.'))
+  }
+
   if (
     newsSourcesResult.status === 'fulfilled' &&
     newsRunsResult.status === 'fulfilled' &&
     vnPriceSourcesResult.status === 'fulfilled'
   ) {
-    jobs.push(...buildSchedulerJobs(newsSources, newsRuns, vnPriceSources, {
+    jobs.push(...buildSchedulerJobs(newsSources, newsRuns, vnPriceSources, exchangeSyncRuns, {
       vnPricesLastUpdated: vnPricesResult.status === 'fulfilled' ? vnPricesResult.value.lastUpdated : null,
       worldPricesLastUpdated: worldPricesResult.status === 'fulfilled' ? worldPricesResult.value.lastUpdated : null,
+      exchangeRatesLastUpdated: exchangeRatesResult.status === 'fulfilled' ? exchangeRatesResult.value.refreshedAt : null,
     }))
   } else {
     globalWarnings.push(makeWarning('scheduler_report_partial', 'warning', 'Không thể dựng đầy đủ scheduler/runtime report.'))
@@ -732,9 +837,18 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
   if (
     vnPricesResult.status === 'fulfilled' &&
     priceChainResult.status === 'fulfilled' &&
-    worldPricesResult.status === 'fulfilled'
+    worldPricesResult.status === 'fulfilled' &&
+    exchangeRatesResult.status === 'fulfilled'
   ) {
-    jobs.push(...buildDatasetJobs(vnPricesResult.value, priceChainResult.value, worldPricesResult.value, getAppScheduleConfig()))
+    jobs.push(
+      ...buildDatasetJobs(
+        vnPricesResult.value,
+        priceChainResult.value,
+        worldPricesResult.value,
+        exchangeRatesResult.value,
+        getAppScheduleConfig(),
+      ),
+    )
   } else {
     globalWarnings.push(makeWarning('dataset_report_partial', 'warning', 'Không thể dựng đầy đủ dataset health report.'))
   }
