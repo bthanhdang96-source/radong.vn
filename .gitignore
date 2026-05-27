@@ -35,3 +35,6 @@ server/.runtime/
 .beads-credential-key
 
 .vercel
+claude_code/
+codex_code/
+gemini_code/

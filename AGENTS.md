@@ -52,9 +52,11 @@ bd close <id>         # Complete work
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Use `bd` for ALL task tracking - do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Use `bd remember` for persistent knowledge - do NOT use MEMORY.md files
+- Ignore `claude_code/`, `codex_code/`, and `gemini_code/` unless the user explicitly asks to work in those folders
+- Treat changes inside `claude_code/`, `codex_code/`, and `gemini_code/` as out-of-scope artifacts for normal commit/push completion checks
 
 ## Session Completion
 
