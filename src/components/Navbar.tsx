@@ -18,6 +18,7 @@ const NAV_LINKS: NavLink[] = [
     to: '/tra-cuu',
     matches: ['/tra-cuu'],
     children: [
+      { label: 'Tỷ giá', to: '/tra-cuu/ty-gia' },
       { label: 'Vùng trồng', to: '/tra-cuu/vung-trong' },
       { label: 'Cơ sở đóng gói', to: '/tra-cuu/co-so-dong-goi' },
     ],

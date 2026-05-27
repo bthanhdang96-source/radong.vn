@@ -4,6 +4,7 @@ import Navbar from './components/Navbar'
 import AdminAiArticlesPage from './pages/AdminAiArticlesPage'
 import AgriWeatherPage from './pages/AgriWeatherPage'
 import AssminReportPage from './pages/AssminReportPage'
+import ExchangeRatesLookupPage from './pages/ExchangeRatesLookupPage'
 import GeneratedCommodityPricePage from './pages/GeneratedCommodityPricePage'
 import GeneratedPricePage from './pages/GeneratedPricePage'
 import HomeDashboard from './pages/HomeDashboard'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/gia-nong-san/:commoditySlug/:locationSlug" element={<GeneratedPricePage />} />
           <Route path="/bang-gia" element={<HomeDashboard />} />
           <Route path="/chuoi-gia" element={<PriceChainPage />} />
+          <Route path="/tra-cuu/ty-gia" element={<ExchangeRatesLookupPage />} />
           <Route path="/tra-cuu" element={<LookupPage />} />
           <Route path="/tra-cuu/:categorySlug" element={<LookupPage />} />
           <Route path="/thegioi" element={<WorldPricesPage />} />

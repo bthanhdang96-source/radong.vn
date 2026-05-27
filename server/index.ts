@@ -12,6 +12,7 @@ import { generatePricePages } from './services/generatedPricePages/service.js';
 import { refreshLiveNewsArticlesCache } from './services/news/liveCache.js';
 import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/scheduler.js';
 import { getNewsHealth } from './services/news/service.js';
+import { syncExchangeRatesToSupabase } from './services/exchangeRatesService.js';
 import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDataService.js';
 
 const app = express();
@@ -19,6 +20,7 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
+let exchangeRateRefreshRunning = false;
 let priceContentRefreshRunning = false;
 let aiArticleExportRunning = false;
 let aiArticleWorldRunning = false;
@@ -31,6 +33,9 @@ const {
   priceContentStaleHours: PRICE_CONTENT_STALE_HOURS,
   worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
   worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+  exchangeRateSyncEnabled: EXCHANGE_RATE_SYNC_ENABLED,
+  exchangeRateSyncCron: EXCHANGE_RATE_SYNC_CRON,
+  exchangeRateBackfillDays: EXCHANGE_RATE_BACKFILL_DAYS,
   aiArticleEnabled: AI_ARTICLE_ENABLED,
   aiArticleExportCron: AI_ARTICLE_EXPORT_CRON,
   aiArticleWorldDailyCron: AI_ARTICLE_WORLD_DAILY_CRON,
@@ -182,6 +187,32 @@ if (WORLD_PRICE_CRAWL_ENABLED) {
   });
 } else {
   console.log('[App Scheduler] World price refresh schedule is disabled');
+}
+
+if (EXCHANGE_RATE_SYNC_ENABLED) {
+  registerAppCron('exchange-rate-refresh', EXCHANGE_RATE_SYNC_CRON, async () => {
+    if (exchangeRateRefreshRunning) {
+      console.log('[Exchange Rates] Scheduled refresh skipped: previous run still in progress');
+      return;
+    }
+
+    exchangeRateRefreshRunning = true;
+    try {
+      console.log(`[Exchange Rates] Scheduled refresh started (${EXCHANGE_RATE_SYNC_CRON})`);
+      const sync = await syncExchangeRatesToSupabase({
+        backfillDays: Math.max(1, Math.min(365, EXCHANGE_RATE_BACKFILL_DAYS)),
+      });
+      console.log(
+        `[Exchange Rates] Scheduled refresh completed success=${sync.success} rows=${sync.rowCount} errors=${sync.errors.length}`,
+      );
+    } catch (error) {
+      console.error('[Exchange Rates] Scheduled refresh failed:', error);
+    } finally {
+      exchangeRateRefreshRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] Exchange rate refresh schedule is disabled');
 }
 
 if (AI_ARTICLE_ENABLED) {
