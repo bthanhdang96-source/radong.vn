@@ -1,4 +1,5 @@
 ﻿import { getCategories, getWorldPrices as getLegacyWorldPrices, type WorldCommodityItem } from './worldBankService.js'
+import { getWorldCommodityDisplayMeta } from './worldBankService.js'
 import {
   fetchLiveDayData,
   getVnPriceSourceStatus as getLegacyVnPriceSourceStatus,
@@ -1601,8 +1602,14 @@ function isDailyWorldPriceItem(item: Pick<WorldPriceProviderItem, 'dataGranulari
 }
 
 function buildWorldPriceRawPayload(item: WorldPriceProviderItem) {
+  const canonicalMeta = getWorldCommodityDisplayMeta(item.id)
+
   return {
     ...item,
+    name: canonicalMeta?.name ?? item.name,
+    nameEn: canonicalMeta?.nameEn ?? item.nameEn,
+    symbol: canonicalMeta?.symbol ?? item.symbol,
+    category: canonicalMeta?.category ?? item.category,
     observedOn: item.observedOn,
     crawlRecordedAt: item.crawlRecordedAt,
     dataGranularity: item.dataGranularity,
@@ -1780,12 +1787,13 @@ async function buildWorldResponseFromSupabase(): Promise<WorldPricesResponse | n
 
   const data = rows.map(row => {
     const raw = row.raw_payload
+    const canonicalMeta = getWorldCommodityDisplayMeta(row.commodity_slug)
     return {
       id: row.commodity_slug,
-      name: typeof raw.name === 'string' ? raw.name : row.commodity_slug,
-      nameEn: typeof raw.nameEn === 'string' ? raw.nameEn : row.commodity_slug,
-      symbol: typeof raw.symbol === 'string' ? raw.symbol : row.commodity_slug.toUpperCase(),
-      category: typeof raw.category === 'string' ? raw.category : 'Khác',
+      name: canonicalMeta?.name ?? (typeof raw.name === 'string' ? raw.name : row.commodity_slug),
+      nameEn: canonicalMeta?.nameEn ?? (typeof raw.nameEn === 'string' ? raw.nameEn : row.commodity_slug),
+      symbol: canonicalMeta?.symbol ?? (typeof raw.symbol === 'string' ? raw.symbol : row.commodity_slug.toUpperCase()),
+      category: canonicalMeta?.category ?? (typeof raw.category === 'string' ? raw.category : 'Khác'),
       exchange: row.exchange,
       unit: row.price_unit,
       priceCurrent: row.price_usd,

@@ -51,6 +51,14 @@ interface PinkSheetMapping {
   pinkSheetLabels: string[]
 }
 
+export type WorldCommodityDisplayMeta = {
+  id: string
+  name: string
+  nameEn: string
+  symbol: string
+  category: WorldCategory
+}
+
 type PinkSheetRow = {
   period: string
   values: Map<string, number>
@@ -89,6 +97,23 @@ const COMMODITY_MAPPINGS: PinkSheetMapping[] = [
   { id: 'dap', name: 'Phân DAP', nameEn: 'DAP Fertilizer', symbol: 'DAP', category: 'Khác', exchange: 'Global', unit: 'USD/tấn', pinkSheetLabels: ['DAP'] },
   { id: 'lumber', name: 'Gỗ xẻ', nameEn: 'Sawnwood (Soft)', symbol: 'LBS', category: 'Khác', exchange: 'CME', unit: 'USD/m³', pinkSheetLabels: ['Sawnwood, Malaysian', 'Sawnwood, Cameroon', 'Logs, Malaysian', 'Logs, Cameroon'] },
 ]
+
+const WORLD_COMMODITY_DISPLAY_META_BY_ID = new Map<string, WorldCommodityDisplayMeta>(
+  COMMODITY_MAPPINGS.map(mapping => [
+    mapping.id,
+    {
+      id: mapping.id,
+      name: mapping.name,
+      nameEn: mapping.nameEn,
+      symbol: mapping.symbol,
+      category: mapping.category,
+    },
+  ]),
+)
+
+export function getWorldCommodityDisplayMeta(commodityId: string): WorldCommodityDisplayMeta | null {
+  return WORLD_COMMODITY_DISPLAY_META_BY_ID.get(commodityId) ?? null
+}
 
 function buildFallbackData(): WorldCommodityItem[] {
   const fallbackPrices: Record<string, { current: number; yesterday: number; lastWeek: number; lastMonth: number; low52w: number; high52w: number }> = {
