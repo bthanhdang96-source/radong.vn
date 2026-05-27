@@ -120,8 +120,8 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($upstream)) {
 } else {
     $behindRaw = Invoke-Git -Arguments @("rev-list", "--count", "HEAD..@{u}")
     $aheadRaw = Invoke-Git -Arguments @("rev-list", "--count", "@{u}..HEAD")
-    $behindCount = [int]$behindRaw[0]
-    $aheadCount = [int]$aheadRaw[0]
+    $behindCount = [int]([string]($behindRaw | Select-Object -First 1)).Trim()
+    $aheadCount = [int]([string]($aheadRaw | Select-Object -First 1)).Trim()
 
     if ($behindCount -gt 0) {
         Add-Error -Errors $errors -Message "Local branch is behind upstream by $behindCount commit(s). Run: git pull --rebase"
