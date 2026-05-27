@@ -37,15 +37,31 @@ type ExchangeRateApiResponse = {
   error?: string
 }
 
-type SortKey = 'code_asc' | 'rate_desc' | 'change_1d_desc' | 'change_30d_desc'
+type SortKey = 'priority' | 'code_asc' | 'rate_desc' | 'change_1d_desc' | 'change_30d_desc'
 
 const DAY_OPTIONS = [30, 90, 365]
+const IMPORTANT_CURRENCY_ORDER = ['USD', 'CNY', 'EUR', 'JPY', 'KRW', 'SGD', 'THB', 'AUD', 'CAD', 'GBP'] as const
+const IMPORTANT_CURRENCY_ORDER_MAP: Map<string, number> = new Map(
+  IMPORTANT_CURRENCY_ORDER.map((code, index) => [code, index]),
+)
+
 const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
-  { key: 'code_asc', label: 'Ma tien te (A-Z)' },
-  { key: 'rate_desc', label: 'Ty gia cao nhat' },
-  { key: 'change_1d_desc', label: 'Bien dong 1 ngay' },
-  { key: 'change_30d_desc', label: 'Bien dong 30 ngay' },
+  { key: 'priority', label: 'Đồng tiền quan trọng' },
+  { key: 'code_asc', label: 'Mã tiền tệ (A-Z)' },
+  { key: 'rate_desc', label: 'Tỷ giá cao nhất' },
+  { key: 'change_1d_desc', label: 'Biến động 1 ngày' },
+  { key: 'change_30d_desc', label: 'Biến động 30 ngày' },
 ]
+
+function compareByPriority(leftCode: string, rightCode: string) {
+  const leftPriority = IMPORTANT_CURRENCY_ORDER_MAP.get(leftCode) ?? Number.POSITIVE_INFINITY
+  const rightPriority = IMPORTANT_CURRENCY_ORDER_MAP.get(rightCode) ?? Number.POSITIVE_INFINITY
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority
+  }
+
+  return leftCode.localeCompare(rightCode)
+}
 
 function formatVnd(value: number) {
   return value.toLocaleString('vi-VN', {
@@ -108,7 +124,7 @@ function Sparkline({ history }: { history: ExchangeRateHistoryPoint[] }) {
 export default function ExchangeRatesLookupPage() {
   const [days, setDays] = useState(365)
   const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('code_asc')
+  const [sortKey, setSortKey] = useState<SortKey>('priority')
   const [payload, setPayload] = useState<ExchangeRateApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -128,7 +144,7 @@ export default function ExchangeRatesLookupPage() {
         })
         const json: ExchangeRateApiResponse = await response.json()
         if (!response.ok || !json.success) {
-          throw new Error(json.error ?? 'Khong the tai du lieu ty gia')
+          throw new Error(json.error ?? 'Không thể tải dữ liệu tỷ giá')
         }
 
         if (!active) {
@@ -143,7 +159,7 @@ export default function ExchangeRatesLookupPage() {
         }
 
         setPayload(null)
-        setError(fetchError instanceof Error ? fetchError.message : 'Khong the tai du lieu ty gia')
+        setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải dữ liệu tỷ giá')
       } finally {
         if (active) {
           setLoading(false)
@@ -168,19 +184,24 @@ export default function ExchangeRatesLookupPage() {
     return map
   }, [payload])
 
+  const orderedCodes = useMemo(() => {
+    const sourceCodes = payload?.availableCodes ?? []
+    return [...sourceCodes].sort(compareByPriority)
+  }, [payload])
+
   useEffect(() => {
-    if (!payload || payload.items.length === 0) {
+    if (!payload || orderedCodes.length === 0) {
       return
     }
 
     if (!rateLookup.has(fromCode)) {
-      setFromCode(payload.items[0].currencyCode)
+      setFromCode(orderedCodes[0])
     }
 
     if (!rateLookup.has(toCode)) {
       setToCode('VND')
     }
-  }, [fromCode, payload, rateLookup, toCode])
+  }, [fromCode, orderedCodes, payload, rateLookup, toCode])
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -194,6 +215,10 @@ export default function ExchangeRatesLookupPage() {
 
     const copy = [...items]
     copy.sort((left, right) => {
+      if (sortKey === 'priority') {
+        return compareByPriority(left.currencyCode, right.currencyCode)
+      }
+
       if (sortKey === 'code_asc') {
         return left.currencyCode.localeCompare(right.currencyCode)
       }
@@ -229,54 +254,54 @@ export default function ExchangeRatesLookupPage() {
     <main className="exchange-rate-page">
       <section className="exchange-rate-page__hero">
         <div>
-          <h1>Tra cuu ty gia VND</h1>
-          <p>Theo doi ty gia cua cac dong tien lon so voi VND, cap nhat hang ngay va luu lich su den 1 nam.</p>
+          <h1>Tra cứu tỷ giá VND</h1>
+          <p>Theo dõi tỷ giá của các đồng tiền lớn so với VND, cập nhật hằng ngày và lưu lịch sử đến 1 năm.</p>
         </div>
         <div className="exchange-rate-page__hero-meta">
           <span className={`exchange-rate-page__badge exchange-rate-page__badge--${payload?.status ?? 'fallback'}`}>
-            {payload?.status === 'live' ? 'Du lieu tu database' : 'Du lieu fallback'}
+            {payload?.status === 'live' ? 'Dữ liệu từ cơ sở dữ liệu' : 'Dữ liệu dự phòng'}
           </span>
-          <span>Ngay du lieu moi nhat: {latestObservedOn}</span>
-          <span>Dong bo luc: {refreshedAt}</span>
+          <span>Ngày dữ liệu mới nhất: {latestObservedOn}</span>
+          <span>Đồng bộ lúc: {refreshedAt}</span>
         </div>
       </section>
 
       <section className="exchange-rate-page__summary">
         <article>
-          <span>So dong tien dang theo doi</span>
+          <span>Số đồng tiền đang theo dõi</span>
           <strong>{payload?.items.length ?? 0}</strong>
         </article>
         <article>
-          <span>Khoang lich su</span>
-          <strong>{days} ngay</strong>
+          <span>Khoảng lịch sử</span>
+          <strong>{days} ngày</strong>
         </article>
         <article>
-          <span>Nguon</span>
+          <span>Nguồn</span>
           <strong>{payload?.items[0]?.source.id ?? 'N/A'}</strong>
         </article>
       </section>
 
       <section className="exchange-rate-page__tools">
         <label className="exchange-rate-page__search">
-          <span>Tim kiem</span>
+          <span>Tìm kiếm</span>
           <input
             value={search}
             onChange={event => setSearch(event.target.value)}
-            placeholder="USD, EUR, Yen..."
+            placeholder="USD, EUR, Yên..."
           />
         </label>
         <label>
-          <span>Khoang ngay</span>
+          <span>Khoảng ngày</span>
           <select value={days} onChange={event => setDays(Number(event.target.value))}>
             {DAY_OPTIONS.map(option => (
               <option key={option} value={option}>
-                {option} ngay
+                {option} ngày
               </option>
             ))}
           </select>
         </label>
         <label>
-          <span>Sap xep</span>
+          <span>Sắp xếp</span>
           <select value={sortKey} onChange={event => setSortKey(event.target.value as SortKey)}>
             {SORT_OPTIONS.map(option => (
               <option key={option.key} value={option.key}>
@@ -288,16 +313,16 @@ export default function ExchangeRatesLookupPage() {
       </section>
 
       <section className="exchange-rate-page__converter">
-        <h2>Quy doi nhanh</h2>
+        <h2>Quy đổi nhanh</h2>
         <div className="exchange-rate-page__converter-grid">
           <label>
-            <span>So tien</span>
+            <span>Số tiền</span>
             <input value={amount} onChange={event => setAmount(event.target.value)} inputMode="decimal" />
           </label>
           <label>
-            <span>Tu</span>
+            <span>Từ</span>
             <select value={fromCode} onChange={event => setFromCode(event.target.value)}>
-              {['VND', ...(payload?.availableCodes ?? [])].map(code => (
+              {['VND', ...orderedCodes].map(code => (
                 <option key={code} value={code}>
                   {code}
                 </option>
@@ -305,9 +330,9 @@ export default function ExchangeRatesLookupPage() {
             </select>
           </label>
           <label>
-            <span>Sang</span>
+            <span>Đổi sang</span>
             <select value={toCode} onChange={event => setToCode(event.target.value)}>
-              {['VND', ...(payload?.availableCodes ?? [])].map(code => (
+              {['VND', ...orderedCodes].map(code => (
                 <option key={code} value={code}>
                   {code}
                 </option>
@@ -315,7 +340,7 @@ export default function ExchangeRatesLookupPage() {
             </select>
           </label>
           <div className="exchange-rate-page__converter-result">
-            <span>Ket qua</span>
+            <span>Kết quả</span>
             <strong>{convertedValue === null ? '--' : convertedValue.toLocaleString('vi-VN', { maximumFractionDigits: 4 })}</strong>
           </div>
         </div>
@@ -330,20 +355,20 @@ export default function ExchangeRatesLookupPage() {
 
       <section className="exchange-rate-page__table-wrap">
         {loading ? (
-          <div className="exchange-rate-page__state">Dang tai du lieu...</div>
+          <div className="exchange-rate-page__state">Đang tải dữ liệu...</div>
         ) : filteredItems.length === 0 ? (
-          <div className="exchange-rate-page__state">Khong tim thay dong tien phu hop.</div>
+          <div className="exchange-rate-page__state">Không tìm thấy đồng tiền phù hợp.</div>
         ) : (
           <table className="exchange-rate-page__table">
             <thead>
               <tr>
-                <th>Ma</th>
-                <th>Ten dong tien</th>
-                <th>1 don vi = VND</th>
-                <th>1 ngay</th>
-                <th>7 ngay</th>
-                <th>30 ngay</th>
-                <th>Xu huong</th>
+                <th>Mã</th>
+                <th>Tên đồng tiền</th>
+                <th>1 đơn vị = VND</th>
+                <th>1 ngày</th>
+                <th>7 ngày</th>
+                <th>30 ngày</th>
+                <th>Xu hướng</th>
               </tr>
             </thead>
             <tbody>
@@ -372,7 +397,7 @@ export default function ExchangeRatesLookupPage() {
       </section>
 
       <footer className="exchange-rate-page__footer">
-        Nguon: <a href="https://github.com/fawazahmed0/exchange-api" target="_blank" rel="noreferrer">exchange-api (CC0-1.0)</a>. Du lieu tham khao, khong phai khuyen nghi tai chinh.
+        Nguồn: <a href="https://github.com/fawazahmed0/exchange-api" target="_blank" rel="noreferrer">exchange-api (CC0-1.0)</a>. Dữ liệu tham khảo, không phải khuyến nghị tài chính.
       </footer>
     </main>
   )

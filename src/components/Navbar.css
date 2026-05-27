@@ -80,6 +80,16 @@
   position: relative;
 }
 
+/* Keep hover state while moving pointer from parent link into submenu. */
+.navbar__nav-item::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
 .navbar__link {
   display: inline-flex;
   align-items: center;
