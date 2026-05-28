@@ -555,6 +555,10 @@ test('buildAgriAdvisories emits expected rule-based warnings', () => {
   assert.ok(ids.includes('rain_warning'))
   assert.ok(ids.includes('spray_caution'))
   assert.ok(ids.includes('heat_stress'))
+
+  const advisoryCopy = advisories.map(advisory => `${advisory.title} ${advisory.message}`).join(' ')
+  assert.doesNotMatch(advisoryCopy, /ngoài ruộng|ra đồng|tưới|phun|bón lá|nấm bệnh|lao động ngoài trời/i)
+  assert.match(advisoryCopy, /nguồn hàng|logistics|chất lượng|sản lượng|giá/i)
 })
 
 test('getAgriWeather returns a fresh persisted Supabase row without re-fetching providers', async () => {

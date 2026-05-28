@@ -177,11 +177,11 @@ export default function AgriWeatherPage() {
     <div className="agri-weather-page">
       <header className="agri-weather-page__hero">
         <div className="agri-weather-page__hero-copy">
-          <span className="agri-weather-page__eyebrow">Thời tiết nông nghiệp tổng hợp</span>
-          <h1>Dự báo thời tiết phục vụ vận hành ngoài ruộng</h1>
+          <span className="agri-weather-page__eyebrow">Thời tiết cho phân tích giá nông sản</span>
+          <h1>Tín hiệu thời tiết phục vụ dự báo giá nông sản</h1>
           <p>
-            Bản tin tổng hợp các chỉ số mưa, nhiệt, gió, UV và cảnh báo canh tác cơ bản theo từng địa phương để độc
-            giả tiện theo dõi trước khi ra đồng.
+            Bản tin tổng hợp mưa, nhiệt độ, độ ẩm, gió và UV theo từng địa phương để tham khảo khi đánh giá rủi ro
+            nguồn cung, chất lượng hàng và nhịp thu mua trong thời gian tới.
           </p>
         </div>
 
@@ -212,10 +212,10 @@ export default function AgriWeatherPage() {
           </span>
           <strong>
             {payload?.status === 'stale'
-              ? 'Dữ liệu đang hiển thị là bản lưu gần nhất để giữ page khả dụng.'
+              ? 'Dữ liệu đang hiển thị là bản lưu gần nhất để duy trì tham chiếu ngắn hạn.'
               : payload?.status === 'partial'
-                ? 'Một phần nguồn đang gián đoạn nhưng forecast tổng hợp vẫn hoạt động bình thường.'
-                : 'Dữ liệu tổng hợp mới nhất đã sẵn sàng để theo dõi ngắn hạn.'}
+                ? 'Một phần nguồn đang gián đoạn; chỉ nên xem bản tổng hợp như tín hiệu tham khảo.'
+                : 'Dữ liệu tổng hợp mới nhất đã sẵn sàng cho theo dõi ngắn hạn.'}
           </strong>
         </article>
 
@@ -230,7 +230,7 @@ export default function AgriWeatherPage() {
           <strong>
             {payload?.daily7d[0]?.rainMm !== null && payload?.daily7d[0] ? `${payload.daily7d[0].rainMm.toFixed(1)} mm` : '--'}
           </strong>
-          <span>Ngày đầu forecast</span>
+          <span>Ngày đầu dự báo</span>
         </article>
       </section>
 
@@ -246,24 +246,24 @@ export default function AgriWeatherPage() {
             <div className="weather-section__heading">
               <div>
                 <span className="weather-section__eyebrow">Lưu ý sử dụng</span>
-                <h2 className="weather-section__title">Forecast tổng hợp cho vận hành ngắn hạn</h2>
+                <h2 className="weather-section__title">Dự báo tổng hợp cho phân tích giá ngắn hạn</h2>
               </div>
             </div>
 
             <div className="agri-weather-page__attribution">
               <p className="agri-weather-page__disclaimer">
-                Bản tin thời tiết được tham khảo từ nhiều nguồn dự báo. Khi một số nguồn gián đoạn, trang vẫn ưu tiên
-                hiển thị phần dự báo còn đủ cơ sở để bạn đọc theo dõi ngắn hạn.
+                Bản tin thời tiết được tham khảo từ nhiều nguồn dự báo. Khi một số nguồn gián đoạn, chỉ hiển thị phần
+                dự báo còn đủ cơ sở để theo dõi ngắn hạn.
               </p>
               <p className="agri-weather-page__disclaimer">
-                Dữ liệu dùng để tham khảo vận hành ngắn hạn, không thay thế đánh giá thực địa hoặc khuyến cáo chuyên
-                môn chuyên sâu theo từng cây trồng.
+                Dữ liệu dùng để tham khảo xu hướng giá và rủi ro cung ứng, không thay thế dữ liệu giao dịch thực tế,
+                thông tin mùa vụ hoặc đánh giá chất lượng hàng tại từng địa bàn.
               </p>
             </div>
           </section>
         </>
       ) : loadingWeather ? (
-        <div className="agri-weather-page__loading">Đang tổng hợp forecast từ nhiều nguồn...</div>
+        <div className="agri-weather-page__loading">Đang tổng hợp dự báo từ nhiều nguồn...</div>
       ) : null}
     </div>
   )

@@ -50,11 +50,11 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'rain_warning',
         severity: rain24hTotal >= 30 ? 'critical' : 'warning',
-        title: 'Cảnh báo mưa ảnh hưởng đồng ruộng',
+        title: 'Mưa lớn có thể làm chậm nguồn hàng',
         message:
           rain24hTotal >= 30
-            ? 'Lượng mưa 24 giờ tới ở mức cao. Nên kiểm tra thoát nước, che phủ vật tư và tránh thu hoạch lúc đỉnh mưa.'
-            : 'Khả năng có đợt mưa đáng kể trong 24 giờ tới. Nên chủ động lịch tưới và tránh phun khi mưa cận kề.',
+            ? 'Lượng mưa 24 giờ tới ở mức cao. Cần thận trọng khi đánh giá khả năng thu gom, vận chuyển và chất lượng hàng sau mưa.'
+            : 'Khả năng có đợt mưa đáng kể trong 24 giờ tới. Đây là tín hiệu có thể ảnh hưởng nhịp đưa hàng ra thị trường và chi phí logistics ngắn hạn.',
         windowStart: heavyRainWindow?.start ?? next24h[0]?.time ?? new Date().toISOString(),
         windowEnd: heavyRainWindow?.end ?? next24h[next24h.length - 1]?.time ?? new Date().toISOString(),
         basedOn: ['rain'],
@@ -68,8 +68,9 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'spray_caution',
         severity: 'warning',
-        title: 'Cân nhắc hoãn phun thuốc hoặc bón lá',
-        message: 'Gió mạnh hoặc mưa cận giờ có thể làm giảm hiệu quả phun. Nên ưu tiên khung giờ khô ráo, gió nhẹ.',
+        title: 'Gió hoặc mưa có thể ảnh hưởng logistics',
+        message:
+          'Gió mạnh hoặc mưa cận giờ có thể làm tăng rủi ro chậm vận chuyển, phân loại và giao nhận. Tín hiệu này nên được đối chiếu với lịch gom hàng thực tế.',
         windowStart: sprayWindow.start,
         windowEnd: sprayWindow.end,
         basedOn: ['rain', 'wind'],
@@ -84,11 +85,11 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'heat_stress',
         severity: peakTemp >= 38 ? 'critical' : 'warning',
-        title: 'Nguy cơ sốc nhiệt trên cây trồng và lao động ngoài trời',
+        title: 'Nắng nóng có thể ảnh hưởng chất lượng và sản lượng',
         message:
           peakTemp >= 38
-            ? 'Nhiệt độ cực đại dự kiến rất cao. Nên tăng che phủ, giữ ẩm và hạn chế thao tác nặng ngoài trời giữa trưa.'
-            : 'Nắng nóng và UV cao có thể làm cây mất nước nhanh. Nên ưu tiên tưới sớm hoặc chiều muộn.',
+            ? 'Nhiệt độ cực đại dự kiến rất cao. Đây là tín hiệu cần theo dõi khi đánh giá rủi ro hụt sản lượng, hao hụt sau thu hoạch và biến động giá.'
+            : 'Nắng nóng và UV cao có thể làm tăng áp lực chất lượng hàng. Tác động giá cần được đối chiếu thêm với tiến độ thu hoạch và nhu cầu mua.',
         windowStart: heatWindow.start,
         windowEnd: heatWindow.end,
         basedOn: ['temperature', 'uv'],
@@ -108,8 +109,9 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'disease_risk',
         severity: 'warning',
-        title: 'Điều kiện thuận lợi cho nấm bệnh',
-        message: 'Độ ẩm cao kéo dài kèm mưa làm tăng nguy cơ nấm bệnh. Nên tăng theo dõi tán lá, thoáng vườn và tiêu nước mặt.',
+        title: 'Độ ẩm cao làm tăng rủi ro chất lượng',
+        message:
+          'Độ ẩm cao kéo dài kèm mưa có thể làm tăng rủi ro giảm phẩm cấp hoặc hao hụt sau thu hoạch. Tín hiệu này phù hợp để theo dõi chênh lệch giá theo chất lượng.',
         windowStart: diseaseRiskHours[0].time,
         windowEnd: diseaseRiskHours[diseaseRiskHours.length - 1].time,
         basedOn: ['humidity', 'rain', 'temperature'],
@@ -128,8 +130,9 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'irrigation_watch',
         severity: totalEt0 >= 10 ? 'warning' : 'info',
-        title: 'Theo dõi nhu cầu tưới bổ sung',
-        message: '48 giờ tới ít mưa, bốc thoát hơi cao và ẩm không khí thấp. Nên kiểm tra ẩm đất và ưu tiên tưới tiết kiệm theo lô.',
+        title: 'Khô nóng có thể tạo áp lực nguồn cung',
+        message:
+          '48 giờ tới ít mưa, bốc thoát hơi cao và ẩm không khí thấp. Đây là tín hiệu cần theo dõi khi đánh giá rủi ro sản lượng và kỳ vọng giá ngắn hạn.',
         windowStart: next48h[0]?.time ?? new Date().toISOString(),
         windowEnd: next48h[next48h.length - 1]?.time ?? new Date().toISOString(),
         basedOn: ['rain', 'humidity', 'et0'],
@@ -142,8 +145,9 @@ export function buildAgriAdvisories(input: {
       createAdvisory({
         id: 'stable_window',
         severity: 'info',
-        title: 'Điều kiện ngắn hạn tương đối ổn định',
-        message: 'Chưa thấy tín hiệu thời tiết cực đoan nổi bật trong 48 giờ tới. Vẫn nên theo dõi cập nhật trước các công việc nhạy cảm với mưa.',
+        title: 'Tín hiệu thời tiết ngắn hạn tương đối ổn định',
+        message:
+          'Chưa thấy tín hiệu thời tiết cực đoan nổi bật trong 48 giờ tới. Biến động giá nếu có nhiều khả năng cần đối chiếu thêm với nhu cầu mua, tồn kho và lịch giao hàng.',
         windowStart: next72h[0]?.time ?? new Date().toISOString(),
         windowEnd: next72h[Math.min(next72h.length - 1, 23)]?.time ?? new Date().toISOString(),
         basedOn: ['rain', 'temperature'],

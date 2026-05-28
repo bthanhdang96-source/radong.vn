@@ -26,8 +26,8 @@ export default function WeatherAdvisoryCards({ advisories }: WeatherAdvisoryCard
     <section className="weather-section">
       <div className="weather-section__heading">
         <div>
-          <span className="weather-section__eyebrow">Cảnh báo 24-72 giờ</span>
-          <h2 className="weather-section__title">Khuyến nghị vận hành ngoài ruộng</h2>
+          <span className="weather-section__eyebrow">Tín hiệu 24-72 giờ</span>
+          <h2 className="weather-section__title">Lưu ý cho dự báo giá và nguồn cung</h2>
         </div>
       </div>
 
