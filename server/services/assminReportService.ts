@@ -138,6 +138,29 @@ function sourceLastUpdatedById<T extends { id: string; fetchedAt: string }>(sour
   return maxTimestamp(sources.filter(source => source.id === id).map(source => source.fetchedAt))
 }
 
+function getFailedSourceComponents(source: { itemCount: number; metadata?: Record<string, unknown> }) {
+  if (!source.metadata || !Array.isArray(source.metadata.componentStatuses)) {
+    return []
+  }
+
+  const components = source.metadata.componentStatuses
+    .map(entry => {
+      if (!entry || typeof entry !== 'object') {
+        return null
+      }
+
+      const value = entry as { label?: unknown; success?: unknown; error?: unknown }
+      return {
+        label: typeof value.label === 'string' ? value.label : 'unknown',
+        success: value.success === true,
+        error: typeof value.error === 'string' ? value.error : null,
+      }
+    })
+    .filter((entry): entry is { label: string; success: boolean; error: string | null } => Boolean(entry))
+
+  return components.filter(entry => !entry.success && source.itemCount > 0)
+}
+
 function latestSourceById<T extends { id: string; fetchedAt: string }>(sources: T[], id: string) {
   return sources
     .filter(source => source.id === id)
@@ -273,9 +296,22 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
     const freshnessLabel = toFreshnessLabel(source.fetchedAt)
     const validationErrorCount = source.validationErrors?.length ?? 0
     const droppedCount = source.droppedCount ?? 0
+    const failedComponents = getFailedSourceComponents(source)
 
-    if (!source.success) {
+    if (!source.success && !(failedComponents.length > 0 && source.itemCount > 0)) {
       warnings.push(makeWarning('source_failed', 'critical', `${source.label} crawl lỗi: ${source.error ?? 'không có item hợp lệ'}.`))
+    }
+
+    if (failedComponents.length > 0) {
+      warnings.push(
+        makeWarning(
+          'source_partial_failure',
+          'warning',
+          `${source.label} có ${failedComponents.length} crawler lỗi: ${failedComponents
+            .map(component => `${component.label}${component.error ? ` (${component.error})` : ''}`)
+            .join('; ')}.`,
+        ),
+      )
     }
 
     if (freshnessLabel === 'stale') {

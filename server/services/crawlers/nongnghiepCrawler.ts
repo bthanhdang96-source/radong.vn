@@ -32,7 +32,13 @@ function extractLatestArticleUrl(listingHtml: string, titlePattern: RegExp): str
 }
 
 function parseCoffee(html: string, timestamp: string): CrawledPriceItem[] {
-  const table = extractTables(html).find((entry) => foldText(entry).includes('gia ca phe'));
+  const table = extractTables(html).find((entry) => {
+    const folded = foldText(entry);
+    return (
+      folded.includes('gia ca phe') ||
+      (folded.includes('gia thu mua') && folded.includes('khu vuc'))
+    );
+  });
   if (!table) {
     return [];
   }
@@ -122,6 +128,45 @@ function parseRice(html: string, timestamp: string): CrawledPriceItem[] {
       if (item) {
         items.push(item);
       }
+    }
+  }
+
+  if (items.length > 0) {
+    return items;
+  }
+
+  // Fallback for updated article layout where rows are [label, price] without previous/current columns.
+  for (const table of extractTables(html)) {
+    const rows = extractRows(table);
+    if (rows.length < 2) {
+      continue;
+    }
+
+    const header = foldText(rows[0].join(' '));
+    if (!header.includes('gia') || !header.includes('dong') || header.includes('usd')) {
+      continue;
+    }
+
+    for (const cells of rows.slice(1)) {
+      const label = cells[0]?.trim() ?? '';
+      const price = parseRangeAverage(cells[1] ?? '');
+      if (!label || !Number.isFinite(price) || price <= 0) {
+        continue;
+      }
+
+      items.push(
+        createItem(
+          'nongnghiep',
+          'gao-noi-dia',
+          'Lua gao DBSCL',
+          'Luong thuc',
+          label,
+          price,
+          null,
+          timestamp,
+          null,
+        ),
+      );
     }
   }
 

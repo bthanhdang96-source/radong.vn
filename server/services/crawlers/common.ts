@@ -3,11 +3,46 @@ import type { CrawledPriceItem, CrawlerResult, SourceId } from './types.js';
 import { isTransientNetworkError, retryTransient, retryTransientResult, type RetryOptions } from '../transientNetwork.js';
 import { validateAndDedupSourceBatch } from '../validators/vnPriceValidation.js';
 
-export const USER_AGENT = 'NongSanVN/0.6 (+https://github.com/bthanhdang96-source/radong.vn)';
-export const HTML_HEADERS = {
-  'user-agent': USER_AGENT,
-  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-};
+const DEFAULT_BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
+const DEFAULT_LEGACY_USER_AGENT = 'NongSanVN/0.6 (+https://github.com/bthanhdang96-source/radong.vn)'
+const HTML_FETCH_TIMEOUT_MS = Number(process.env.CRAWLER_HTML_TIMEOUT_MS ?? '20000')
+
+export const USER_AGENT = process.env.CRAWLER_USER_AGENT?.trim() || DEFAULT_BROWSER_USER_AGENT;
+const FALLBACK_USER_AGENT = process.env.CRAWLER_FALLBACK_USER_AGENT?.trim() || DEFAULT_LEGACY_USER_AGENT;
+
+function buildHtmlHeaders(url: string, userAgent: string) {
+  const origin = new URL(url).origin
+  return {
+    'user-agent': userAgent,
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'accept-language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+    referer: `${origin}/`,
+    'cache-control': 'no-cache',
+    pragma: 'no-cache',
+  }
+}
+
+async function requestUtf8(url: string, headers: Record<string, string>) {
+  const controller = new AbortController()
+  const timeout = setTimeout(
+    () => controller.abort(),
+    Number.isFinite(HTML_FETCH_TIMEOUT_MS) && HTML_FETCH_TIMEOUT_MS > 0 ? HTML_FETCH_TIMEOUT_MS : 20_000,
+  )
+  try {
+    const response = await fetch(url, {
+      headers,
+      signal: controller.signal,
+    });
+    const html = Buffer.from(await response.arrayBuffer()).toString('utf8');
+    return {
+      response,
+      html,
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 const SOURCE_PRIORITIES: Record<SourceId, number> = {
   nongnghiep: 100,
@@ -34,14 +69,20 @@ export function roundNumber(value: number): number {
 
 export async function fetchUtf8(url: string): Promise<string> {
   return retryTransient(async () => {
-    const response = await fetch(url, { headers: HTML_HEADERS });
-    const html = Buffer.from(await response.arrayBuffer()).toString('utf8');
-
-    if (!response.ok) {
-      throw new Error(`Request failed with ${response.status}`);
+    const primary = await requestUtf8(url, buildHtmlHeaders(url, USER_AGENT))
+    if (primary.response.ok) {
+      return primary.html;
     }
 
-    return html;
+    if (primary.response.status === 403) {
+      const fallback = await requestUtf8(url, buildHtmlHeaders(url, FALLBACK_USER_AGENT))
+      if (fallback.response.ok) {
+        return fallback.html
+      }
+      throw new Error(`Request failed with ${fallback.response.status}`)
+    }
+
+    throw new Error(`Request failed with ${primary.response.status}`);
   });
 }
 

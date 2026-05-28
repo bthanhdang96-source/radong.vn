@@ -967,6 +967,8 @@ function aggregateSourceSnapshots(sourceId: SourceSnapshot['id'], snapshots: Sou
   const latestSnapshot = [...snapshots].sort((left, right) => right.fetchedAt.localeCompare(left.fetchedAt))[0]
   const coverage = [...new Set(snapshots.flatMap(snapshot => snapshot.coverage))]
   const validationErrors = snapshots.flatMap(snapshot => snapshot.validationErrors ?? [])
+  const hasAnyItems = snapshots.some(snapshot => snapshot.itemCount > 0)
+  const fullFailure = failedSnapshots.length === snapshots.length || !hasAnyItems
   const errors = failedSnapshots
     .map(snapshot => `${snapshot.label}: ${snapshot.error ?? 'No rows parsed'}`)
     .filter(Boolean)
@@ -976,17 +978,19 @@ function aggregateSourceSnapshots(sourceId: SourceSnapshot['id'], snapshots: Sou
     label: pickSourceLabel(snapshots),
     url: latestSnapshot.url,
     fetchedAt: latestTimestamp(snapshots.map(snapshot => snapshot.fetchedAt)),
-    success: failedSnapshots.length === 0 && snapshots.some(snapshot => snapshot.itemCount > 0),
+    success: !fullFailure,
     itemCount: snapshots.reduce((sum, snapshot) => sum + snapshot.itemCount, 0),
     priority: Math.max(...snapshots.map(snapshot => snapshot.priority)),
     coverage,
     latestArticleUrl: latestSnapshot.latestArticleUrl,
-    error: errors.length > 0 ? errors.join('; ') : undefined,
+    error: fullFailure && errors.length > 0 ? errors.join('; ') : undefined,
     droppedCount: snapshots.reduce((sum, snapshot) => sum + (snapshot.droppedCount ?? 0), 0),
     dedupCount: snapshots.reduce((sum, snapshot) => sum + (snapshot.dedupCount ?? 0), 0),
     validationErrors,
     metadata: {
       aggregatedSnapshotCount: snapshots.length,
+      failedComponentCount: failedSnapshots.length,
+      partialFailure: failedSnapshots.length > 0 && !fullFailure,
       componentStatuses: snapshots.map(snapshot => ({
         label: snapshot.label,
         success: snapshot.success,
