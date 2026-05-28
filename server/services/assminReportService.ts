@@ -8,7 +8,11 @@ import type {
   ReportWarning,
 } from './assminReportTypes.js'
 import { getCrawlerScheduleConfig } from './crawlerScheduler.js'
-import { getExchangeRateLookupResponse, getExchangeRateSyncRuns } from './exchangeRatesService.js'
+import {
+  EXCHANGE_RATE_STALE_DATA_ALERT_DAYS,
+  getExchangeRateLookupResponse,
+  getExchangeRateSyncRuns,
+} from './exchangeRatesService.js'
 import { getExportRegistryHealth } from './exportRegistry/service.js'
 import { getNewsSchedulerConfig } from './news/scheduler.js'
 import { getNewsHealth, getNewsRuns, getNewsSources } from './news/service.js'
@@ -103,6 +107,24 @@ function formatObservedDate(value: string | null | undefined) {
   }
 
   return formatTimestamp(value)
+}
+
+function isObservedDateStale(value: string | null | undefined, staleAfterDays: number) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false
+  }
+
+  const observed = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(observed.getTime())) {
+    return false
+  }
+
+  const now = new Date()
+  const nowUtcDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const observedUtcDay = Date.UTC(observed.getUTCFullYear(), observed.getUTCMonth(), observed.getUTCDate())
+  const ageDays = Math.floor((nowUtcDay - observedUtcDay) / (24 * 60 * 60 * 1000))
+
+  return ageDays > staleAfterDays
 }
 
 function maxTimestamp(values: Array<string | null | undefined>) {
@@ -523,7 +545,7 @@ function buildDatasetJobs(
 
   if (!exchangeRates.latestObservedOn) {
     exchangeWarnings.push(makeWarning('exchange_rates_no_data_day', 'warning', 'Dataset tỷ giá chưa có ngày dữ liệu mới nhất.'))
-  } else if (toFreshnessLabel(`${exchangeRates.latestObservedOn}T00:00:00.000Z`) === 'stale') {
+  } else if (isObservedDateStale(exchangeRates.latestObservedOn, EXCHANGE_RATE_STALE_DATA_ALERT_DAYS)) {
     exchangeWarnings.push(
       makeWarning(
         'exchange_rates_stale',
