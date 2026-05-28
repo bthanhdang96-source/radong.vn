@@ -273,12 +273,14 @@ export async function crawlExportRegistry(options: CrawlOptions = {}) {
   const browser = await chromium.launch({ headless: true })
 
   try {
-    const page = await browser.newPage()
-    const results: ExportRegistryCrawlResult[] = []
-
-    for (const registryType of registryTypes) {
-      results.push(await crawlRegistryType(page, registryType, { timeoutMs, maxPagesPerType }))
-    }
+    const results = await Promise.all(registryTypes.map(async registryType => {
+      const page = await browser.newPage()
+      try {
+        return await crawlRegistryType(page, registryType, { timeoutMs, maxPagesPerType })
+      } finally {
+        await page.close()
+      }
+    }))
 
     return results
   } finally {
