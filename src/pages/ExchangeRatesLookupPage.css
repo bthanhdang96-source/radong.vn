@@ -81,6 +81,22 @@
   color: var(--color-text-muted);
 }
 
+.exchange-rate-page__summary-move {
+  font-weight: 600;
+}
+
+.exchange-rate-page__summary-move--up {
+  color: var(--color-up);
+}
+
+.exchange-rate-page__summary-move--down {
+  color: var(--color-down);
+}
+
+.exchange-rate-page__summary-move--neutral {
+  color: var(--color-neutral);
+}
+
 .exchange-rate-page__health {
   width: fit-content;
   padding: 2px 8px;

@@ -235,16 +235,46 @@ export default function ExchangeRatesLookupPage() {
     return copy
   }, [payload, search, sortKey])
 
-  const strongestItem = useMemo(() => {
+  const strongestMove30dItem = useMemo(() => {
     const source = filteredItems.length > 0 ? filteredItems : payload?.items ?? []
     if (source.length === 0) {
       return null
     }
 
-    return source.reduce((strongest, current) => (
-      current.latestVndPerUnit > strongest.latestVndPerUnit ? current : strongest
-    ), source[0])
+    const candidates = source.filter(item => item.change30dPct !== null)
+    if (candidates.length === 0) {
+      return null
+    }
+
+    return candidates.reduce((strongest, current) => (
+      Math.abs(current.change30dPct ?? 0) > Math.abs(strongest.change30dPct ?? 0) ? current : strongest
+    ), candidates[0])
   }, [filteredItems, payload])
+
+  const strongestMove30dLabel = useMemo(() => {
+    if (!strongestMove30dItem || strongestMove30dItem.change30dPct === null) {
+      return '--'
+    }
+
+    if (strongestMove30dItem.change30dPct > 0) {
+      return `Tăng mạnh 30 ngày: ${strongestMove30dItem.currencyCode} (${formatPct(strongestMove30dItem.change30dPct)})`
+    }
+
+    if (strongestMove30dItem.change30dPct < 0) {
+      return `Giảm mạnh 30 ngày: ${strongestMove30dItem.currencyCode} (${formatPct(strongestMove30dItem.change30dPct)})`
+    }
+
+    return `Ổn định 30 ngày: ${strongestMove30dItem.currencyCode} (${formatPct(strongestMove30dItem.change30dPct)})`
+  }, [strongestMove30dItem])
+
+  const strongestMove30dTone =
+    strongestMove30dItem?.change30dPct === null || !strongestMove30dItem
+      ? 'neutral'
+      : strongestMove30dItem.change30dPct > 0
+        ? 'up'
+        : strongestMove30dItem.change30dPct < 0
+          ? 'down'
+          : 'neutral'
 
   const upCount = useMemo(
     () => filteredItems.filter(item => (item.change1dPct ?? 0) > 0).length,
@@ -305,8 +335,8 @@ export default function ExchangeRatesLookupPage() {
             <article className="exchange-rate-page__summary-card">
               <span>Số đồng tiền đang theo dõi</span>
               <strong>{filteredItems.length} đồng tiền</strong>
-              <small>
-                Mạnh nhất: {strongestItem ? `${strongestItem.currencyCode} (${strongestItem.currencyName})` : '--'}
+              <small className={`exchange-rate-page__summary-move exchange-rate-page__summary-move--${strongestMove30dTone}`}>
+                {strongestMove30dLabel}
               </small>
             </article>
             <article className="exchange-rate-page__summary-card">
