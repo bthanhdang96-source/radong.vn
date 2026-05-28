@@ -47,24 +47,28 @@ async function main() {
   )
 
   const source = result.sources[0]
+  const hasParsedItems = Boolean(source?.success && result.items.length > 0)
   console.log(`[BHX Run] success=${source?.success ?? false}`)
   console.log(`[BHX Run] items=${result.items.length}`)
   if (source?.metadata) {
     console.log(`[BHX Run] metadata=${JSON.stringify(source.metadata)}`)
   }
 
-  if (!source?.success || result.items.length === 0) {
+  if (!hasParsedItems) {
     console.error(`[BHX Run] error=${source?.error ?? 'No BHX items parsed'}`)
-    process.exitCode = 1
-    return
   }
 
-  for (const item of result.items.slice(0, 8)) {
-    console.log(`[BHX Run] item ${item.commodity} region=${item.region} price=${item.price}`)
+  if (hasParsedItems) {
+    for (const item of result.items.slice(0, 8)) {
+      console.log(`[BHX Run] item ${item.commodity} region=${item.region} price=${item.price}`)
+    }
   }
 
   if (dryRun || !hasSupabaseAdminConfig) {
     console.log(`[BHX Run] sync=${dryRun ? 'skipped (dry-run)' : 'skipped (missing service role key)'}`)
+    if (!hasParsedItems) {
+      process.exitCode = 1
+    }
     return
   }
 
@@ -72,6 +76,10 @@ async function main() {
   console.log(
     `[BHX Run] sync processed=${sync.processedCount} inserted=${sync.insertedCount} failed=${sync.failedCount} enqueued=${sync.enqueuedCount} skippedDuplicate=${sync.skippedDuplicateCount}`,
   )
+
+  if (!hasParsedItems) {
+    process.exitCode = 1
+  }
 }
 
 main().catch(error => {

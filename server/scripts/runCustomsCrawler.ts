@@ -36,6 +36,7 @@ async function main() {
   )
 
   const source = result.sources[0]
+  const hasParsedItems = Boolean(source?.success && result.items.length > 0)
   console.log(`[Customs Run] success=${source?.success ?? false}`)
   console.log(`[Customs Run] sourceUrl=${source?.latestArticleUrl ?? source?.url ?? 'n/a'}`)
   console.log(`[Customs Run] items=${result.items.length}`)
@@ -43,20 +44,23 @@ async function main() {
     console.log(`[Customs Run] metadata=${JSON.stringify(source.metadata)}`)
   }
 
-  if (!source?.success || result.items.length === 0) {
+  if (!hasParsedItems) {
     console.error(`[Customs Run] error=${source?.error ?? 'No customs items parsed'}`)
-    process.exitCode = 1
-    return
   }
 
-  for (const item of result.items.slice(0, 8)) {
-    console.log(
-      `[Customs Run] item ${item.commodity} price=${item.price} priceUsd=${item.priceUsd ?? 'n/a'} dedupe=${item.dedupeKey ?? 'n/a'}`,
-    )
+  if (hasParsedItems) {
+    for (const item of result.items.slice(0, 8)) {
+      console.log(
+        `[Customs Run] item ${item.commodity} price=${item.price} priceUsd=${item.priceUsd ?? 'n/a'} dedupe=${item.dedupeKey ?? 'n/a'}`,
+      )
+    }
   }
 
   if (dryRun || !hasSupabaseAdminConfig) {
     console.log(`[Customs Run] sync=${dryRun ? 'skipped (dry-run)' : 'skipped (missing service role key)'}`)
+    if (!hasParsedItems) {
+      process.exitCode = 1
+    }
     return
   }
 
@@ -64,6 +68,10 @@ async function main() {
   console.log(
     `[Customs Run] sync processed=${sync.processedCount} inserted=${sync.insertedCount} failed=${sync.failedCount} enqueued=${sync.enqueuedCount} skippedDuplicate=${sync.skippedDuplicateCount}`,
   )
+
+  if (!hasParsedItems) {
+    process.exitCode = 1
+  }
 }
 
 main().catch(error => {

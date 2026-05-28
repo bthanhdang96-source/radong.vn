@@ -140,14 +140,14 @@ async function syncCrawlerResult(
   result: CrawlerResult,
 ) {
   const source = result.sources[0]
+  const hasParsedItems = Boolean(source?.success && result.items.length > 0)
   console.log(`[${jobName}] success=${source?.success ?? false} items=${result.items.length}`)
   if (source?.metadata) {
     console.log(`[${jobName}] metadata=${JSON.stringify(source.metadata)}`)
   }
 
-  if (!source?.success || result.items.length === 0) {
+  if (!hasParsedItems) {
     console.error(`[${jobName}] error=${source?.error ?? 'No items parsed'}`)
-    return
   }
 
   if (dryRun || !hasSupabaseAdminConfig) {

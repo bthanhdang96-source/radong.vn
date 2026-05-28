@@ -19,9 +19,14 @@ import type { WeatherProviderId } from './weather/types.js'
 
 const FRESH_SOURCE_WINDOW_MS = 18 * 60 * 60 * 1000
 const AGING_SOURCE_WINDOW_MS = 36 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 const HIGH_LATENCY_MS = 5_000
 const MIN_WEATHER_HORIZON_DAYS = 3
 const EXPORT_REGISTRY_STALE_MS = 36 * 60 * 60 * 1000
+const SCHEDULER_STALE_WINDOW_BY_JOB_KEY: Partial<Record<string, number>> = {
+  // Customs runs weekly, so 36h would create false warnings between normal runs.
+  'customs-crawl': 9 * DAY_MS,
+}
 
 const WEATHER_PROVIDER_META: Record<WeatherProviderId, { label: string; url: string }> = {
   open_meteo: {
@@ -109,6 +114,27 @@ function maxTimestamp(values: Array<string | null | undefined>) {
 
 function sourceLastUpdatedById<T extends { id: string; fetchedAt: string }>(sources: T[], id: string) {
   return maxTimestamp(sources.filter(source => source.id === id).map(source => source.fetchedAt))
+}
+
+function latestSourceById<T extends { id: string; fetchedAt: string }>(sources: T[], id: string) {
+  return sources
+    .filter(source => source.id === id)
+    .sort((left, right) => right.fetchedAt.localeCompare(left.fetchedAt))
+    .at(0) ?? null
+}
+
+function isSchedulerJobStale(jobKey: string, lastUpdated: string | null) {
+  if (!lastUpdated) {
+    return false
+  }
+
+  const timestamp = new Date(lastUpdated).getTime()
+  if (!Number.isFinite(timestamp)) {
+    return false
+  }
+
+  const staleWindowMs = SCHEDULER_STALE_WINDOW_BY_JOB_KEY[jobKey] ?? AGING_SOURCE_WINDOW_MS
+  return Date.now() - timestamp > staleWindowMs
 }
 
 function schedulerStatus(enabled: boolean, lastUpdated: string | null, warnings: ReportWarning[]): ReportSeverity {
@@ -715,13 +741,27 @@ function buildSchedulerJobs(
   ]
 
   for (const job of crawlerJobs) {
+    const sourceId =
+      job.key === 'bhx-crawl'
+        ? 'bhx'
+        : job.key === 'coop-crawl'
+          ? 'coop'
+          : job.key === 'customs-crawl'
+            ? 'customs'
+            : null
+    const latestSource = sourceId ? latestSourceById(vnPriceSources, sourceId) : null
+
     if (!job.enabled) {
       job.warnings.push(makeWarning('job_disabled', 'warning', `${job.label} hiện đang tắt.`))
     }
 
+    if (latestSource && !latestSource.success) {
+      job.warnings.push(makeWarning('job_latest_failed', 'critical', `${job.label} run gần nhất thất bại.`))
+    }
+
     if (!job.lastUpdated && job.enabled) {
       job.warnings.push(makeWarning('job_no_output', 'critical', `${job.label} chưa có timestamp đầu ra.`))
-    } else if (job.lastUpdated && toFreshnessLabel(job.lastUpdated) === 'stale') {
+    } else if (job.lastUpdated && isSchedulerJobStale(job.key, job.lastUpdated)) {
       job.warnings.push(makeWarning('job_stale', 'warning', `${job.label} đã cũ từ ${formatTimestamp(job.lastUpdated)}.`))
     }
 
