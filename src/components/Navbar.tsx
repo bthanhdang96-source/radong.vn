@@ -11,7 +11,8 @@ type NavLink = {
 
 const NAV_LINKS: NavLink[] = [
   { label: 'Tin tức', to: '/', matches: ['/', '/tin-tuc/'] },
-  { label: 'Bảng giá', to: '/bang-gia', matches: ['/bang-gia', '/gia-nong-san/'] },
+  { label: 'Giá thế giới', to: '/thegioi', matches: ['/thegioi'] },
+  { label: 'Giá nội địa', to: '/bang-gia', matches: ['/bang-gia', '/gia-nong-san/'] },
   { label: 'Chuỗi giá', to: '/chuoi-gia', matches: ['/chuoi-gia'] },
   {
     label: 'Tra cứu',
@@ -23,7 +24,6 @@ const NAV_LINKS: NavLink[] = [
       { label: 'Cơ sở đóng gói', to: '/tra-cuu/co-so-dong-goi' },
     ],
   },
-  { label: 'Thế giới', to: '/thegioi', matches: ['/thegioi'] },
   { label: 'Thời tiết', to: '/thoi-tiet-nong-nghiep', matches: ['/thoi-tiet-nong-nghiep'] },
 ]
 
