@@ -296,3 +296,43 @@ test('buildObservationDedupeKey keeps coconut unit clusters separate', () => {
 
   assert.notEqual(perFruitKey, perChucKey)
 })
+
+test('buildObservationDedupeKey explicit keys vary by day and price', () => {
+  const common = {
+    sourceName: 'coop',
+    commoditySlug: 'ca-chua',
+    priceType: 'retail',
+    provinceCode: 'HCM',
+    regionLabel: 'TP. Ho Chi Minh',
+    variety: null,
+    qualityGrade: null,
+    marketName: 'Co.opmart',
+    articleTitle: 'Ca chua',
+    sourceUrl: 'https://cooponline.vn/',
+    countryCode: 'VNM',
+    unit: 'VND/kg',
+    normalizedUnitKey: 'kg',
+    unitQuantity: 1,
+    explicitKey: 'coop:HCM:12345:SKU123:kg:1',
+    extra: null,
+  } as const
+
+  const dayOne = buildObservationDedupeKey({
+    ...common,
+    priceVnd: 20000,
+    recordedAt: '2026-05-28T01:00:00.000Z',
+  })
+  const dayTwoSamePrice = buildObservationDedupeKey({
+    ...common,
+    priceVnd: 20000,
+    recordedAt: '2026-05-29T01:00:00.000Z',
+  })
+  const dayOneDifferentPrice = buildObservationDedupeKey({
+    ...common,
+    priceVnd: 21000,
+    recordedAt: '2026-05-28T07:00:00.000Z',
+  })
+
+  assert.notEqual(dayOne, dayTwoSamePrice)
+  assert.notEqual(dayOne, dayOneDifferentPrice)
+})

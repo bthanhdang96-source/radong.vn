@@ -139,7 +139,13 @@ export function getValidationBounds(commoditySlug: string, priceType: PriceType)
 export function buildObservationDedupeKey(input: DedupeKeyInput) {
   const explicitKey = input.explicitKey?.trim() || getExtraFingerprintHint(input.extra)
   const parts = explicitKey
-    ? ['explicit', input.sourceName, explicitKey]
+    ? [
+        'explicit',
+        input.sourceName,
+        explicitKey,
+        roundPriceForFingerprint(input.priceVnd),
+        normalizeRecordedDate(input.recordedAt),
+      ]
     : [
         input.sourceName,
         input.commoditySlug,
