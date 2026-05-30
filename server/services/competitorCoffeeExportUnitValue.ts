@@ -166,6 +166,8 @@ export type CompetitorCoffeePreparedRows = {
   aggregatePartnerRowsExcluded: number
   duplicateRawRowsCollapsed: number
   duplicateFactRowsCollapsed: number
+  suppressedIncompletePeriodLabels: string[]
+  suppressedIncompleteFactRows: number
   unitDistribution: Record<string, number>
   availablePeriodLabels: string[]
   qc: CompetitorCoffeeExportUnitValueQcReport
@@ -177,6 +179,8 @@ export type CompetitorCoffeeExportUnitValueQcReport = {
   factRowsPrepared: number
   duplicateRawRowsCollapsed: number
   duplicateFactRowsCollapsed: number
+  suppressedIncompletePeriodLabels: string[]
+  suppressedIncompleteFactRows: number
   aggregatePartnerRowsExcluded: number
   worldPartnerFactRows: number
   missingValueRows: number
@@ -211,6 +215,7 @@ export type CompetitorCoffeeSyncOptions = {
   requestChunkSize?: number
   fetchedAt?: string
   sourceRows?: CompetitorComtradeRawRow[]
+  suppressIncompleteBenchmarkPeriods?: boolean
 }
 
 export type CompetitorCoffeeSyncResult = {
@@ -229,6 +234,8 @@ export type CompetitorCoffeeSyncResult = {
   aggregatePartnerRowsExcluded: number
   duplicateRawRowsCollapsed: number
   duplicateFactRowsCollapsed: number
+  suppressedIncompletePeriodLabels: string[]
+  suppressedIncompleteFactRows: number
   availablePeriodLabels: string[]
   unitDistribution: Record<string, number>
   qc: CompetitorCoffeeExportUnitValueQcReport
@@ -806,6 +813,29 @@ async function upsertRowsInChunks(tableName: string, rows: Record<string, unknow
   return rows.length
 }
 
+async function deleteSuppressedFactPeriods(periodLabels: string[]) {
+  if (periodLabels.length === 0) {
+    return 0
+  }
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return 0
+  }
+
+  const { error, count } = await client
+    .from('fact_competitor_export_unit_value')
+    .delete({ count: 'exact' })
+    .eq('period_type', 'A')
+    .eq('source_name', SOURCE_NAME)
+    .eq('hs6', HS6_CODE)
+    .in('period_label', periodLabels)
+
+  if (error) {
+    throw error
+  }
+  return count ?? 0
+}
+
 function rankRows(
   rows: CompetitorCoffeeExportUnitValueRow[],
   valueGetter: (row: CompetitorCoffeeExportUnitValueRow) => number | null,
@@ -927,6 +957,7 @@ export function prepareCompetitorCoffeeExportRows(
     sourceName?: string
     syncRunId?: string | null
     queryParams: Record<string, unknown>
+    suppressIncompleteBenchmarkPeriods?: boolean
   },
 ): CompetitorCoffeePreparedRows {
   const sourceName = options.sourceName ?? SOURCE_NAME
@@ -1079,7 +1110,7 @@ export function prepareCompetitorCoffeeExportRows(
     existing.fetched_at = maxFetchedAt(existing.fetched_at, options.fetchedAt)
   }
 
-  const factRows = [...aggregations.values()].map(bucket => {
+  const factRowsBeforeCompletenessGuard = [...aggregations.values()].map(bucket => {
     const exportValueUsd = bucket.valueCount > 0 ? roundNumber(bucket.valueSum, 6) : null
     const exportQuantityTon = bucket.quantityCount > 0 ? roundNumber(bucket.quantitySum, 6) : null
     const exportUnitValueUsdPerTon =
@@ -1129,6 +1160,23 @@ export function prepareCompetitorCoffeeExportRows(
     } satisfies CompetitorCoffeeExportUnitValueRow
   })
 
+  const reportersByPeriod = new Map<string, Set<string>>()
+  for (const row of factRowsBeforeCompletenessGuard) {
+    const reporters = reportersByPeriod.get(row.period_label) ?? new Set<string>()
+    reporters.add(row.reporter_iso)
+    reportersByPeriod.set(row.period_label, reporters)
+  }
+  const suppressIncompleteBenchmarkPeriods = options.suppressIncompleteBenchmarkPeriods ?? true
+  const suppressedIncompletePeriodLabels = suppressIncompleteBenchmarkPeriods
+    ? [...reportersByPeriod.entries()]
+        .filter(([, reporters]) => !reporters.has('VNM'))
+        .map(([periodLabel]) => periodLabel)
+        .sort()
+    : []
+  const suppressedPeriods = new Set(suppressedIncompletePeriodLabels)
+  const factRows = factRowsBeforeCompletenessGuard.filter(row => !suppressedPeriods.has(row.period_label))
+  const suppressedIncompleteFactRows = factRowsBeforeCompletenessGuard.length - factRows.length
+
   const rowsByPartnerMarket = new Map<string, CompetitorCoffeeExportUnitValueRow[]>()
   for (const row of factRows) {
     const key = buildPartnerMarketKey(row)
@@ -1173,6 +1221,8 @@ export function prepareCompetitorCoffeeExportRows(
     factRows,
     duplicateRawRowsCollapsed,
     duplicateFactRowsCollapsed,
+    suppressedIncompletePeriodLabels,
+    suppressedIncompleteFactRows,
     aggregatePartnerRowsExcluded,
     unitDistribution: Object.fromEntries([...unitDistribution.entries()].sort()),
   })
@@ -1187,6 +1237,8 @@ export function prepareCompetitorCoffeeExportRows(
     aggregatePartnerRowsExcluded,
     duplicateRawRowsCollapsed,
     duplicateFactRowsCollapsed,
+    suppressedIncompletePeriodLabels,
+    suppressedIncompleteFactRows,
     unitDistribution: Object.fromEntries([...unitDistribution.entries()].sort()),
     availablePeriodLabels: [...availablePeriodLabels].sort(),
     qc,
@@ -1199,6 +1251,8 @@ export function buildCompetitorCoffeeExportUnitValueQcReport(input: {
   factRows: CompetitorCoffeeExportUnitValueRow[]
   duplicateRawRowsCollapsed: number
   duplicateFactRowsCollapsed: number
+  suppressedIncompletePeriodLabels: string[]
+  suppressedIncompleteFactRows: number
   aggregatePartnerRowsExcluded: number
   unitDistribution: Record<string, number>
 }): CompetitorCoffeeExportUnitValueQcReport {
@@ -1254,6 +1308,8 @@ export function buildCompetitorCoffeeExportUnitValueQcReport(input: {
     factRowsPrepared: input.factRows.length,
     duplicateRawRowsCollapsed: input.duplicateRawRowsCollapsed,
     duplicateFactRowsCollapsed: input.duplicateFactRowsCollapsed,
+    suppressedIncompletePeriodLabels: input.suppressedIncompletePeriodLabels,
+    suppressedIncompleteFactRows: input.suppressedIncompleteFactRows,
     aggregatePartnerRowsExcluded: input.aggregatePartnerRowsExcluded,
     worldPartnerFactRows,
     missingValueRows: flagCounts.missing_value,
@@ -1297,6 +1353,8 @@ export function renderCompetitorCoffeeExportUnitValueQcMarkdown(
     `- Fact rows prepared: ${report.factRowsPrepared}`,
     `- Duplicate raw grain rows collapsed: ${report.duplicateRawRowsCollapsed}`,
     `- Duplicate fact grain rows collapsed: ${report.duplicateFactRowsCollapsed}`,
+    `- Suppressed incomplete benchmark periods: ${report.suppressedIncompletePeriodLabels.length}`,
+    `- Suppressed incomplete fact rows: ${report.suppressedIncompleteFactRows}`,
     `- Aggregate partner rows excluded: ${report.aggregatePartnerRowsExcluded}`,
     `- World partner fact rows after exclusion: ${report.worldPartnerFactRows}`,
     '',
@@ -1306,6 +1364,16 @@ export function renderCompetitorCoffeeExportUnitValueQcMarkdown(
 
   for (const reporter of REPORTERS) {
     rows.push(`- ${reporter.iso}: ${report.reporterCoverage[reporter.iso] ?? 0} fact rows`)
+  }
+
+  rows.push('', '## Completeness Guard', '')
+  if (report.suppressedIncompletePeriodLabels.length === 0) {
+    rows.push('- No periods were suppressed by the Vietnam coverage guard.')
+  } else {
+    rows.push(
+      `- Suppressed periods: ${report.suppressedIncompletePeriodLabels.join(', ')}`,
+      '- These periods had tracked reporter data but no Vietnam fact rows, so they are omitted from public benchmark facts and summaries by default.',
+    )
   }
 
   rows.push('', '## Unit Distribution', '')
@@ -1467,6 +1535,7 @@ export async function syncCompetitorCoffeeExportUnitValue(
     fetchedAt,
     sourceUrl,
     queryParams,
+    suppressIncompleteBenchmarkPeriods: options.suppressIncompleteBenchmarkPeriods,
   })
   const benchmarkRows = buildCompetitorCoffeeBenchmarkRows(prepared.factRows)
   const shouldPersist = !dryRun && Boolean(getSupabaseAdminClient())
@@ -1506,6 +1575,7 @@ export async function syncCompetitorCoffeeExportUnitValue(
 
   let rawRowsPersisted = 0
   let factRowsPersisted = 0
+  let suppressedFactRowsDeleted = 0
   if (shouldPersist) {
     rawRowsPersisted = await upsertRowsInChunks(
       'raw_un_comtrade_coffee_exports_multi_reporter',
@@ -1517,6 +1587,7 @@ export async function syncCompetitorCoffeeExportUnitValue(
       prepared.factRows,
       'period_type,period_label,reporter_iso,partner_iso,flow,hs6,source_name',
     )
+    suppressedFactRowsDeleted = await deleteSuppressedFactPeriods(prepared.suppressedIncompletePeriodLabels)
   }
 
   return {
@@ -1535,6 +1606,8 @@ export async function syncCompetitorCoffeeExportUnitValue(
     aggregatePartnerRowsExcluded: prepared.aggregatePartnerRowsExcluded,
     duplicateRawRowsCollapsed: prepared.duplicateRawRowsCollapsed,
     duplicateFactRowsCollapsed: prepared.duplicateFactRowsCollapsed,
+    suppressedIncompletePeriodLabels: prepared.suppressedIncompletePeriodLabels,
+    suppressedIncompleteFactRows: prepared.suppressedIncompleteFactRows + suppressedFactRowsDeleted,
     availablePeriodLabels: prepared.availablePeriodLabels,
     unitDistribution: prepared.unitDistribution,
     qc: prepared.qc,

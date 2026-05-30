@@ -1,6 +1,6 @@
 # QC Report - Competitor Coffee Export Unit Value
 
-Generated at: 2026-05-30T18:34:22.015Z
+Generated at: 2026-05-30T19:13:38.772Z
 
 ## Scope
 
@@ -14,17 +14,24 @@ Generated at: 2026-05-30T18:34:22.015Z
 
 - Raw rows fetched: 2330
 - Raw rows prepared: 1119
-- Fact rows prepared: 1104
+- Fact rows prepared: 742
 - Duplicate raw grain rows collapsed: 0
 - Duplicate fact grain rows collapsed: 0
+- Suppressed incomplete benchmark periods: 2
+- Suppressed incomplete fact rows: 362
 - Aggregate partner rows excluded: 15
 - World partner fact rows after exclusion: 0
 
 ## Reporter Coverage
 
 - VNM: 268 fact rows
-- BRA: 415 fact rows
-- IDN: 421 fact rows
+- BRA: 205 fact rows
+- IDN: 269 fact rows
+
+## Completeness Guard
+
+- Suppressed periods: 2024, 2025
+- These periods had tracked reporter data but no Vietnam fact rows, so they are omitted from public benchmark facts and summaries by default.
 
 ## Unit Distribution
 
@@ -33,12 +40,12 @@ Generated at: 2026-05-30T18:34:22.015Z
 
 ## Unit Value Flags
 
-- ok: 868
+- ok: 597
 - missing_value: 0
 - missing_quantity: 0
 - zero_quantity: 0
 - missing_or_unknown_quantity_unit: 0
-- low_volume_for_competitor_benchmark: 236
+- low_volume_for_competitor_benchmark: 145
 - invalid_unit_value: 0
 
 ## Missing And Invalid Checks
@@ -48,7 +55,7 @@ Generated at: 2026-05-30T18:34:22.015Z
 - Unknown quantity unit rows: 0
 - Zero quantity rows: 0
 - Invalid unit value rows: 0
-- Low-volume rows: 236
+- Low-volume rows: 145
 
 ## Benchmark Coverage
 
@@ -61,24 +68,24 @@ Generated at: 2026-05-30T18:34:22.015Z
 
 - 2022 | IDN -> Vanuatu (VUT) | value_usd=400 | quantity_ton=0.00215 | unit_value_usd_per_ton=186046.511628 | flag=low_volume_for_competitor_benchmark
 - 2022 | IDN -> Albania (ALB) | value_usd=1800 | quantity_ton=0.02 | unit_value_usd_per_ton=90000 | flag=low_volume_for_competitor_benchmark
-- 2024 | IDN -> Timor-Leste (TLS) | value_usd=7 | quantity_ton=0.0001 | unit_value_usd_per_ton=70000 | flag=low_volume_for_competitor_benchmark
 - 2020 | IDN -> Cayman Isds (CYM) | value_usd=160.4 | quantity_ton=0.0023 | unit_value_usd_per_ton=69739.130435 | flag=low_volume_for_competitor_benchmark
 - 2021 | IDN -> Kazakhstan (KAZ) | value_usd=161 | quantity_ton=0.00374 | unit_value_usd_per_ton=43048.128342 | flag=low_volume_for_competitor_benchmark
-- 2025 | IDN -> Bahrain (BHR) | value_usd=16200 | quantity_ton=0.4 | unit_value_usd_per_ton=40500 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Guatemala (GTM) | value_usd=20840 | quantity_ton=0.535 | unit_value_usd_per_ton=38953.271028 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Peru (PER) | value_usd=20896 | quantity_ton=0.55 | unit_value_usd_per_ton=37992.727273 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Antigua and Barbuda (ATG) | value_usd=607 | quantity_ton=0.016 | unit_value_usd_per_ton=37937.5 | flag=low_volume_for_competitor_benchmark
-- 2024 | BRA -> Peru (PER) | value_usd=5925 | quantity_ton=0.165 | unit_value_usd_per_ton=35909.090909 | flag=low_volume_for_competitor_benchmark
-- 2024 | BRA -> Guatemala (GTM) | value_usd=11900 | quantity_ton=0.34 | unit_value_usd_per_ton=35000 | flag=low_volume_for_competitor_benchmark
-- 2024 | IDN -> Oman (OMN) | value_usd=4809.46 | quantity_ton=0.15 | unit_value_usd_per_ton=32063.066667 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Angola (AGO) | value_usd=7176 | quantity_ton=0.237 | unit_value_usd_per_ton=30278.481013 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Bahamas (BHS) | value_usd=1205 | quantity_ton=0.044 | unit_value_usd_per_ton=27386.363636 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Marshall Isds (MHL) | value_usd=7252 | quantity_ton=0.272 | unit_value_usd_per_ton=26661.764706 | flag=low_volume_for_competitor_benchmark
-- 2025 | BRA -> Cameroon (CMR) | value_usd=51 | quantity_ton=0.002 | unit_value_usd_per_ton=25500 | flag=low_volume_for_competitor_benchmark
-- 2025 | IDN -> Ghana (GHA) | value_usd=3358.9 | quantity_ton=0.132 | unit_value_usd_per_ton=25446.212121 | flag=low_volume_for_competitor_benchmark
-- 2024 | BRA -> Angola (AGO) | value_usd=3771 | quantity_ton=0.16 | unit_value_usd_per_ton=23568.75 | flag=low_volume_for_competitor_benchmark
-- 2024 | BRA -> Barbados (BRB) | value_usd=46 | quantity_ton=0.002 | unit_value_usd_per_ton=23000 | flag=low_volume_for_competitor_benchmark
 - 2022 | BRA -> Angola (AGO) | value_usd=29423 | quantity_ton=1.293 | unit_value_usd_per_ton=22755.607115 | flag=low_volume_for_competitor_benchmark
+- 2022 | IDN -> Switzerland (CHE) | value_usd=7971.05 | quantity_ton=0.35155 | unit_value_usd_per_ton=22674.015076 | flag=low_volume_for_competitor_benchmark
+- 2021 | VNM -> Austria (AUT) | value_usd=6450 | quantity_ton=0.3 | unit_value_usd_per_ton=21500 | flag=low_volume_for_competitor_benchmark
+- 2023 | IDN -> Oman (OMN) | value_usd=1287.15 | quantity_ton=0.06 | unit_value_usd_per_ton=21452.5 | flag=low_volume_for_competitor_benchmark
+- 2021 | BRA -> Ethiopia (ETH) | value_usd=10500 | quantity_ton=0.5 | unit_value_usd_per_ton=21000 | flag=low_volume_for_competitor_benchmark
+- 2020 | VNM -> Austria (AUT) | value_usd=8673 | quantity_ton=0.42 | unit_value_usd_per_ton=20650 | flag=low_volume_for_competitor_benchmark
+- 2020 | BRA -> Guatemala (GTM) | value_usd=9738 | quantity_ton=0.5 | unit_value_usd_per_ton=19476 | flag=low_volume_for_competitor_benchmark
+- 2021 | IDN -> Brunei Darussalam (BRN) | value_usd=253.025 | quantity_ton=0.01324 | unit_value_usd_per_ton=19110.649547 | flag=low_volume_for_competitor_benchmark
+- 2020 | IDN -> Switzerland (CHE) | value_usd=329.05 | quantity_ton=0.0176 | unit_value_usd_per_ton=18696.022727 | flag=low_volume_for_competitor_benchmark
+- 2022 | BRA -> Antigua and Barbuda (ATG) | value_usd=321 | quantity_ton=0.018 | unit_value_usd_per_ton=17833.333333 | flag=low_volume_for_competitor_benchmark
+- 2023 | IDN -> Congo (COG) | value_usd=41746.7 | quantity_ton=2.50869 | unit_value_usd_per_ton=16640.836452 | flag=low_volume_for_competitor_benchmark
+- 2021 | IDN -> Switzerland (CHE) | value_usd=11325.584 | quantity_ton=0.73725 | unit_value_usd_per_ton=15361.931502 | flag=low_volume_for_competitor_benchmark
+- 2023 | IDN -> Czechia (CZE) | value_usd=91182.76 | quantity_ton=6.44472 | unit_value_usd_per_ton=14148.443998 | flag=low_volume_for_competitor_benchmark
+- 2023 | IDN -> New Caledonia (NCL) | value_usd=16 | quantity_ton=0.00134 | unit_value_usd_per_ton=11940.298507 | flag=low_volume_for_competitor_benchmark
+- 2020 | IDN -> Qatar (QAT) | value_usd=26767 | quantity_ton=2.49 | unit_value_usd_per_ton=10749.799197 | flag=low_volume_for_competitor_benchmark
+- 2020 | BRA -> Bangladesh (BGD) | value_usd=128 | quantity_ton=0.012 | unit_value_usd_per_ton=10666.666667 | flag=low_volume_for_competitor_benchmark
 
 ## Top 20 Lowest Unit Values
 
@@ -105,26 +112,26 @@ Generated at: 2026-05-30T18:34:22.015Z
 
 ## Low-Volume Rows
 
-- 2024 | IDN -> Timor-Leste (TLS) | quantity_ton=0.0001 | unit_value_usd_per_ton=70000
 - 2023 | IDN -> New Caledonia (NCL) | quantity_ton=0.00134 | unit_value_usd_per_ton=11940.298507
-- 2025 | BRA -> Lesotho (LSO) | quantity_ton=0.001985 | unit_value_usd_per_ton=6549.118388
 - 2020 | BRA -> Bosnia Herzegovina (BIH) | quantity_ton=0.002 | unit_value_usd_per_ton=3500
 - 2021 | BRA -> Bangladesh (BGD) | quantity_ton=0.002 | unit_value_usd_per_ton=4000
-- 2024 | BRA -> Barbados (BRB) | quantity_ton=0.002 | unit_value_usd_per_ton=23000
-- 2024 | BRA -> Cayman Isds (CYM) | quantity_ton=0.002 | unit_value_usd_per_ton=6500
-- 2024 | IDN -> North Macedonia (MKD) | quantity_ton=0.002 | unit_value_usd_per_ton=5670
-- 2025 | BRA -> Cameroon (CMR) | quantity_ton=0.002 | unit_value_usd_per_ton=25500
 - 2022 | IDN -> Vanuatu (VUT) | quantity_ton=0.00215 | unit_value_usd_per_ton=186046.511628
 - 2020 | IDN -> Cayman Isds (CYM) | quantity_ton=0.0023 | unit_value_usd_per_ton=69739.130435
 - 2021 | IDN -> Kazakhstan (KAZ) | quantity_ton=0.00374 | unit_value_usd_per_ton=43048.128342
 - 2020 | BRA -> Cayman Isds (CYM) | quantity_ton=0.004 | unit_value_usd_per_ton=6000
 - 2020 | IDN -> Cyprus (CYP) | quantity_ton=0.004 | unit_value_usd_per_ton=10000
 - 2020 | IDN -> Sri Lanka (LKA) | quantity_ton=0.005 | unit_value_usd_per_ton=1200
-- 2024 | BRA -> Gabon (GAB) | quantity_ton=0.005 | unit_value_usd_per_ton=7400
-- 2025 | BRA -> Barbados (BRB) | quantity_ton=0.005 | unit_value_usd_per_ton=22200
-- 2025 | BRA -> Areas, nes (_X) | quantity_ton=0.006 | unit_value_usd_per_ton=16166.666667
 - 2020 | BRA -> Antigua and Barbuda (ATG) | quantity_ton=0.008 | unit_value_usd_per_ton=5125
-- 2024 | BRA -> Bermuda (BMU) | quantity_ton=0.009 | unit_value_usd_per_ton=10000
+- 2021 | IDN -> Nigeria (NGA) | quantity_ton=0.01092 | unit_value_usd_per_ton=6900
+- 2020 | BRA -> Bangladesh (BGD) | quantity_ton=0.012 | unit_value_usd_per_ton=10666.666667
+- 2021 | IDN -> Brunei Darussalam (BRN) | quantity_ton=0.01324 | unit_value_usd_per_ton=19110.649547
+- 2021 | BRA -> Areas, nes (_X) | quantity_ton=0.014 | unit_value_usd_per_ton=7500
+- 2021 | BRA -> Cameroon (CMR) | quantity_ton=0.014 | unit_value_usd_per_ton=1142.857143
+- 2021 | BRA -> Barbados (BRB) | quantity_ton=0.015 | unit_value_usd_per_ton=7066.666667
+- 2021 | IDN -> Austria (AUT) | quantity_ton=0.016 | unit_value_usd_per_ton=3000
+- 2020 | IDN -> Switzerland (CHE) | quantity_ton=0.0176 | unit_value_usd_per_ton=18696.022727
+- 2022 | BRA -> Antigua and Barbuda (ATG) | quantity_ton=0.018 | unit_value_usd_per_ton=17833.333333
+- 2020 | BRA -> Senegal (SEN) | quantity_ton=0.02 | unit_value_usd_per_ton=950
 
 ## Interpretation And Limitations
 

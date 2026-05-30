@@ -164,6 +164,38 @@ test('benchmark rows calculate Vietnam gaps, tracked-reporter shares, and missin
   assert.equal(vnmGermany?.rank_by_unit_value_in_partner_market, 1)
 })
 
+test('completeness guard suppresses periods that have no Vietnam rows by default', () => {
+  const result = transform([
+    rawRow({ reporterISO: 'BRA', period: '2024', partnerISO: 'DEU', partnerDesc: 'Germany', netWgt: 100_000, primaryValue: 250_000 }),
+    rawRow({ reporterISO: 'IDN', period: '2024', partnerISO: 'DEU', partnerDesc: 'Germany', netWgt: 100_000, primaryValue: 200_000 }),
+    rawRow({ reporterISO: 'VNM', period: '2023', partnerISO: 'DEU', partnerDesc: 'Germany', netWgt: 100_000, primaryValue: 300_000 }),
+  ])
+
+  assert.deepEqual(result.suppressedIncompletePeriodLabels, ['2024'])
+  assert.equal(result.suppressedIncompleteFactRows, 2)
+  assert.equal(result.factRows.some(row => row.period_label === '2024'), false)
+  assert.equal(result.factRows.some(row => row.period_label === '2023'), true)
+})
+
+test('completeness guard can be disabled for source investigation', () => {
+  const result = prepareCompetitorCoffeeExportRows(
+    [
+      rawRow({ reporterISO: 'BRA', period: '2024', partnerISO: 'DEU', partnerDesc: 'Germany', netWgt: 100_000, primaryValue: 250_000 }),
+    ],
+    {
+      periodType: 'A',
+      fetchedAt: '2026-05-31T00:00:00.000Z',
+      sourceUrl: 'https://comtradeapi.un.org/mock',
+      queryParams: { test: true },
+      suppressIncompleteBenchmarkPeriods: false,
+    },
+  )
+
+  assert.deepEqual(result.suppressedIncompletePeriodLabels, [])
+  assert.equal(result.suppressedIncompleteFactRows, 0)
+  assert.equal(result.factRows.length, 1)
+})
+
 test('QC markdown includes duplicate, World partner, outlier, low-volume, coverage, and limitation sections', () => {
   const result = transform([
     rawRow({ partnerCode: 0, partnerISO: 'W00', partnerDesc: 'World', netWgt: 10_000, primaryValue: 10_000 }),
@@ -179,6 +211,7 @@ test('QC markdown includes duplicate, World partner, outlier, low-volume, covera
   assert.equal(markdown.includes('Top 20 Highest Unit Values'), true)
   assert.equal(markdown.includes('Low-Volume Rows'), true)
   assert.equal(markdown.includes('Benchmark Coverage'), true)
+  assert.equal(markdown.includes('Completeness Guard'), true)
   assert.equal(markdown.includes('not a transaction price'), true)
   assert.equal(markdown.includes('tracked-reporter shares'), true)
 })

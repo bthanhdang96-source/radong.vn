@@ -62,6 +62,7 @@ router.post('/admin/coffee/competitor-benchmark/refresh', requireAdminApiKey, as
     const fromYear = parseInteger(req.body?.fromYear)
     const toYear = parseInteger(req.body?.toYear)
     const periodType = parsePeriodType(req.body?.periodType)
+    const suppressIncompleteBenchmarkPeriods = req.body?.includeIncompletePeriods === true ? false : true
 
     const result = await syncCompetitorCoffeeExportUnitValue({
       dryRun,
@@ -69,6 +70,7 @@ router.post('/admin/coffee/competitor-benchmark/refresh', requireAdminApiKey, as
       fromYear,
       toYear,
       periodType,
+      suppressIncompleteBenchmarkPeriods,
     })
 
     res.json({
@@ -83,6 +85,8 @@ router.post('/admin/coffee/competitor-benchmark/refresh', requireAdminApiKey, as
       factRowsPersisted: result.factRowsPersisted,
       flagCounts: result.qc.flagCounts,
       reporterCoverage: result.qc.reporterCoverage,
+      suppressedIncompletePeriods: result.suppressedIncompletePeriodLabels,
+      suppressedIncompleteFactRows: result.suppressedIncompleteFactRows,
       artifacts: result.artifacts,
     })
   } catch (error) {
