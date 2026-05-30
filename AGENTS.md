@@ -41,6 +41,10 @@ cp -rf source dest          # NOT: cp -r source dest
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
 
+## Project Skills
+
+- Use `.agent/skills/brainstorming/SKILL.md` before starting creative or behavior-changing work. The workflow requires context exploration, clarifying questions, approach comparison, an approved design, and a written spec before implementation.
+
 ### Quick Reference
 
 ```bash
