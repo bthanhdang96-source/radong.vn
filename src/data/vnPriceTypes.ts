@@ -115,6 +115,73 @@ export interface VnPriceChainResponse {
   data: PriceChainItem[];
 }
 
+export interface WorldCoffeeBenchmarkDailyItem {
+  priceDate: string;
+  commodityGroup: string;
+  benchmarkName: string;
+  benchmarkType: string;
+  contractCode: string | null;
+  contractMonth: string | null;
+  priceValue: number | null;
+  currency: string | null;
+  unit: string | null;
+  priceUsdPerTon: number | null;
+  sourceName: string;
+  sourceUrl: string | null;
+  fetchedAt: string;
+  confidenceScore: number | null;
+  dataQualityFlag: string;
+  notes: string | null;
+}
+
+export interface WorldCoffeeBenchmarkMonthlyItem {
+  monthStart: string;
+  periodLabel: string;
+  benchmarkName: string;
+  benchmarkType: string;
+  avgPriceUsdPerTon: number | null;
+  minPriceUsdPerTon: number | null;
+  maxPriceUsdPerTon: number | null;
+  observations: number;
+  minConfidenceScore: number | null;
+  fetchedAt: string | null;
+}
+
+export interface WorldCoffeeBenchmarkResponse {
+  success: boolean;
+  status: 'live' | 'fallback';
+  lastUpdated: string;
+  dailyCount: number;
+  monthlyCount: number;
+  daily: WorldCoffeeBenchmarkDailyItem[];
+  monthly: WorldCoffeeBenchmarkMonthlyItem[];
+  errors: string[];
+}
+
+export interface CoffeePriceStackItem {
+  periodLabel: string;
+  avgExportUnitValueUsdPerTon: number | null;
+  avgDomesticPriceUsdPerTon: number | null;
+  avgDomesticPriceVndPerKg: number | null;
+  benchmarkName: string | null;
+  benchmarkType: string | null;
+  avgWorldBenchmarkUsdPerTon: number | null;
+  exportVsBenchmarkGapUsdPerTon: number | null;
+  exportVsBenchmarkGapPct: number | null;
+  domesticVsBenchmarkGapUsdPerTon: number | null;
+  domesticVsBenchmarkGapPct: number | null;
+  interpretationNote: string | null;
+}
+
+export interface CoffeePriceStackResponse {
+  success: boolean;
+  status: 'live' | 'fallback';
+  lastUpdated: string;
+  count: number;
+  data: CoffeePriceStackItem[];
+  errors: string[];
+}
+
 export const CATEGORY_LABELS: Record<string, string> = {
   'Lương thực': 'Lương thực',
   'Cây công nghiệp': 'Cây công nghiệp',

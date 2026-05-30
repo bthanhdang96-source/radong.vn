@@ -9,6 +9,7 @@ import exchangeRatesRouter from './exchangeRates.js';
 import newsRouter from './news.js';
 import pricePagesRouter from './pricePages.js';
 import worldPricesRouter from './worldPrices.js';
+import worldCoffeeBenchmarkRouter from './worldCoffeeBenchmark.js';
 import vnPriceChainRouter from './vnPriceChain.js';
 import vnPricesRouter from './vnPrices.js';
 
@@ -23,6 +24,7 @@ router.use(exchangeRatesRouter);
 router.use(commodityPricePagesRouter);
 router.use(pricePagesRouter);
 router.use(worldPricesRouter);
+router.use(worldCoffeeBenchmarkRouter);
 router.use(vnPricesRouter);
 router.use(vnPriceChainRouter);
 router.use(agriWeatherRouter);

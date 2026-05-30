@@ -236,6 +236,120 @@ type VnPriceChainResponse = {
   data: PriceChainItem[]
 }
 
+type WorldCoffeeBenchmarkDailyRow = {
+  price_date: string
+  commodity_group: string
+  benchmark_name: string
+  benchmark_type: string
+  contract_code: string | null
+  contract_month: string | null
+  price_value: number | string | null
+  currency: string | null
+  unit: string | null
+  price_usd_per_ton: number | string | null
+  source_name: string
+  source_url: string | null
+  fetched_at: string
+  confidence_score: number | string | null
+  data_quality_flag: string
+  notes: string | null
+}
+
+type WorldCoffeeBenchmarkMonthlyRow = {
+  month_start: string
+  period_label: string
+  benchmark_name: string
+  benchmark_type: string
+  avg_price_usd_per_ton: number | string | null
+  min_price_usd_per_ton: number | string | null
+  max_price_usd_per_ton: number | string | null
+  observations: number | string | null
+  min_confidence_score: number | string | null
+  fetched_at: string | null
+}
+
+type CoffeePriceStackRow = {
+  period_label: string
+  avg_export_unit_value_usd_per_ton: number | string | null
+  avg_domestic_price_usd_per_ton: number | string | null
+  avg_domestic_price_vnd_per_kg: number | string | null
+  benchmark_name: string | null
+  benchmark_type: string | null
+  avg_world_benchmark_usd_per_ton: number | string | null
+  export_vs_benchmark_gap_usd_per_ton: number | string | null
+  export_vs_benchmark_gap_pct: number | string | null
+  domestic_vs_benchmark_gap_usd_per_ton: number | string | null
+  domestic_vs_benchmark_gap_pct: number | string | null
+  interpretation_note: string | null
+}
+
+export type WorldCoffeeBenchmarkDailyItem = {
+  priceDate: string
+  commodityGroup: string
+  benchmarkName: string
+  benchmarkType: string
+  contractCode: string | null
+  contractMonth: string | null
+  priceValue: number | null
+  currency: string | null
+  unit: string | null
+  priceUsdPerTon: number | null
+  sourceName: string
+  sourceUrl: string | null
+  fetchedAt: string
+  confidenceScore: number | null
+  dataQualityFlag: string
+  notes: string | null
+}
+
+export type WorldCoffeeBenchmarkMonthlyItem = {
+  monthStart: string
+  periodLabel: string
+  benchmarkName: string
+  benchmarkType: string
+  avgPriceUsdPerTon: number | null
+  minPriceUsdPerTon: number | null
+  maxPriceUsdPerTon: number | null
+  observations: number
+  minConfidenceScore: number | null
+  fetchedAt: string | null
+}
+
+export type CoffeePriceStackItem = {
+  periodLabel: string
+  avgExportUnitValueUsdPerTon: number | null
+  avgDomesticPriceUsdPerTon: number | null
+  avgDomesticPriceVndPerKg: number | null
+  benchmarkName: string | null
+  benchmarkType: string | null
+  avgWorldBenchmarkUsdPerTon: number | null
+  exportVsBenchmarkGapUsdPerTon: number | null
+  exportVsBenchmarkGapPct: number | null
+  domesticVsBenchmarkGapUsdPerTon: number | null
+  domesticVsBenchmarkGapPct: number | null
+  interpretationNote: string | null
+}
+
+export type WorldCoffeeBenchmarkResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  dailyCount: number
+  monthlyCount: number
+  daily: WorldCoffeeBenchmarkDailyItem[]
+  monthly: WorldCoffeeBenchmarkMonthlyItem[]
+  errors: string[]
+}
+
+export type CoffeePriceStackResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  count: number
+  data: CoffeePriceStackItem[]
+  errors: string[]
+}
+
 const DEFAULT_VN_PRICE_TYPES: PriceType[] = ['farm_gate', 'wholesale']
 const EXPORT_OBSERVATION_LOOKBACK_DAYS = 45
 const SUMMARY_PRICE_TYPE_PREFERENCE: Partial<Record<string, PriceType>> = {
@@ -264,6 +378,25 @@ const DEFAULT_SOURCE_SNAPSHOT_IDS: SourceId[] = [
 
 function roundNumber(value: number) {
   return Number(value.toFixed(2))
+}
+
+function toNumberOrNull(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    if (!normalized) {
+      return null
+    }
+    const parsed = Number(normalized)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
 }
 
 async function loadCommodityWorldLookup() {
@@ -1916,6 +2049,263 @@ export async function getVnPriceChainResponse(): Promise<VnPriceChainResponse> {
   }
 
   return buildFallbackPriceChainResponse('VN price chain data is unavailable')
+}
+
+function buildFallbackWorldCoffeeBenchmarkResponse(message: string): WorldCoffeeBenchmarkResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    dailyCount: 0,
+    monthlyCount: 0,
+    daily: [],
+    monthly: [],
+    errors: [message],
+  }
+}
+
+function buildFallbackCoffeePriceStackResponse(message: string): CoffeePriceStackResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    count: 0,
+    data: [],
+    errors: [message],
+  }
+}
+
+function toWorldCoffeeBenchmarkDailyItem(row: WorldCoffeeBenchmarkDailyRow): WorldCoffeeBenchmarkDailyItem {
+  return {
+    priceDate: row.price_date,
+    commodityGroup: row.commodity_group,
+    benchmarkName: row.benchmark_name,
+    benchmarkType: row.benchmark_type,
+    contractCode: row.contract_code,
+    contractMonth: row.contract_month,
+    priceValue: toNumberOrNull(row.price_value),
+    currency: row.currency,
+    unit: row.unit,
+    priceUsdPerTon: toNumberOrNull(row.price_usd_per_ton),
+    sourceName: row.source_name,
+    sourceUrl: row.source_url,
+    fetchedAt: row.fetched_at,
+    confidenceScore: toNumberOrNull(row.confidence_score),
+    dataQualityFlag: row.data_quality_flag,
+    notes: row.notes,
+  }
+}
+
+function toWorldCoffeeBenchmarkMonthlyItem(row: WorldCoffeeBenchmarkMonthlyRow): WorldCoffeeBenchmarkMonthlyItem {
+  const observations = toNumberOrNull(row.observations)
+
+  return {
+    monthStart: row.month_start,
+    periodLabel: row.period_label,
+    benchmarkName: row.benchmark_name,
+    benchmarkType: row.benchmark_type,
+    avgPriceUsdPerTon: toNumberOrNull(row.avg_price_usd_per_ton),
+    minPriceUsdPerTon: toNumberOrNull(row.min_price_usd_per_ton),
+    maxPriceUsdPerTon: toNumberOrNull(row.max_price_usd_per_ton),
+    observations: observations === null ? 0 : Math.max(0, Math.trunc(observations)),
+    minConfidenceScore: toNumberOrNull(row.min_confidence_score),
+    fetchedAt: row.fetched_at,
+  }
+}
+
+function toCoffeePriceStackItem(row: CoffeePriceStackRow): CoffeePriceStackItem {
+  return {
+    periodLabel: row.period_label,
+    avgExportUnitValueUsdPerTon: toNumberOrNull(row.avg_export_unit_value_usd_per_ton),
+    avgDomesticPriceUsdPerTon: toNumberOrNull(row.avg_domestic_price_usd_per_ton),
+    avgDomesticPriceVndPerKg: toNumberOrNull(row.avg_domestic_price_vnd_per_kg),
+    benchmarkName: row.benchmark_name,
+    benchmarkType: row.benchmark_type,
+    avgWorldBenchmarkUsdPerTon: toNumberOrNull(row.avg_world_benchmark_usd_per_ton),
+    exportVsBenchmarkGapUsdPerTon: toNumberOrNull(row.export_vs_benchmark_gap_usd_per_ton),
+    exportVsBenchmarkGapPct: toNumberOrNull(row.export_vs_benchmark_gap_pct),
+    domesticVsBenchmarkGapUsdPerTon: toNumberOrNull(row.domestic_vs_benchmark_gap_usd_per_ton),
+    domesticVsBenchmarkGapPct: toNumberOrNull(row.domestic_vs_benchmark_gap_pct),
+    interpretationNote: row.interpretation_note,
+  }
+}
+
+async function getWorldCoffeeBenchmarkDailyRows(limit: number): Promise<WorldCoffeeBenchmarkDailyRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('vw_world_coffee_benchmark_daily')
+    .select(
+      [
+        'price_date',
+        'commodity_group',
+        'benchmark_name',
+        'benchmark_type',
+        'contract_code',
+        'contract_month',
+        'price_value',
+        'currency',
+        'unit',
+        'price_usd_per_ton',
+        'source_name',
+        'source_url',
+        'fetched_at',
+        'confidence_score',
+        'data_quality_flag',
+        'notes',
+      ].join(', '),
+    )
+    .limit(limit)
+    .order('price_date', { ascending: false })
+    .order('benchmark_name', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as WorldCoffeeBenchmarkDailyRow[]
+}
+
+async function getWorldCoffeeBenchmarkMonthlyRows(limit: number): Promise<WorldCoffeeBenchmarkMonthlyRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('vw_world_coffee_benchmark_monthly')
+    .select(
+      [
+        'month_start',
+        'period_label',
+        'benchmark_name',
+        'benchmark_type',
+        'avg_price_usd_per_ton',
+        'min_price_usd_per_ton',
+        'max_price_usd_per_ton',
+        'observations',
+        'min_confidence_score',
+        'fetched_at',
+      ].join(', '),
+    )
+    .limit(limit)
+    .order('month_start', { ascending: false })
+    .order('benchmark_name', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as WorldCoffeeBenchmarkMonthlyRow[]
+}
+
+async function getCoffeePriceStackRows(limit: number): Promise<CoffeePriceStackRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('vw_coffee_price_stack')
+    .select(
+      [
+        'period_label',
+        'avg_export_unit_value_usd_per_ton',
+        'avg_domestic_price_usd_per_ton',
+        'avg_domestic_price_vnd_per_kg',
+        'benchmark_name',
+        'benchmark_type',
+        'avg_world_benchmark_usd_per_ton',
+        'export_vs_benchmark_gap_usd_per_ton',
+        'export_vs_benchmark_gap_pct',
+        'domestic_vs_benchmark_gap_usd_per_ton',
+        'domestic_vs_benchmark_gap_pct',
+        'interpretation_note',
+      ].join(', '),
+    )
+    .limit(limit)
+    .order('period_label', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as CoffeePriceStackRow[]
+}
+
+export async function getWorldCoffeeBenchmarkResponse(options?: {
+  dailyLimit?: number
+  monthlyLimit?: number
+}): Promise<WorldCoffeeBenchmarkResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackWorldCoffeeBenchmarkResponse('World coffee benchmark requires Supabase curated data')
+  }
+
+  const dailyLimit = Math.max(1, Math.min(options?.dailyLimit ?? 120, 500))
+  const monthlyLimit = Math.max(1, Math.min(options?.monthlyLimit ?? 240, 500))
+
+  try {
+    const [dailyRows, monthlyRows] = await Promise.all([
+      getWorldCoffeeBenchmarkDailyRows(dailyLimit),
+      getWorldCoffeeBenchmarkMonthlyRows(monthlyLimit),
+    ])
+    const daily = (dailyRows ?? []).map(toWorldCoffeeBenchmarkDailyItem)
+    const monthly = (monthlyRows ?? []).map(toWorldCoffeeBenchmarkMonthlyItem)
+
+    const lastUpdated = [daily[0]?.fetchedAt, monthly[0]?.fetchedAt]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .sort()
+      .at(-1) ?? new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      dailyCount: daily.length,
+      monthlyCount: monthly.length,
+      daily,
+      monthly,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase World Benchmark] Falling back to empty payload:', error)
+    }
+    return buildFallbackWorldCoffeeBenchmarkResponse('World coffee benchmark data is unavailable')
+  }
+}
+
+export async function getCoffeePriceStackResponse(limit = 180): Promise<CoffeePriceStackResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackCoffeePriceStackResponse('Coffee price stack requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(limit, 500))
+
+  try {
+    const rows = await getCoffeePriceStackRows(rowLimit)
+    const data = (rows ?? []).map(toCoffeePriceStackItem)
+    const lastUpdated = new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Coffee Stack] Falling back to empty payload:', error)
+    }
+    return buildFallbackCoffeePriceStackResponse('Coffee price stack data is unavailable')
+  }
 }
 
 export async function getWorldPriceSyncRuns(limit = 20): Promise<WorldPriceSyncRunRecord[]> {

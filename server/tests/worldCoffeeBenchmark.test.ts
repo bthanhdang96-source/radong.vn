@@ -3,8 +3,10 @@ import test from 'node:test'
 import ExcelJS from 'exceljs'
 import {
   buildWorldCoffeeBenchmarkRows,
+  buildWorldCoffeeBenchmarkQcReport,
   normalizeToUsdPerTon,
   parseWorldBankCoffeeBenchmarkWorkbook,
+  parseFredCoffeeRobustaCsv,
   renderWorldCoffeeBenchmarkQcMarkdown,
   type RawWorldCoffeeBenchmarkRow,
 } from '../services/worldCoffeeBenchmark.js'
@@ -100,6 +102,44 @@ test('parseWorldBankCoffeeBenchmarkWorkbook extracts monthly Robusta and Arabica
   assert.equal(robusta?.benchmark_type, 'monthly_commodity_price')
 })
 
+test('parseFredCoffeeRobustaCsv extracts monthly cent-per-lb robusta rows', () => {
+  const csv = [
+    'DATE,PCOFFROBUSDM',
+    '2026-03-01,176.76409',
+    '2026-04-01,.',
+    '2026-05-01,164.17000',
+  ].join('\n')
+
+  const rows = parseFredCoffeeRobustaCsv(csv)
+  assert.equal(rows.length, 2)
+  assert.equal(rows[0]?.periodLabel, '2026-03')
+  assert.equal(rows[0]?.priceDate, '2026-03-31')
+  assert.equal(rows[0]?.priceValue, 176.76409)
+  assert.equal(rows[1]?.periodLabel, '2026-05')
+})
+
+test('QC report flags large World Bank vs FRED robusta monthly deltas', () => {
+  const raws = [rawRow({ benchmark_name: 'World Bank Coffee Robusta', benchmark_type: 'monthly_commodity_price', contract_month: '2026M04', price_value: 4.2, unit: 'USD/kg', source_name: 'World Bank Pink Sheet' })]
+  const transformed = buildWorldCoffeeBenchmarkRows(raws)
+  const qc = buildWorldCoffeeBenchmarkQcReport(raws, transformed.rows, [], {
+    fredObservations: [
+      {
+        periodLabel: '2026-04',
+        priceDate: '2026-04-30',
+        priceValue: 150,
+        unit: 'usc/lb',
+      },
+    ],
+    sourceFreshnessWarnings: [],
+  })
+
+  assert.equal(qc.fredCrossCheck.sourceAvailable, true)
+  assert.equal(qc.fredCrossCheck.comparedPeriods, 1)
+  assert.equal(qc.fredCrossCheck.suspiciousDeltaCount, 1)
+  assert.equal(qc.fredCrossCheck.flaggedPeriods.length, 1)
+  assert.match(qc.fredCrossCheck.warning ?? '', /flagged/i)
+})
+
 test('QC report includes required sections and licensing warning', () => {
   const result = buildWorldCoffeeBenchmarkRows([rawRow(), rawRow({ benchmark_name: 'Bad Unit', unit: 'bag' })])
   const markdown = renderWorldCoffeeBenchmarkQcMarkdown(result.qc, { generatedAt: '2026-05-30T00:00:00.000Z' })
@@ -109,4 +149,5 @@ test('QC report includes required sections and licensing warning', () => {
   assert.equal(markdown.includes('Top 20 Highest USD/Ton Rows'), true)
   assert.equal(markdown.includes('Needs licensing review'), true)
   assert.equal(markdown.includes('directional only'), true)
+  assert.equal(markdown.includes('FRED Cross-Check (World Bank Robusta Monthly)'), true)
 })

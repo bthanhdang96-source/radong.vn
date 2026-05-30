@@ -14,12 +14,14 @@ import { getNewsSchedulerConfig, registerNewsScheduler } from './services/news/s
 import { getNewsHealth } from './services/news/service.js';
 import { syncExchangeRatesToSupabase } from './services/exchangeRatesService.js';
 import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDataService.js';
+import { syncWorldCoffeeBenchmark } from './services/worldCoffeeBenchmark.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
 let worldPriceRefreshRunning = false;
+let worldCoffeeBenchmarkRefreshRunning = false;
 let exchangeRateRefreshRunning = false;
 let priceContentRefreshRunning = false;
 let aiArticleExportRunning = false;
@@ -33,6 +35,8 @@ const {
   priceContentStaleHours: PRICE_CONTENT_STALE_HOURS,
   worldPriceCrawlEnabled: WORLD_PRICE_CRAWL_ENABLED,
   worldPriceCrawlCron: WORLD_PRICE_CRAWL_CRON,
+  worldCoffeeBenchmarkSyncEnabled: WORLD_COFFEE_BENCHMARK_SYNC_ENABLED,
+  worldCoffeeBenchmarkSyncCron: WORLD_COFFEE_BENCHMARK_SYNC_CRON,
   exchangeRateSyncEnabled: EXCHANGE_RATE_SYNC_ENABLED,
   exchangeRateSyncCron: EXCHANGE_RATE_SYNC_CRON,
   exchangeRateBackfillDays: EXCHANGE_RATE_BACKFILL_DAYS,
@@ -187,6 +191,30 @@ if (WORLD_PRICE_CRAWL_ENABLED) {
   });
 } else {
   console.log('[App Scheduler] World price refresh schedule is disabled');
+}
+
+if (WORLD_COFFEE_BENCHMARK_SYNC_ENABLED) {
+  registerAppCron('world-coffee-benchmark-refresh', WORLD_COFFEE_BENCHMARK_SYNC_CRON, async () => {
+    if (worldCoffeeBenchmarkRefreshRunning) {
+      console.log('[World Coffee Benchmark] Scheduled refresh skipped: previous run still in progress');
+      return;
+    }
+
+    worldCoffeeBenchmarkRefreshRunning = true;
+    try {
+      console.log(`[World Coffee Benchmark] Scheduled refresh started (${WORLD_COFFEE_BENCHMARK_SYNC_CRON})`);
+      const sync = await syncWorldCoffeeBenchmark({ writeArtifacts: true });
+      console.log(
+        `[World Coffee Benchmark] Scheduled refresh completed raw=${sync.rawRows.length} facts=${sync.rows.length} persisted=${sync.rowsPersisted} sourceErrors=${sync.qc.sourceErrors.length}`,
+      );
+    } catch (error) {
+      console.error('[World Coffee Benchmark] Scheduled refresh failed:', error);
+    } finally {
+      worldCoffeeBenchmarkRefreshRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] World coffee benchmark refresh schedule is disabled');
 }
 
 if (EXCHANGE_RATE_SYNC_ENABLED) {

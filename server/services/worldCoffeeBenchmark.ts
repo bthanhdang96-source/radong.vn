@@ -58,6 +58,24 @@ export type WorldCoffeeBenchmarkQcReport = {
   unsupportedUnitCount: number
   suspiciousLowCount: number
   suspiciousHighCount: number
+  sourceFreshnessWarnings: string[]
+  fredCrossCheck: {
+    sourceUrl: string
+    sourceAvailable: boolean
+    comparedPeriods: number
+    missingPeriods: number
+    suspiciousDeltaCount: number
+    maxDeltaPct: number | null
+    avgDeltaPct: number | null
+    flaggedPeriods: Array<{
+      periodLabel: string
+      worldBankUsdPerTon: number
+      fredUsdPerTon: number
+      deltaUsdPerTon: number
+      deltaPct: number
+    }>
+    warning: string | null
+  }
   topHighestPrices: WorldCoffeeBenchmarkRow[]
   topLowestPrices: WorldCoffeeBenchmarkRow[]
 }
@@ -85,10 +103,22 @@ export type WorldCoffeeBenchmarkSyncResult = {
 }
 
 type WorksheetCellValue = string | number | null
+type FuturesProviderAdapter = {
+  id: string
+  fetchRows: (fetchedAt: string) => Promise<RawWorldCoffeeBenchmarkRow[]>
+}
+type FredCoffeeObservation = {
+  periodLabel: string
+  priceDate: string
+  priceValue: number
+  unit: 'usc/lb'
+}
 
 const ICE_ROBUSTA_URL = 'https://www.ice.com/products/37089079'
 const ICO_MARKET_INFO_URL = 'https://ico.org/resources/public-market-information/'
 const ICO_I_CIP_URL = 'https://www.ico.org/documents/I-CIP.pdf'
+const FRED_COFFEE_ROBUSTA_SERIES_URL = 'https://fred.stlouisfed.org/series/PCOFFROBUSDM'
+const FRED_COFFEE_ROBUSTA_CSV_URL = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=PCOFFROBUSDM'
 const WORLD_BANK_PINK_SHEET_PAGE_URL =
   'https://thedocs.worldbank.org/en/doc/74e8be41ceb20fa0da750cda2f6b9e4e-0050012026/world-bank-commodities-price-data-the-pink-sheet'
 const WORLD_BANK_PINK_SHEET_XLSX_URLS = [
@@ -98,6 +128,12 @@ const WORLD_BANK_PINK_SHEET_XLSX_URLS = [
 
 const COFFEE_PRICE_MIN_USD_PER_TON = 500
 const COFFEE_PRICE_MAX_USD_PER_TON = 15_000
+const FRED_VS_WORLD_BANK_ALERT_PCT = 12
+const WORLD_BANK_STALE_WARNING_DAYS = 45
+const FRED_STALE_WARNING_DAYS = 75
+const SOURCE_FETCH_TIMEOUT_MS = 20_000
+const FUTURES_PROVIDER_ENV = 'WORLD_COFFEE_FUTURES_PROVIDER'
+const FUTURES_API_KEY_ENV = 'WORLD_COFFEE_FUTURES_API_KEY'
 
 const RAW_COLUMNS: Array<keyof RawWorldCoffeeBenchmarkRow> = [
   'price_date',
@@ -225,6 +261,36 @@ function periodToMonthEnd(period: string) {
   return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10)
 }
 
+function monthStartToPeriodLabel(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-\d{2}$/)
+  if (!match) {
+    return null
+  }
+  return `${match[1]}-${match[2]}`
+}
+
+function daysBetween(olderDate: string, newerDate: string) {
+  const older = new Date(`${olderDate}T00:00:00.000Z`).getTime()
+  const newer = new Date(`${newerDate}T00:00:00.000Z`).getTime()
+  if (!Number.isFinite(older) || !Number.isFinite(newer)) {
+    return null
+  }
+  return Math.floor((newer - older) / (24 * 60 * 60 * 1000))
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = SOURCE_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function normalizeToUsdPerTon(
   priceValue: number | null | undefined,
   currency: string | null | undefined,
@@ -346,10 +412,171 @@ function buildFlagCounts(rows: WorldCoffeeBenchmarkRow[]) {
   return counts
 }
 
+function periodLabelFromContractMonth(contractMonth: string | null) {
+  if (!contractMonth) {
+    return null
+  }
+  const match = contractMonth.match(/^(\d{4})M(\d{2})$/)
+  if (!match) {
+    return null
+  }
+  return `${match[1]}-${match[2]}`
+}
+
+function buildSourceFreshnessWarnings(
+  rawRows: RawWorldCoffeeBenchmarkRow[],
+  fredObservations: FredCoffeeObservation[],
+  referenceDate: string,
+) {
+  const warnings: string[] = []
+
+  const latestIcoDate = rawRows
+    .filter(row => row.source_name === 'ICO Public Market Information' && row.price_date)
+    .map(row => row.price_date)
+    .sort()
+    .at(-1)
+  if (latestIcoDate) {
+    const staleDays = daysBetween(latestIcoDate, referenceDate)
+    if (staleDays !== null && staleDays > 7) {
+      warnings.push(`ICO daily source appears stale by ${staleDays} day(s) as of ${referenceDate}.`)
+    }
+  }
+
+  const latestWorldBankDate = rawRows
+    .filter(row => row.source_name === 'World Bank Pink Sheet' && row.price_date)
+    .map(row => row.price_date)
+    .sort()
+    .at(-1)
+  if (latestWorldBankDate) {
+    const staleDays = daysBetween(latestWorldBankDate, referenceDate)
+    if (staleDays !== null && staleDays > WORLD_BANK_STALE_WARNING_DAYS) {
+      warnings.push(`World Bank monthly source appears stale by ${staleDays} day(s) as of ${referenceDate}.`)
+    }
+  }
+
+  const latestFredDate = fredObservations.map(row => row.priceDate).sort().at(-1)
+  if (latestFredDate) {
+    const staleDays = daysBetween(latestFredDate, referenceDate)
+    if (staleDays !== null && staleDays > FRED_STALE_WARNING_DAYS) {
+      warnings.push(`FRED robusta monthly source appears stale by ${staleDays} day(s) as of ${referenceDate}.`)
+    }
+  }
+
+  return warnings
+}
+
+function buildFredCrossCheck(rows: WorldCoffeeBenchmarkRow[], fredObservations: FredCoffeeObservation[]) {
+  const emptyResult: WorldCoffeeBenchmarkQcReport['fredCrossCheck'] = {
+    sourceUrl: FRED_COFFEE_ROBUSTA_SERIES_URL,
+    sourceAvailable: fredObservations.length > 0,
+    comparedPeriods: 0,
+    missingPeriods: 0,
+    suspiciousDeltaCount: 0,
+    maxDeltaPct: null,
+    avgDeltaPct: null,
+    flaggedPeriods: [],
+    warning:
+      fredObservations.length > 0
+        ? 'No overlapping periods found for FRED vs World Bank robusta cross-check.'
+        : 'FRED robusta cross-check data unavailable.',
+  }
+
+  if (fredObservations.length === 0) {
+    return emptyResult
+  }
+
+  const fredByPeriod = new Map(
+    fredObservations.map(observation => {
+      const normalized = normalizeToUsdPerTon(observation.priceValue, 'USD', observation.unit)
+      return [observation.periodLabel, normalized.priceUsdPerTon]
+    }),
+  )
+
+  const worldBankRows = rows
+    .filter(
+      row =>
+        row.benchmark_type === 'monthly_commodity_price' &&
+        row.benchmark_name === 'World Bank Coffee Robusta' &&
+        row.data_quality_flag === 'ok' &&
+        row.price_usd_per_ton !== null,
+    )
+    .map(row => ({
+      periodLabel: periodLabelFromContractMonth(row.contract_month) ?? monthStartToPeriodLabel(row.price_date),
+      priceUsdPerTon: row.price_usd_per_ton ?? null,
+    }))
+    .filter((row): row is { periodLabel: string; priceUsdPerTon: number } => Boolean(row.periodLabel && row.priceUsdPerTon !== null))
+
+  if (worldBankRows.length === 0) {
+    return {
+      ...emptyResult,
+      warning: 'World Bank robusta monthly rows are unavailable for FRED cross-check.',
+    }
+  }
+
+  const deltas: Array<{
+    periodLabel: string
+    worldBankUsdPerTon: number
+    fredUsdPerTon: number
+    deltaUsdPerTon: number
+    deltaPct: number
+  }> = []
+  let missingPeriods = 0
+
+  for (const worldBankRow of worldBankRows) {
+    const fredValue = fredByPeriod.get(worldBankRow.periodLabel)
+    if (fredValue === null || fredValue === undefined || !Number.isFinite(fredValue) || fredValue <= 0) {
+      missingPeriods += 1
+      continue
+    }
+
+    const deltaUsdPerTon = roundNumber(worldBankRow.priceUsdPerTon - fredValue, 6)
+    const deltaPct = roundNumber(((worldBankRow.priceUsdPerTon / fredValue) - 1) * 100, 6)
+    deltas.push({
+      periodLabel: worldBankRow.periodLabel,
+      worldBankUsdPerTon: worldBankRow.priceUsdPerTon,
+      fredUsdPerTon: fredValue,
+      deltaUsdPerTon,
+      deltaPct,
+    })
+  }
+
+  if (deltas.length === 0) {
+    return {
+      ...emptyResult,
+      missingPeriods,
+      warning: 'FRED robusta source is available but no overlapping comparable period values were found.',
+    }
+  }
+
+  const absDeltaPcts = deltas.map(row => Math.abs(row.deltaPct))
+  const avgDeltaPct = roundNumber(absDeltaPcts.reduce((sum, value) => sum + value, 0) / absDeltaPcts.length, 6)
+  const maxDeltaPct = roundNumber(Math.max(...absDeltaPcts), 6)
+  const flaggedPeriods = deltas
+    .filter(row => Math.abs(row.deltaPct) > FRED_VS_WORLD_BANK_ALERT_PCT)
+    .sort((left, right) => Math.abs(right.deltaPct) - Math.abs(left.deltaPct))
+    .slice(0, 20)
+
+  return {
+    sourceUrl: FRED_COFFEE_ROBUSTA_SERIES_URL,
+    sourceAvailable: true,
+    comparedPeriods: deltas.length,
+    missingPeriods,
+    suspiciousDeltaCount: flaggedPeriods.length,
+    maxDeltaPct,
+    avgDeltaPct,
+    flaggedPeriods,
+    warning:
+      flaggedPeriods.length > 0
+        ? `FRED robusta cross-check flagged ${flaggedPeriods.length} period(s) over ${FRED_VS_WORLD_BANK_ALERT_PCT}% delta threshold.`
+        : null,
+  }
+}
+
 export function buildWorldCoffeeBenchmarkQcReport(
   rawRows: RawWorldCoffeeBenchmarkRow[],
   rows: WorldCoffeeBenchmarkRow[],
   sourceErrors: string[],
+  options: { fredObservations?: FredCoffeeObservation[]; sourceFreshnessWarnings?: string[] } = {},
 ): WorldCoffeeBenchmarkQcReport {
   const dates = rows.map(row => row.price_date).sort()
   const sourceCoverage = rows.reduce<Record<string, number>>((accumulator, row) => {
@@ -372,6 +599,8 @@ export function buildWorldCoffeeBenchmarkQcReport(
     unsupportedUnitCount: rows.filter(row => row.data_quality_flag === 'unsupported_unit').length,
     suspiciousLowCount: rows.filter(row => row.data_quality_flag === 'suspicious_price_low').length,
     suspiciousHighCount: rows.filter(row => row.data_quality_flag === 'suspicious_price_high').length,
+    sourceFreshnessWarnings: options.sourceFreshnessWarnings ?? [],
+    fredCrossCheck: buildFredCrossCheck(rows, options.fredObservations ?? []),
     topHighestPrices: [...pricedRows].sort((left, right) => (right.price_usd_per_ton ?? 0) - (left.price_usd_per_ton ?? 0)).slice(0, 20),
     topLowestPrices: [...pricedRows].sort((left, right) => (left.price_usd_per_ton ?? 0) - (right.price_usd_per_ton ?? 0)).slice(0, 20),
   }
@@ -492,12 +721,16 @@ async function fetchWorldBankWorkbook() {
   let lastError: unknown
   for (const url of WORLD_BANK_PINK_SHEET_XLSX_URLS) {
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(
+        url,
+        {
         headers: {
           accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*;q=0.8',
           'user-agent': 'nongsanvn-world-coffee-benchmark/1.0 (+https://nongsanvn.vn)',
         },
-      })
+      },
+        SOURCE_FETCH_TIMEOUT_MS,
+      )
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`)
       }
@@ -517,12 +750,128 @@ export async function fetchWorldBankCoffeeBenchmarkRows(fetchedAt = new Date().t
   return parseWorldBankCoffeeBenchmarkWorkbook(workbook.buffer, { fetchedAt, sourceUrl: workbook.sourceUrl })
 }
 
+function buildLicensedFuturesAdapters(): FuturesProviderAdapter[] {
+  const provider = (process.env[FUTURES_PROVIDER_ENV] ?? '').trim()
+  const apiKey = (process.env[FUTURES_API_KEY_ENV] ?? '').trim()
+  if (!provider || !apiKey) {
+    return []
+  }
+
+  return [
+    {
+      id: provider,
+      async fetchRows() {
+        throw new Error(
+          `Licensed futures adapter "${provider}" is configured but not implemented. Add provider integration before enabling futures ingestion.`,
+        )
+      },
+    },
+  ]
+}
+
+async function fetchLicensedFuturesRows(fetchedAt = new Date().toISOString()) {
+  const adapters = buildLicensedFuturesAdapters()
+  if (adapters.length === 0) {
+    return {
+      rows: [] as RawWorldCoffeeBenchmarkRow[],
+      errors: [] as string[],
+    }
+  }
+
+  const rows: RawWorldCoffeeBenchmarkRow[] = []
+  const errors: string[] = []
+  const results = await Promise.allSettled(adapters.map(adapter => adapter.fetchRows(fetchedAt)))
+  for (const [index, result] of results.entries()) {
+    const adapterId = adapters[index]?.id ?? 'unknown-adapter'
+    if (result.status === 'fulfilled') {
+      rows.push(...result.value)
+      continue
+    }
+    const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
+    errors.push(`Futures adapter ${adapterId}: ${message}`)
+  }
+
+  return { rows, errors }
+}
+
+export function parseFredCoffeeRobustaCsv(csvContent: string): FredCoffeeObservation[] {
+  const lines = csvContent
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  if (lines.length <= 1) {
+    return []
+  }
+
+  const observations: FredCoffeeObservation[] = []
+  for (const line of lines.slice(1)) {
+    const commaIndex = line.indexOf(',')
+    if (commaIndex <= 0) {
+      continue
+    }
+
+    const datePart = line.slice(0, commaIndex).trim()
+    const valuePart = line.slice(commaIndex + 1).trim()
+    if (valuePart === '.' || valuePart.length === 0) {
+      continue
+    }
+
+    const value = Number(valuePart)
+    if (!Number.isFinite(value)) {
+      continue
+    }
+
+    const periodLabel = monthStartToPeriodLabel(datePart)
+    if (!periodLabel) {
+      continue
+    }
+
+    const [yearText, monthText] = periodLabel.split('-')
+    const priceDate = periodToMonthEnd(`${yearText}M${monthText}`)
+    if (!priceDate) {
+      continue
+    }
+
+    observations.push({
+      periodLabel,
+      priceDate,
+      priceValue: value,
+      unit: 'usc/lb',
+    })
+  }
+
+  return observations.sort((left, right) => left.periodLabel.localeCompare(right.periodLabel))
+}
+
+async function fetchFredCoffeeRobustaObservations() {
+  const response = await fetchWithTimeout(
+    FRED_COFFEE_ROBUSTA_CSV_URL,
+    {
+      headers: {
+        accept: 'text/csv,*/*;q=0.8',
+        'user-agent': 'nongsanvn-world-coffee-benchmark/1.0 (+https://nongsanvn.vn)',
+      },
+    },
+    SOURCE_FETCH_TIMEOUT_MS,
+  )
+  if (!response.ok) {
+    throw new Error(`FRED robusta CSV HTTP ${response.status} ${response.statusText}`)
+  }
+  return parseFredCoffeeRobustaCsv(await response.text())
+}
+
 export async function fetchWorldCoffeeBenchmarkRows(fetchedAt = new Date().toISOString()) {
   const rawRows: RawWorldCoffeeBenchmarkRow[] = []
   const sourceErrors: string[] = []
   const results = await Promise.allSettled([
     fetchIcoCoffeeBenchmarkRows(fetchedAt),
     fetchWorldBankCoffeeBenchmarkRows(fetchedAt),
+    fetchLicensedFuturesRows(fetchedAt).then(result => {
+      if (result.errors.length > 0) {
+        sourceErrors.push(...result.errors)
+      }
+      return result.rows
+    }),
   ])
 
   for (const result of results) {
@@ -573,12 +922,14 @@ export function renderWorldCoffeeBenchmarkSourceResearch() {
     '',
     `- ICO Public Market Information: selected as the primary daily coffee indicator source. The pipeline uses the public Robustas indicator in US cents/lb and converts it to USD/ton. Sources: ${ICO_MARKET_INFO_URL} and ${ICO_I_CIP_URL}`,
     `- World Bank Pink Sheet: selected as the monthly official backup and historical backfill. The pipeline uses Coffee, Robusta and Coffee, Arabica series in USD/kg and converts them to USD/ton. Source: ${WORLD_BANK_PINK_SHEET_PAGE_URL}`,
+    `- FRED robusta monthly series (PCOFFROBUSDM): used only for QC cross-check against World Bank robusta monthly levels. The series is in US cents/lb and is normalized to USD/ton for delta checks. Source: ${FRED_COFFEE_ROBUSTA_SERIES_URL}`,
     `- ICE Robusta Coffee Futures: recorded as the official London Robusta futures reference. ICE contract code RC is quoted in USD per metric tonne, but this MVP does not scrape or store ICE prices without a licensed data feed. Source: ${ICE_ROBUSTA_URL}`,
     '',
     '## Rejected Or Deferred Sources',
     '',
     '- Yahoo Finance, Barchart, Investing.com, and similar charting sites are not used because public reuse and automated extraction rights are unclear.',
     '- Nasdaq Data Link or other licensed futures APIs are deferred until an API key, dataset symbol, and license scope are available.',
+    '- If WORLD_COFFEE_FUTURES_PROVIDER/WORLD_COFFEE_FUTURES_API_KEY are set, the system expects a licensed futures adapter implementation before enabling ingestion.',
     '',
     '## Licensing Warning',
     '',
@@ -598,6 +949,7 @@ export function renderWorldCoffeeBenchmarkMethodology() {
     '- Primary focus: Robusta',
     '- Primary daily source: ICO Robustas indicator',
     '- Monthly backup source: World Bank Pink Sheet Coffee, Robusta',
+    '- Monthly QC cross-check source: FRED PCOFFROBUSDM (not persisted into fact table)',
     '- Target normalized unit: USD/metric ton',
     '',
     '## Conversion Rules',
@@ -663,6 +1015,44 @@ export function renderWorldCoffeeBenchmarkQcMarkdown(report: WorldCoffeeBenchmar
     }
   }
 
+  rows.push('', '## Source Freshness Warnings', '')
+  if (report.sourceFreshnessWarnings.length === 0) {
+    rows.push('- None')
+  } else {
+    for (const warning of report.sourceFreshnessWarnings) {
+      rows.push(`- ${warning}`)
+    }
+  }
+
+  rows.push(
+    '',
+    '## FRED Cross-Check (World Bank Robusta Monthly)',
+    '',
+    `- Source URL: ${report.fredCrossCheck.sourceUrl}`,
+    `- Source available: ${report.fredCrossCheck.sourceAvailable ? 'yes' : 'no'}`,
+    `- Compared periods: ${report.fredCrossCheck.comparedPeriods}`,
+    `- Missing periods: ${report.fredCrossCheck.missingPeriods}`,
+    `- Suspicious delta count (>${FRED_VS_WORLD_BANK_ALERT_PCT}%): ${report.fredCrossCheck.suspiciousDeltaCount}`,
+    `- Max abs delta pct: ${report.fredCrossCheck.maxDeltaPct ?? 'n/a'}`,
+    `- Avg abs delta pct: ${report.fredCrossCheck.avgDeltaPct ?? 'n/a'}`,
+  )
+  if (report.fredCrossCheck.warning) {
+    rows.push(`- Warning: ${report.fredCrossCheck.warning}`)
+  } else {
+    rows.push('- Warning: none')
+  }
+
+  rows.push('', '### FRED Flagged Periods', '')
+  if (report.fredCrossCheck.flaggedPeriods.length === 0) {
+    rows.push('- None')
+  } else {
+    for (const item of report.fredCrossCheck.flaggedPeriods) {
+      rows.push(
+        `- ${item.periodLabel} | WB=${item.worldBankUsdPerTon} | FRED=${item.fredUsdPerTon} | delta=${item.deltaUsdPerTon} | delta_pct=${item.deltaPct}%`,
+      )
+    }
+  }
+
   rows.push('', '## Top 20 Highest USD/Ton Rows', '')
   for (const row of report.topHighestPrices) {
     rows.push(`- ${row.price_date} | ${row.benchmark_name} | ${row.price_usd_per_ton} | ${row.source_name} | ${row.data_quality_flag}`)
@@ -717,7 +1107,27 @@ export async function syncWorldCoffeeBenchmark(options: WorldCoffeeBenchmarkSync
   const dryRun = options.dryRun ?? false
   const fetched = options.sourceRows ? { rawRows: options.sourceRows, sourceErrors: [] } : await fetchWorldCoffeeBenchmarkRows(fetchedAt)
   const transformed = buildWorldCoffeeBenchmarkRows(fetched.rawRows)
-  const qc = buildWorldCoffeeBenchmarkQcReport(fetched.rawRows, transformed.rows, fetched.sourceErrors)
+  const sourceErrors = [...fetched.sourceErrors]
+  let fredObservations: FredCoffeeObservation[] = []
+
+  if (!options.sourceRows) {
+    try {
+      fredObservations = await fetchFredCoffeeRobustaObservations()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sourceErrors.push(`FRED robusta cross-check fetch failed: ${message}`)
+    }
+  }
+
+  const sourceFreshnessWarnings = buildSourceFreshnessWarnings(
+    fetched.rawRows,
+    fredObservations,
+    fetchedAt.slice(0, 10),
+  )
+  const qc = buildWorldCoffeeBenchmarkQcReport(fetched.rawRows, transformed.rows, sourceErrors, {
+    fredObservations,
+    sourceFreshnessWarnings,
+  })
 
   const rawCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'raw', 'world_coffee_benchmark_raw.csv') : null
   const factCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'fact_world_coffee_benchmark.csv') : null

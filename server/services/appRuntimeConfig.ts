@@ -28,6 +28,8 @@ export function getAppScheduleConfig() {
     priceContentStaleHours: Number(process.env.PRICE_CONTENT_STALE_HOURS ?? 36),
     worldPriceCrawlEnabled: parseBoolean(process.env.WORLD_PRICE_CRAWL_ENABLED, true),
     worldPriceCrawlCron: process.env.WORLD_PRICE_CRAWL_CRON ?? '30 7,13 * * *',
+    worldCoffeeBenchmarkSyncEnabled: parseBoolean(process.env.WORLD_COFFEE_BENCHMARK_SYNC_ENABLED, false),
+    worldCoffeeBenchmarkSyncCron: process.env.WORLD_COFFEE_BENCHMARK_SYNC_CRON ?? '55 7 * * *',
     exchangeRateSyncEnabled: parseBoolean(process.env.EXCHANGE_RATE_SYNC_ENABLED, true),
     exchangeRateSyncCron: process.env.EXCHANGE_RATE_SYNC_CRON ?? '15 8 * * *',
     exchangeRateBackfillDays: parsePositiveInteger(process.env.EXCHANGE_RATE_BACKFILL_DAYS, 1),

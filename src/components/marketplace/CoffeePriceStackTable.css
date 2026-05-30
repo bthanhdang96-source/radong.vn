@@ -1,0 +1,121 @@
+.cpst {
+  max-width: 1400px;
+  margin: 0 auto 32px;
+  padding: 0 24px;
+}
+
+.cpst__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+
+.cpst__header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.cpst__header p {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+}
+
+.cpst__updated {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.cpst__error {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-down-border);
+  background: var(--color-down-bg);
+  color: var(--color-down);
+  font-size: 0.85rem;
+}
+
+.cpst__table-shell {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.cpst__table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.cpst__table th,
+.cpst__table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.cpst__table th {
+  font-size: 0.77rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.cpst__empty {
+  text-align: center;
+  padding: 40px 14px;
+  color: var(--color-text-muted);
+}
+
+.cpst__delta--up {
+  color: var(--color-up);
+}
+
+.cpst__delta--down {
+  color: var(--color-down);
+}
+
+.cpst__delta--neutral {
+  color: var(--color-text-muted);
+}
+
+.cpst__note {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.cpst__skeleton-row {
+  height: 58px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  background-size: 200% 100%;
+  animation: cpst-shimmer 1.2s linear infinite;
+}
+
+@keyframes cpst-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .cpst {
+    padding: 0 16px;
+  }
+
+  .cpst__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

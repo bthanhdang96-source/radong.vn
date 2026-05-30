@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CoffeePriceStackTable from '../components/marketplace/CoffeePriceStackTable'
 import PriceChainSummaryCards from '../components/marketplace/PriceChainSummaryCards'
 import PriceChainTable from '../components/marketplace/PriceChainTable'
 import type {
@@ -7,7 +8,7 @@ import type {
   GeneratedPricePageListResponse,
   GeneratedPricePageSummary,
 } from '../data/generatedPricePageTypes'
-import type { VnPriceChainResponse } from '../data/vnPriceTypes'
+import type { CoffeePriceStackResponse, VnPriceChainResponse } from '../data/vnPriceTypes'
 import { buildApiUrl } from '../lib/api'
 import './PriceChainPage.css'
 
@@ -20,12 +21,23 @@ const EMPTY_PRICE_CHAIN: VnPriceChainResponse = {
   data: [],
 }
 
+const EMPTY_COFFEE_PRICE_STACK: CoffeePriceStackResponse = {
+  success: true,
+  status: 'fallback',
+  lastUpdated: '',
+  count: 0,
+  data: [],
+  errors: [],
+}
+
 export default function PriceChainPage() {
   const [payload, setPayload] = useState<VnPriceChainResponse>(EMPTY_PRICE_CHAIN)
+  const [coffeePriceStack, setCoffeePriceStack] = useState<CoffeePriceStackResponse>(EMPTY_COFFEE_PRICE_STACK)
   const [pricePages, setPricePages] = useState<GeneratedPricePageSummary[]>([])
   const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [coffeeStackError, setCoffeeStackError] = useState<string | null>(null)
 
   useEffect(() => {
     void fetchData()
@@ -34,14 +46,16 @@ export default function PriceChainPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [response, pageResponse, commodityPageResponse] = await Promise.all([
+      const [response, pageResponse, commodityPageResponse, coffeeStackResponse] = await Promise.all([
         fetch(buildApiUrl('/api/vn-price-chain')),
         fetch(buildApiUrl('/api/price-pages?limit=400')),
         fetch(buildApiUrl('/api/commodity-price-pages?limit=400')),
+        fetch(buildApiUrl('/api/coffee/price-stack?limit=120')),
       ])
       const json: VnPriceChainResponse = await response.json()
       const pageJson: GeneratedPricePageListResponse = await pageResponse.json()
       const commodityPageJson: GeneratedCommodityPricePageListResponse = await commodityPageResponse.json()
+      const coffeeStackJson: CoffeePriceStackResponse = await coffeeStackResponse.json()
 
       if (!response.ok || !json.success) {
         throw new Error('Không thể tải dữ liệu chuỗi giá')
@@ -50,11 +64,20 @@ export default function PriceChainPage() {
       setPayload(json)
       setPricePages(pageResponse.ok && pageJson.success ? pageJson.items : [])
       setCommodityPages(commodityPageResponse.ok && commodityPageJson.success ? commodityPageJson.items : [])
+      if (coffeeStackResponse.ok && coffeeStackJson.success) {
+        setCoffeePriceStack(coffeeStackJson)
+        setCoffeeStackError(coffeeStackJson.errors[0] ?? null)
+      } else {
+        setCoffeePriceStack(EMPTY_COFFEE_PRICE_STACK)
+        setCoffeeStackError('Không thể tải dữ liệu benchmark cà phê')
+      }
       setError(null)
     } catch (fetchError) {
       setPayload(EMPTY_PRICE_CHAIN)
+      setCoffeePriceStack(EMPTY_COFFEE_PRICE_STACK)
       setPricePages([])
       setCommodityPages([])
+      setCoffeeStackError('Không thể tải dữ liệu benchmark cà phê')
       setError(fetchError instanceof Error ? fetchError.message : 'Không thể tải dữ liệu chuỗi giá')
     } finally {
       setLoading(false)
@@ -122,6 +145,12 @@ export default function PriceChainPage() {
         loading={loading}
         error={pageError}
         lastUpdated={payload.lastUpdated}
+      />
+      <CoffeePriceStackTable
+        data={coffeePriceStack.data}
+        loading={loading}
+        error={coffeeStackError}
+        lastUpdated={coffeePriceStack.lastUpdated}
       />
     </div>
   )
