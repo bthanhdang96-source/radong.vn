@@ -283,6 +283,46 @@ type CoffeePriceStackRow = {
   interpretation_note: string | null
 }
 
+type CoffeeCompetitorBenchmarkRow = {
+  period_type: string
+  period_start: string
+  period_label: string
+  partner_country: string
+  partner_iso: string | null
+  vietnam_unit_value_usd_per_ton: number | string | null
+  brazil_unit_value_usd_per_ton: number | string | null
+  indonesia_unit_value_usd_per_ton: number | string | null
+  vietnam_value_usd: number | string | null
+  brazil_value_usd: number | string | null
+  indonesia_value_usd: number | string | null
+  vietnam_quantity_ton: number | string | null
+  brazil_quantity_ton: number | string | null
+  indonesia_quantity_ton: number | string | null
+  vietnam_unit_value_flag: string | null
+  brazil_unit_value_flag: string | null
+  indonesia_unit_value_flag: string | null
+  min_confidence_score: number | string | null
+  vietnam_vs_brazil_gap_pct: number | string | null
+  vietnam_vs_indonesia_gap_pct: number | string | null
+  benchmark_quality_flag: string
+  interpretation_note: string | null
+}
+
+type CoffeeCompetitorBenchmarkSummaryRow = {
+  period_type: string
+  period_label: string
+  period_start: string
+  vietnam_markets: number | string | null
+  markets_with_brazil: number | string | null
+  markets_with_indonesia: number | string | null
+  ok_benchmark_markets: number | string | null
+  avg_vietnam_vs_brazil_gap_pct: number | string | null
+  avg_vietnam_vs_indonesia_gap_pct: number | string | null
+  markets_vietnam_premium_vs_brazil: number | string | null
+  markets_vietnam_discount_vs_brazil: number | string | null
+  interpretation_note: string | null
+}
+
 export type WorldCoffeeBenchmarkDailyItem = {
   priceDate: string
   commodityGroup: string
@@ -330,6 +370,46 @@ export type CoffeePriceStackItem = {
   interpretationNote: string | null
 }
 
+export type CoffeeCompetitorBenchmarkItem = {
+  periodType: string
+  periodStart: string
+  periodLabel: string
+  partnerCountry: string
+  partnerIso: string | null
+  vietnamUnitValueUsdPerTon: number | null
+  brazilUnitValueUsdPerTon: number | null
+  indonesiaUnitValueUsdPerTon: number | null
+  vietnamValueUsd: number | null
+  brazilValueUsd: number | null
+  indonesiaValueUsd: number | null
+  vietnamQuantityTon: number | null
+  brazilQuantityTon: number | null
+  indonesiaQuantityTon: number | null
+  vietnamUnitValueFlag: string | null
+  brazilUnitValueFlag: string | null
+  indonesiaUnitValueFlag: string | null
+  minConfidenceScore: number | null
+  vietnamVsBrazilGapPct: number | null
+  vietnamVsIndonesiaGapPct: number | null
+  benchmarkQualityFlag: string
+  interpretationNote: string | null
+}
+
+export type CoffeeCompetitorBenchmarkSummaryItem = {
+  periodType: string
+  periodLabel: string
+  periodStart: string
+  vietnamMarkets: number
+  marketsWithBrazil: number
+  marketsWithIndonesia: number
+  okBenchmarkMarkets: number
+  avgVietnamVsBrazilGapPct: number | null
+  avgVietnamVsIndonesiaGapPct: number | null
+  marketsVietnamPremiumVsBrazil: number
+  marketsVietnamDiscountVsBrazil: number
+  interpretationNote: string | null
+}
+
 export type WorldCoffeeBenchmarkResponse = {
   success: boolean
   status: 'live' | 'fallback'
@@ -347,6 +427,24 @@ export type CoffeePriceStackResponse = {
   lastUpdated: string
   count: number
   data: CoffeePriceStackItem[]
+  errors: string[]
+}
+
+export type CoffeeCompetitorBenchmarkResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  count: number
+  data: CoffeeCompetitorBenchmarkItem[]
+  errors: string[]
+}
+
+export type CoffeeCompetitorBenchmarkSummaryResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  count: number
+  data: CoffeeCompetitorBenchmarkSummaryItem[]
   errors: string[]
 }
 
@@ -2075,6 +2173,28 @@ function buildFallbackCoffeePriceStackResponse(message: string): CoffeePriceStac
   }
 }
 
+function buildFallbackCoffeeCompetitorBenchmarkResponse(message: string): CoffeeCompetitorBenchmarkResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    count: 0,
+    data: [],
+    errors: [message],
+  }
+}
+
+function buildFallbackCoffeeCompetitorBenchmarkSummaryResponse(message: string): CoffeeCompetitorBenchmarkSummaryResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    count: 0,
+    data: [],
+    errors: [message],
+  }
+}
+
 function toWorldCoffeeBenchmarkDailyItem(row: WorldCoffeeBenchmarkDailyRow): WorldCoffeeBenchmarkDailyItem {
   return {
     priceDate: row.price_date,
@@ -2126,6 +2246,57 @@ function toCoffeePriceStackItem(row: CoffeePriceStackRow): CoffeePriceStackItem 
     exportVsBenchmarkGapPct: toNumberOrNull(row.export_vs_benchmark_gap_pct),
     domesticVsBenchmarkGapUsdPerTon: toNumberOrNull(row.domestic_vs_benchmark_gap_usd_per_ton),
     domesticVsBenchmarkGapPct: toNumberOrNull(row.domestic_vs_benchmark_gap_pct),
+    interpretationNote: row.interpretation_note,
+  }
+}
+
+function toNonNegativeInteger(value: number | string | null | undefined) {
+  const numeric = toNumberOrNull(value)
+  return numeric === null ? 0 : Math.max(0, Math.trunc(numeric))
+}
+
+function toCoffeeCompetitorBenchmarkItem(row: CoffeeCompetitorBenchmarkRow): CoffeeCompetitorBenchmarkItem {
+  return {
+    periodType: row.period_type,
+    periodStart: row.period_start,
+    periodLabel: row.period_label,
+    partnerCountry: row.partner_country,
+    partnerIso: row.partner_iso,
+    vietnamUnitValueUsdPerTon: toNumberOrNull(row.vietnam_unit_value_usd_per_ton),
+    brazilUnitValueUsdPerTon: toNumberOrNull(row.brazil_unit_value_usd_per_ton),
+    indonesiaUnitValueUsdPerTon: toNumberOrNull(row.indonesia_unit_value_usd_per_ton),
+    vietnamValueUsd: toNumberOrNull(row.vietnam_value_usd),
+    brazilValueUsd: toNumberOrNull(row.brazil_value_usd),
+    indonesiaValueUsd: toNumberOrNull(row.indonesia_value_usd),
+    vietnamQuantityTon: toNumberOrNull(row.vietnam_quantity_ton),
+    brazilQuantityTon: toNumberOrNull(row.brazil_quantity_ton),
+    indonesiaQuantityTon: toNumberOrNull(row.indonesia_quantity_ton),
+    vietnamUnitValueFlag: row.vietnam_unit_value_flag,
+    brazilUnitValueFlag: row.brazil_unit_value_flag,
+    indonesiaUnitValueFlag: row.indonesia_unit_value_flag,
+    minConfidenceScore: toNumberOrNull(row.min_confidence_score),
+    vietnamVsBrazilGapPct: toNumberOrNull(row.vietnam_vs_brazil_gap_pct),
+    vietnamVsIndonesiaGapPct: toNumberOrNull(row.vietnam_vs_indonesia_gap_pct),
+    benchmarkQualityFlag: row.benchmark_quality_flag,
+    interpretationNote: row.interpretation_note,
+  }
+}
+
+function toCoffeeCompetitorBenchmarkSummaryItem(
+  row: CoffeeCompetitorBenchmarkSummaryRow,
+): CoffeeCompetitorBenchmarkSummaryItem {
+  return {
+    periodType: row.period_type,
+    periodLabel: row.period_label,
+    periodStart: row.period_start,
+    vietnamMarkets: toNonNegativeInteger(row.vietnam_markets),
+    marketsWithBrazil: toNonNegativeInteger(row.markets_with_brazil),
+    marketsWithIndonesia: toNonNegativeInteger(row.markets_with_indonesia),
+    okBenchmarkMarkets: toNonNegativeInteger(row.ok_benchmark_markets),
+    avgVietnamVsBrazilGapPct: toNumberOrNull(row.avg_vietnam_vs_brazil_gap_pct),
+    avgVietnamVsIndonesiaGapPct: toNumberOrNull(row.avg_vietnam_vs_indonesia_gap_pct),
+    marketsVietnamPremiumVsBrazil: toNonNegativeInteger(row.markets_vietnam_premium_vs_brazil),
+    marketsVietnamDiscountVsBrazil: toNonNegativeInteger(row.markets_vietnam_discount_vs_brazil),
     interpretationNote: row.interpretation_note,
   }
 }
@@ -2236,6 +2407,97 @@ async function getCoffeePriceStackRows(limit: number): Promise<CoffeePriceStackR
   return (data ?? []) as unknown as CoffeePriceStackRow[]
 }
 
+async function getCoffeeCompetitorBenchmarkRows(options: {
+  limit: number
+  periodLabel?: string
+  qualityFlag?: string
+}): Promise<CoffeeCompetitorBenchmarkRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  let query = client
+    .from('vw_coffee_competitor_benchmark_by_market')
+    .select(
+      [
+        'period_type',
+        'period_start',
+        'period_label',
+        'partner_country',
+        'partner_iso',
+        'vietnam_unit_value_usd_per_ton',
+        'brazil_unit_value_usd_per_ton',
+        'indonesia_unit_value_usd_per_ton',
+        'vietnam_value_usd',
+        'brazil_value_usd',
+        'indonesia_value_usd',
+        'vietnam_quantity_ton',
+        'brazil_quantity_ton',
+        'indonesia_quantity_ton',
+        'vietnam_unit_value_flag',
+        'brazil_unit_value_flag',
+        'indonesia_unit_value_flag',
+        'min_confidence_score',
+        'vietnam_vs_brazil_gap_pct',
+        'vietnam_vs_indonesia_gap_pct',
+        'benchmark_quality_flag',
+        'interpretation_note',
+      ].join(', '),
+    )
+    .limit(options.limit)
+    .order('period_start', { ascending: false })
+    .order('vietnam_value_usd', { ascending: false, nullsFirst: false })
+
+  if (options.periodLabel) {
+    query = query.eq('period_label', options.periodLabel)
+  }
+  if (options.qualityFlag) {
+    query = query.eq('benchmark_quality_flag', options.qualityFlag)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as CoffeeCompetitorBenchmarkRow[]
+}
+
+async function getCoffeeCompetitorBenchmarkSummaryRows(limit: number): Promise<CoffeeCompetitorBenchmarkSummaryRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('vw_coffee_competitor_benchmark_summary_by_period')
+    .select(
+      [
+        'period_type',
+        'period_label',
+        'period_start',
+        'vietnam_markets',
+        'markets_with_brazil',
+        'markets_with_indonesia',
+        'ok_benchmark_markets',
+        'avg_vietnam_vs_brazil_gap_pct',
+        'avg_vietnam_vs_indonesia_gap_pct',
+        'markets_vietnam_premium_vs_brazil',
+        'markets_vietnam_discount_vs_brazil',
+        'interpretation_note',
+      ].join(', '),
+    )
+    .limit(limit)
+    .order('period_start', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as CoffeeCompetitorBenchmarkSummaryRow[]
+}
+
 export async function getWorldCoffeeBenchmarkResponse(options?: {
   dailyLimit?: number
   monthlyLimit?: number
@@ -2305,6 +2567,72 @@ export async function getCoffeePriceStackResponse(limit = 180): Promise<CoffeePr
       console.error('[Supabase Coffee Stack] Falling back to empty payload:', error)
     }
     return buildFallbackCoffeePriceStackResponse('Coffee price stack data is unavailable')
+  }
+}
+
+export async function getCoffeeCompetitorBenchmarkResponse(options?: {
+  limit?: number
+  periodLabel?: string
+  qualityFlag?: string
+}): Promise<CoffeeCompetitorBenchmarkResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackCoffeeCompetitorBenchmarkResponse('Coffee competitor benchmark requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(options?.limit ?? 200, 500))
+
+  try {
+    const rows = await getCoffeeCompetitorBenchmarkRows({
+      limit: rowLimit,
+      periodLabel: options?.periodLabel,
+      qualityFlag: options?.qualityFlag,
+    })
+    const data = (rows ?? []).map(toCoffeeCompetitorBenchmarkItem)
+    const lastUpdated = data.map(row => row.periodStart).sort().at(-1) ?? new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Competitor Coffee Benchmark] Falling back to empty payload:', error)
+    }
+    return buildFallbackCoffeeCompetitorBenchmarkResponse('Coffee competitor benchmark data is unavailable')
+  }
+}
+
+export async function getCoffeeCompetitorBenchmarkSummaryResponse(limit = 20): Promise<CoffeeCompetitorBenchmarkSummaryResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackCoffeeCompetitorBenchmarkSummaryResponse('Coffee competitor benchmark summary requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(limit, 100))
+
+  try {
+    const rows = await getCoffeeCompetitorBenchmarkSummaryRows(rowLimit)
+    const data = (rows ?? []).map(toCoffeeCompetitorBenchmarkSummaryItem)
+    const lastUpdated = data[0]?.periodStart ?? new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Competitor Coffee Benchmark] Falling back to empty summary payload:', error)
+    }
+    return buildFallbackCoffeeCompetitorBenchmarkSummaryResponse('Coffee competitor benchmark summary data is unavailable')
   }
 }
 
