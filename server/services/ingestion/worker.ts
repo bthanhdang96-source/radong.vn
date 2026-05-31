@@ -16,7 +16,7 @@ function parseQueuedMessage(payload: Record<string, string>): IngestionQueueMess
 export async function processQueuedBatch(limit = 25) {
   const db = getSupabaseAdminClient()
   if (!db) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to run the ingestion worker')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to run the ingestion worker')
   }
 
   const commodityLookup = await loadCommodityLookup(db)
@@ -88,3 +88,4 @@ if (process.argv[1]?.endsWith('worker.ts')) {
     process.exitCode = 1
   })
 }
+

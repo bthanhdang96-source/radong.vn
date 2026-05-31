@@ -116,7 +116,7 @@ function printError(row: ErrorRow) {
 async function main() {
   const db = getSupabaseAdminClient()
   if (!db) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to verify ingestion results')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to verify ingestion results')
   }
 
   const scenario = getScenario()
@@ -195,3 +195,4 @@ main().catch(error => {
   console.error('[Sample Verify] Failed:', error)
   process.exitCode = 1
 })
+

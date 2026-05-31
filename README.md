@@ -22,7 +22,8 @@ Required environment variables:
 - `ADMIN_API_KEY` to protect privileged API routes such as manual refresh and detailed health checks
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SECRET_KEY` (preferred backend admin key)
+- `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback only)
 - `REDIS_URL` for the queue/worker path
 - `INGESTION_INLINE_PROCESSING=true|false` to choose inline queue draining vs external worker
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for ingestion alerts
@@ -55,7 +56,7 @@ Required environment variables:
 Runtime behavior:
 
 - `server/env.ts` loads the repo root `.env` first, then applies `server/.env` as an optional override. This keeps `npm --prefix server run ...` aligned with the main workspace config.
-- If `SUPABASE_SERVICE_ROLE_KEY` is present, the server ingests VN/world/weather data into Supabase.
+- If `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`) is present, the server ingests VN/world/weather data into Supabase.
 - Public API reads use `SUPABASE_PUBLISHABLE_KEY`; they no longer fall back to the service role key.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
@@ -71,7 +72,7 @@ Runtime behavior:
 
 Quick local verification for the ingestion pipeline:
 
-- Start Redis and ensure `.env` includes `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `REDIS_URL`.
+- Start Redis and ensure `.env` includes `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`), and `REDIS_URL`.
 - Queue a sample message with `npm --prefix server run ingestion:sample` or choose a scenario such as `npm --prefix server run ingestion:sample -- --scenario=duplicate`.
 - Process the queue once with `npm --prefix server run worker:once`, or keep `npm --prefix server run worker` running continuously.
 - Verify database results with `npm --prefix server run ingestion:verify -- --scenario=valid --tag=<tag-from-sample-output>`.

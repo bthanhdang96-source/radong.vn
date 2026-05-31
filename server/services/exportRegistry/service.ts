@@ -480,7 +480,7 @@ export async function syncExportRegistryResultsToSupabase(
 ): Promise<ExportRegistrySyncResult> {
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to sync export registry data')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to sync export registry data')
   }
 
   const discoveredEntries = results.flatMap(result => result.items)
@@ -781,3 +781,4 @@ export async function getExportRegistryEntries(
     },
   }
 }
+

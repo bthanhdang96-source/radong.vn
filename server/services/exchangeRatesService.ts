@@ -494,7 +494,7 @@ export async function syncExchangeRatesToSupabase(options?: { backfillDays?: num
       fetchedDays: 0,
       rowCount: 0,
       upsertCount: 0,
-      errors: ['SUPABASE_SERVICE_ROLE_KEY is required for exchange rate sync'],
+      errors: ['SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required for exchange rate sync'],
     }
   }
 
@@ -889,3 +889,4 @@ export function parseExchangeRateDaysParam(value: unknown) {
 export function parseExchangeRateBackfillDaysParam(value: unknown) {
   return clampBackfillDays(value)
 }
+

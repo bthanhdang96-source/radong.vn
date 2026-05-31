@@ -245,7 +245,7 @@ async function upsertPersistedWeatherRows(rows: PersistedWeatherRow[]) {
 
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to persist agricultural weather data')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to persist agricultural weather data')
   }
 
   const { error } = await client.from(WEATHER_CACHE_TABLE).upsert(rows, {
@@ -264,7 +264,7 @@ async function insertHistoricalSnapshotRows(rows: WeatherSnapshotInsertRow[]) {
 
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to persist agricultural weather snapshots')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to persist agricultural weather snapshots')
   }
 
   const { error } = await client.from(WEATHER_HISTORY_TABLE).upsert(rows, {
@@ -594,3 +594,4 @@ export async function getAgriWeather(locationCode: string | null | undefined, op
 export async function listAgriWeatherHistory(locationCode: string | null | undefined, options: WeatherHistoryQuery = {}) {
   return agriWeatherService.listAgriWeatherHistory(locationCode, options)
 }
+

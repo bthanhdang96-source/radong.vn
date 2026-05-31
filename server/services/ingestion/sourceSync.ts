@@ -47,7 +47,7 @@ async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
 
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to persist source snapshots')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to persist source snapshots')
   }
 
   const modernRows = sourceSnapshots.map(source => ({
@@ -84,7 +84,7 @@ async function persistSourceSnapshots(sourceSnapshots: SourceSnapshot[]) {
 async function refreshCuratedViews() {
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to refresh curated views')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to refresh curated views')
   }
 
   const { error } = await client.rpc('refresh_curated_views')
@@ -178,7 +178,7 @@ async function filterExistingItems(dayData: CrawledDayData) {
 export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promise<SourceSyncResult> {
   const client = getSupabaseAdminClient()
   if (!client) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to sync crawler output')
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required to sync crawler output')
   }
 
   const sourceDayData = toDayData(result)
@@ -246,3 +246,4 @@ export async function syncCrawlerResultToSupabase(result: CrawlerResult): Promis
     skippedDuplicateCount,
   }
 }
+
