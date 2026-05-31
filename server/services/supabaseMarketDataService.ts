@@ -323,6 +323,42 @@ type CoffeeCompetitorBenchmarkSummaryRow = {
   interpretation_note: string | null
 }
 
+type CoffeeMirrorGapRow = {
+  period_type: string
+  period_start: string
+  period_label: string
+  market_country: string
+  market_iso: string | null
+  vietnam_export_value_usd: number | string | null
+  vietnam_export_quantity_ton: number | string | null
+  vietnam_export_unit_value_usd_per_ton: number | string | null
+  vietnam_export_unit_value_flag: string | null
+  partner_import_value_usd: number | string | null
+  partner_import_quantity_ton: number | string | null
+  partner_import_unit_value_usd_per_ton: number | string | null
+  partner_import_unit_value_flag: string | null
+  value_gap_usd: number | string | null
+  quantity_gap_ton: number | string | null
+  unit_value_gap_usd_per_ton: number | string | null
+  mirror_gap_pct: number | string | null
+  mirror_gap_flag: string
+  confidence_score: number | string | null
+  interpretation_note: string | null
+}
+
+type CoffeeMirrorGapSummaryRow = {
+  period_type: string
+  period_label: string
+  period_start: string
+  total_markets: number | string | null
+  markets_with_import_mirror: number | string | null
+  ok_markets: number | string | null
+  avg_mirror_gap_pct: number | string | null
+  markets_positive_gap: number | string | null
+  markets_negative_gap: number | string | null
+  interpretation_note: string | null
+}
+
 export type WorldCoffeeBenchmarkDailyItem = {
   priceDate: string
   commodityGroup: string
@@ -410,6 +446,42 @@ export type CoffeeCompetitorBenchmarkSummaryItem = {
   interpretationNote: string | null
 }
 
+export type CoffeeMirrorGapItem = {
+  periodType: string
+  periodStart: string
+  periodLabel: string
+  marketCountry: string
+  marketIso: string | null
+  vietnamExportValueUsd: number | null
+  vietnamExportQuantityTon: number | null
+  vietnamExportUnitValueUsdPerTon: number | null
+  vietnamExportUnitValueFlag: string | null
+  partnerImportValueUsd: number | null
+  partnerImportQuantityTon: number | null
+  partnerImportUnitValueUsdPerTon: number | null
+  partnerImportUnitValueFlag: string | null
+  valueGapUsd: number | null
+  quantityGapTon: number | null
+  unitValueGapUsdPerTon: number | null
+  mirrorGapPct: number | null
+  mirrorGapFlag: string
+  confidenceScore: number | null
+  interpretationNote: string | null
+}
+
+export type CoffeeMirrorGapSummaryItem = {
+  periodType: string
+  periodLabel: string
+  periodStart: string
+  totalMarkets: number
+  marketsWithImportMirror: number
+  okMarkets: number
+  avgMirrorGapPct: number | null
+  marketsPositiveGap: number
+  marketsNegativeGap: number
+  interpretationNote: string | null
+}
+
 export type WorldCoffeeBenchmarkResponse = {
   success: boolean
   status: 'live' | 'fallback'
@@ -445,6 +517,24 @@ export type CoffeeCompetitorBenchmarkSummaryResponse = {
   lastUpdated: string
   count: number
   data: CoffeeCompetitorBenchmarkSummaryItem[]
+  errors: string[]
+}
+
+export type CoffeeMirrorGapResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  count: number
+  data: CoffeeMirrorGapItem[]
+  errors: string[]
+}
+
+export type CoffeeMirrorGapSummaryResponse = {
+  success: boolean
+  status: 'live' | 'fallback'
+  lastUpdated: string
+  count: number
+  data: CoffeeMirrorGapSummaryItem[]
   errors: string[]
 }
 
@@ -2195,6 +2285,28 @@ function buildFallbackCoffeeCompetitorBenchmarkSummaryResponse(message: string):
   }
 }
 
+function buildFallbackCoffeeMirrorGapResponse(message: string): CoffeeMirrorGapResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    count: 0,
+    data: [],
+    errors: [message],
+  }
+}
+
+function buildFallbackCoffeeMirrorGapSummaryResponse(message: string): CoffeeMirrorGapSummaryResponse {
+  return {
+    success: true,
+    status: 'fallback',
+    lastUpdated: new Date().toISOString(),
+    count: 0,
+    data: [],
+    errors: [message],
+  }
+}
+
 function toWorldCoffeeBenchmarkDailyItem(row: WorldCoffeeBenchmarkDailyRow): WorldCoffeeBenchmarkDailyItem {
   return {
     priceDate: row.price_date,
@@ -2297,6 +2409,46 @@ function toCoffeeCompetitorBenchmarkSummaryItem(
     avgVietnamVsIndonesiaGapPct: toNumberOrNull(row.avg_vietnam_vs_indonesia_gap_pct),
     marketsVietnamPremiumVsBrazil: toNonNegativeInteger(row.markets_vietnam_premium_vs_brazil),
     marketsVietnamDiscountVsBrazil: toNonNegativeInteger(row.markets_vietnam_discount_vs_brazil),
+    interpretationNote: row.interpretation_note,
+  }
+}
+
+function toCoffeeMirrorGapItem(row: CoffeeMirrorGapRow): CoffeeMirrorGapItem {
+  return {
+    periodType: row.period_type,
+    periodStart: row.period_start,
+    periodLabel: row.period_label,
+    marketCountry: row.market_country,
+    marketIso: row.market_iso,
+    vietnamExportValueUsd: toNumberOrNull(row.vietnam_export_value_usd),
+    vietnamExportQuantityTon: toNumberOrNull(row.vietnam_export_quantity_ton),
+    vietnamExportUnitValueUsdPerTon: toNumberOrNull(row.vietnam_export_unit_value_usd_per_ton),
+    vietnamExportUnitValueFlag: row.vietnam_export_unit_value_flag,
+    partnerImportValueUsd: toNumberOrNull(row.partner_import_value_usd),
+    partnerImportQuantityTon: toNumberOrNull(row.partner_import_quantity_ton),
+    partnerImportUnitValueUsdPerTon: toNumberOrNull(row.partner_import_unit_value_usd_per_ton),
+    partnerImportUnitValueFlag: row.partner_import_unit_value_flag,
+    valueGapUsd: toNumberOrNull(row.value_gap_usd),
+    quantityGapTon: toNumberOrNull(row.quantity_gap_ton),
+    unitValueGapUsdPerTon: toNumberOrNull(row.unit_value_gap_usd_per_ton),
+    mirrorGapPct: toNumberOrNull(row.mirror_gap_pct),
+    mirrorGapFlag: row.mirror_gap_flag,
+    confidenceScore: toNumberOrNull(row.confidence_score),
+    interpretationNote: row.interpretation_note,
+  }
+}
+
+function toCoffeeMirrorGapSummaryItem(row: CoffeeMirrorGapSummaryRow): CoffeeMirrorGapSummaryItem {
+  return {
+    periodType: row.period_type,
+    periodLabel: row.period_label,
+    periodStart: row.period_start,
+    totalMarkets: toNonNegativeInteger(row.total_markets),
+    marketsWithImportMirror: toNonNegativeInteger(row.markets_with_import_mirror),
+    okMarkets: toNonNegativeInteger(row.ok_markets),
+    avgMirrorGapPct: toNumberOrNull(row.avg_mirror_gap_pct),
+    marketsPositiveGap: toNonNegativeInteger(row.markets_positive_gap),
+    marketsNegativeGap: toNonNegativeInteger(row.markets_negative_gap),
     interpretationNote: row.interpretation_note,
   }
 }
@@ -2498,6 +2650,93 @@ async function getCoffeeCompetitorBenchmarkSummaryRows(limit: number): Promise<C
   return (data ?? []) as unknown as CoffeeCompetitorBenchmarkSummaryRow[]
 }
 
+async function getCoffeeMirrorGapRows(options: {
+  limit: number
+  periodLabel?: string
+  qualityFlag?: string
+}): Promise<CoffeeMirrorGapRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  let query = client
+    .from('vw_coffee_mirror_gap_by_market')
+    .select(
+      [
+        'period_type',
+        'period_start',
+        'period_label',
+        'market_country',
+        'market_iso',
+        'vietnam_export_value_usd',
+        'vietnam_export_quantity_ton',
+        'vietnam_export_unit_value_usd_per_ton',
+        'vietnam_export_unit_value_flag',
+        'partner_import_value_usd',
+        'partner_import_quantity_ton',
+        'partner_import_unit_value_usd_per_ton',
+        'partner_import_unit_value_flag',
+        'value_gap_usd',
+        'quantity_gap_ton',
+        'unit_value_gap_usd_per_ton',
+        'mirror_gap_pct',
+        'mirror_gap_flag',
+        'confidence_score',
+        'interpretation_note',
+      ].join(', '),
+    )
+    .limit(options.limit)
+    .order('period_start', { ascending: false })
+    .order('vietnam_export_value_usd', { ascending: false, nullsFirst: false })
+
+  if (options.periodLabel) {
+    query = query.eq('period_label', options.periodLabel)
+  }
+  if (options.qualityFlag) {
+    query = query.eq('mirror_gap_flag', options.qualityFlag)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as CoffeeMirrorGapRow[]
+}
+
+async function getCoffeeMirrorGapSummaryRows(limit: number): Promise<CoffeeMirrorGapSummaryRow[] | null> {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('vw_coffee_mirror_gap_summary_by_period')
+    .select(
+      [
+        'period_type',
+        'period_label',
+        'period_start',
+        'total_markets',
+        'markets_with_import_mirror',
+        'ok_markets',
+        'avg_mirror_gap_pct',
+        'markets_positive_gap',
+        'markets_negative_gap',
+        'interpretation_note',
+      ].join(', '),
+    )
+    .limit(limit)
+    .order('period_start', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []) as unknown as CoffeeMirrorGapSummaryRow[]
+}
+
 export async function getWorldCoffeeBenchmarkResponse(options?: {
   dailyLimit?: number
   monthlyLimit?: number
@@ -2633,6 +2872,72 @@ export async function getCoffeeCompetitorBenchmarkSummaryResponse(limit = 20): P
       console.error('[Supabase Competitor Coffee Benchmark] Falling back to empty summary payload:', error)
     }
     return buildFallbackCoffeeCompetitorBenchmarkSummaryResponse('Coffee competitor benchmark summary data is unavailable')
+  }
+}
+
+export async function getCoffeeMirrorGapResponse(options?: {
+  limit?: number
+  periodLabel?: string
+  qualityFlag?: string
+}): Promise<CoffeeMirrorGapResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackCoffeeMirrorGapResponse('Coffee mirror gap requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(options?.limit ?? 200, 500))
+
+  try {
+    const rows = await getCoffeeMirrorGapRows({
+      limit: rowLimit,
+      periodLabel: options?.periodLabel,
+      qualityFlag: options?.qualityFlag,
+    })
+    const data = (rows ?? []).map(toCoffeeMirrorGapItem)
+    const lastUpdated = data.map(row => row.periodStart).sort().at(-1) ?? new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Coffee Mirror Gap] Falling back to empty payload:', error)
+    }
+    return buildFallbackCoffeeMirrorGapResponse('Coffee mirror gap data is unavailable')
+  }
+}
+
+export async function getCoffeeMirrorGapSummaryResponse(limit = 20): Promise<CoffeeMirrorGapSummaryResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackCoffeeMirrorGapSummaryResponse('Coffee mirror gap summary requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(limit, 100))
+
+  try {
+    const rows = await getCoffeeMirrorGapSummaryRows(rowLimit)
+    const data = (rows ?? []).map(toCoffeeMirrorGapSummaryItem)
+    const lastUpdated = data[0]?.periodStart ?? new Date().toISOString()
+
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated,
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Coffee Mirror Gap] Falling back to empty summary payload:', error)
+    }
+    return buildFallbackCoffeeMirrorGapSummaryResponse('Coffee mirror gap summary data is unavailable')
   }
 }
 
