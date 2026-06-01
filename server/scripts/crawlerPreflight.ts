@@ -12,6 +12,9 @@ type CheckResult = {
 async function main() {
   const schedule = getCrawlerScheduleConfig()
   const supabase = getSupabaseRuntimeStatus()
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY?.trim() ?? ''
+  const legacyServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? ''
+  const hasLegacyServiceRoleKey = legacyServiceRoleKey.startsWith('eyJ')
   const bhxRequested = process.env.BHX_CRAWL_ENABLED?.trim().toLowerCase() !== 'false'
   const bhxCredentialsConfigured = hasBhxApiCredentials()
 
@@ -20,8 +23,17 @@ async function main() {
       name: 'supabase_admin_config',
       ok: supabase.hasAdminConfig,
       detail: supabase.hasAdminConfig
-        ? 'SUPABASE_URL and SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY) are configured'
+        ? supabaseSecretKey.length > 0
+          ? 'SUPABASE_URL and SUPABASE_SECRET_KEY are configured'
+          : 'SUPABASE_URL and admin key are configured via fallback env'
         : 'Missing admin Supabase configuration',
+    },
+    {
+      name: 'supabase_legacy_service_role_key',
+      ok: !hasLegacyServiceRoleKey,
+      detail: hasLegacyServiceRoleKey
+        ? 'Legacy SUPABASE_SERVICE_ROLE_KEY JWT detected (eyJ...). Remove it and use SUPABASE_SECRET_KEY only.'
+        : 'No legacy SUPABASE_SERVICE_ROLE_KEY JWT detected',
     },
     {
       name: 'bhx_scheduler_flags',
