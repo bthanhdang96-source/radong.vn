@@ -11,6 +11,7 @@
     "coffee:mirror-import": "tsx scripts/runCoffeeMirrorImportUnitValueSync.ts",
     "coffee:world-benchmark": "tsx scripts/runWorldCoffeeBenchmarkSync.ts",
     "coffee:market-events": "tsx scripts/runCoffeeMarketEventsSync.ts",
+    "coffee:freight-logistics": "tsx scripts/runFreightLogisticsProxySync.ts",
     "crawler:bhx": "tsx scripts/runBhxCrawler.ts",
     "crawler:coop": "tsx scripts/runCoopCrawler.ts",
     "crawler:customs": "tsx scripts/runCustomsCrawler.ts",
@@ -27,7 +28,7 @@
     "images:check": "tsx scripts/checkCommodityImages.ts",
     "start": "tsx index.ts",
     "monitor": "tsx services/ingestion/monitor.ts",
-    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/aiArticles.test.ts ./tests/bhxCrawler.test.ts ./tests/coffeeExportMarket.test.ts ./tests/coffeeExportUnitValue.test.ts ./tests/competitorCoffeeExportUnitValue.test.ts ./tests/coffeeMirrorImportUnitValue.test.ts ./tests/coffeeMarketEvents.test.ts ./tests/commodityImageResolver.test.ts ./tests/contentTaxonomy.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/domesticCoffeePriceFx.test.ts ./tests/durianCrawlers.test.ts ./tests/exchangeRatesService.test.ts ./tests/exportRegistryCrawler.test.ts ./tests/generatedCommodityPricePages.test.ts ./tests/generatedPricePages.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts ./tests/worldCoffeeBenchmark.test.ts ./tests/worldPriceProviders.test.ts",
+    "test": "node --test --import tsx ./tests/agriWeather.test.ts ./tests/aiArticles.test.ts ./tests/bhxCrawler.test.ts ./tests/coffeeExportMarket.test.ts ./tests/coffeeExportUnitValue.test.ts ./tests/competitorCoffeeExportUnitValue.test.ts ./tests/coffeeMirrorImportUnitValue.test.ts ./tests/coffeeMarketEvents.test.ts ./tests/freightLogisticsProxy.test.ts ./tests/commodityImageResolver.test.ts ./tests/contentTaxonomy.test.ts ./tests/customsSupabaseVisibility.test.ts ./tests/domesticCoffeePriceFx.test.ts ./tests/durianCrawlers.test.ts ./tests/exchangeRatesService.test.ts ./tests/exportRegistryCrawler.test.ts ./tests/generatedCommodityPricePages.test.ts ./tests/generatedPricePages.test.ts ./tests/newsCrawler.test.ts ./tests/retailCommodityMatcher.test.ts ./tests/retryBehavior.test.ts ./tests/worldCoffeeBenchmark.test.ts ./tests/worldPriceProviders.test.ts",
     "typecheck": "tsc --noEmit",
     "worker": "tsx services/ingestion/worker.ts",
     "worker:once": "tsx services/ingestion/worker.ts --once"
