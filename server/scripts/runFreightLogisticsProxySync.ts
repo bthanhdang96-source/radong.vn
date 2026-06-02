@@ -11,10 +11,21 @@ function getOption(name: string) {
   return process.argv.find(arg => arg.startsWith(prefix))?.slice(prefix.length) ?? null
 }
 
+function parseIntegerOption(name: string) {
+  const value = getOption(name)
+  if (value === null) return undefined
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) throw new Error(`Invalid --${name}: ${value}`)
+  return Math.trunc(numeric)
+}
+
 async function main() {
   const dryRun = hasFlag('dry-run')
   const writeArtifacts = !hasFlag('no-artifacts')
   const fetchSources = hasFlag('fetch-sources')
+  const probeSources = hasFlag('probe-sources')
+  const sourceHealthOnly = hasFlag('source-health-only')
+  const maxItemsPerSource = parseIntegerOption('max-items-per-source')
   const seedCsvPath = getOption('seed-csv') ?? undefined
   const fromDate = getOption('from-date') ?? undefined
   const toDate = getOption('to-date') ?? undefined
@@ -27,6 +38,9 @@ async function main() {
     dryRun,
     writeArtifacts,
     fetchSources,
+    probeSources,
+    sourceHealthOnly,
+    maxItemsPerSource,
     seedCsvPath,
     fromDate,
     toDate,
@@ -37,6 +51,7 @@ async function main() {
   console.log(`[Freight Logistics Proxy] rawRows=${result.rawRowsPrepared}`)
   console.log(`[Freight Logistics Proxy] factRows=${result.factRowsPrepared}`)
   console.log(`[Freight Logistics Proxy] sourceRowsFetched=${result.sourceRowsFetched}`)
+  console.log(`[Freight Logistics Proxy] sourceHealth=${result.sourceHealth.map(row => `${row.sourceId}:${row.status}:${row.extractedRows}`).join('; ') || 'not-probed'}`)
   console.log(`[Freight Logistics Proxy] sourceErrors=${result.sourceErrors.map(error => `${error.sourceId}: ${error.message}`).join('; ') || 'none'}`)
   console.log(`[Freight Logistics Proxy] persisted raw=${result.rawRowsPersisted} fact=${result.factRowsPersisted} dryRun=${dryRun}`)
   console.log(`[Freight Logistics Proxy] duplicateRawRowsCollapsed=${result.duplicateRawRowsCollapsed}`)
@@ -46,6 +61,7 @@ async function main() {
   if (result.artifacts.factCsvPath) console.log(`[Freight Logistics Proxy] factCsv=${result.artifacts.factCsvPath}`)
   if (result.artifacts.qcReportPath) console.log(`[Freight Logistics Proxy] qcReport=${result.artifacts.qcReportPath}`)
   if (result.artifacts.sourceResearchPath) console.log(`[Freight Logistics Proxy] sourceResearch=${result.artifacts.sourceResearchPath}`)
+  if (result.artifacts.sourceHealthPath) console.log(`[Freight Logistics Proxy] sourceHealthReport=${result.artifacts.sourceHealthPath}`)
   if (result.artifacts.methodologyPath) console.log(`[Freight Logistics Proxy] methodology=${result.artifacts.methodologyPath}`)
 }
 

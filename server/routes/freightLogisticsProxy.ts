@@ -3,6 +3,7 @@ import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import {
   getFreightLogisticsEventsResponse,
   getFreightLogisticsMonthlyResponse,
+  getFreightLogisticsReviewQueueResponse,
   getFreightLogisticsResponse,
   syncFreightLogisticsProxy,
 } from '../services/freightLogisticsProxy.js'
@@ -21,6 +22,11 @@ function parseSourceIds(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
     : undefined
+}
+
+function parseInteger(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
 }
 
 router.get('/coffee/freight-logistics', async (req, res) => {
@@ -65,11 +71,28 @@ router.get('/coffee/freight-logistics/monthly', async (req, res) => {
   }
 })
 
+router.get('/coffee/freight-logistics/review-queue', async (req, res) => {
+  try {
+    const limit = parseLimit(req.query.limit, 100, 500)
+    const payload = await getFreightLogisticsReviewQueueResponse(limit)
+    res.json(payload)
+  } catch (error) {
+    console.error('[API] Error fetching freight logistics review queue:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch freight logistics review queue data',
+    })
+  }
+})
+
 router.post('/admin/coffee/freight-logistics/refresh', requireAdminApiKey, async (req, res) => {
   try {
     const dryRun = req.body?.dryRun === true
     const writeArtifacts = req.body?.writeArtifacts !== false
     const fetchSources = req.body?.fetchSources === true
+    const probeSources = req.body?.probeSources === true
+    const sourceHealthOnly = req.body?.sourceHealthOnly === true
+    const maxItemsPerSource = parseInteger(req.body?.maxItemsPerSource)
     const seedCsvPath = typeof req.body?.seedCsvPath === 'string' ? req.body.seedCsvPath : undefined
     const fromDate = typeof req.body?.fromDate === 'string' ? req.body.fromDate : undefined
     const toDate = typeof req.body?.toDate === 'string' ? req.body.toDate : undefined
@@ -79,6 +102,9 @@ router.post('/admin/coffee/freight-logistics/refresh', requireAdminApiKey, async
       dryRun,
       writeArtifacts,
       fetchSources,
+      probeSources,
+      sourceHealthOnly,
+      maxItemsPerSource,
       seedCsvPath,
       fromDate,
       toDate,
@@ -95,6 +121,7 @@ router.post('/admin/coffee/freight-logistics/refresh', requireAdminApiKey, async
       factRowsPersisted: result.factRowsPersisted,
       sourceRowsFetched: result.sourceRowsFetched,
       sourceErrors: result.sourceErrors,
+      sourceHealth: result.sourceHealth,
       duplicateRawRowsCollapsed: result.duplicateRawRowsCollapsed,
       duplicateFactRowsCollapsed: result.duplicateFactRowsCollapsed,
       qualityFlagCounts: result.qc.flagCounts,

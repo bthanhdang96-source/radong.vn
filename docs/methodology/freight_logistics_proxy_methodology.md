@@ -11,6 +11,7 @@
 - USD/FEU is kept unchanged.
 - USD/TEU is multiplied by 2 as an approximate FEU conversion.
 - index_points, days, text_event, and unknown units are not converted to USD/FEU.
+- Change metrics are calculated only for approved comparable USD/FEU series from the same source/index/route.
 
 ## Interpretation
 

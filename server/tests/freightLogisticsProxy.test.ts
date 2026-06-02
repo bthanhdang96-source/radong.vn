@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  classifyFreightSourceHealth,
   FREIGHT_LOGISTICS_SOURCES,
+  isFreightLogisticsReviewQueueCandidate,
   normalizeFreightValueToUsdPerFeu,
   parseDrewryWciPublicHtml,
   parseLogisticsEventPublicHtml,
@@ -9,6 +11,7 @@ import {
   prepareFreightLogisticsRows,
   renderFreightLogisticsMethodology,
   renderFreightLogisticsQcMarkdown,
+  renderFreightLogisticsSourceHealthMarkdown,
   type FreightLogisticsInputRow,
 } from '../services/freightLogisticsProxy.js'
 
@@ -32,6 +35,9 @@ function inputRow(overrides: Partial<FreightLogisticsInputRow> = {}): FreightLog
     notes: 'Route proxy only; not Vietnam-origin quote.',
     rawPayload: { fixture: true },
     fromPublicAdapter: false,
+    approved: true,
+    comparableForChange: true,
+    manualSeed: false,
     ...overrides,
   }
 }
@@ -71,6 +77,7 @@ test('prepareFreightLogisticsRows applies QC flags for source, date, unit, relev
       inputRow({ routeName: 'low relevance', relevanceToCoffee: 'low', sourceUrl: 'https://example.com/low' }),
       inputRow({ routeName: 'suspicious', freightValue: 50000, sourceUrl: 'https://example.com/high' }),
       inputRow({ routeName: 'adapter row', fromPublicAdapter: true, sourceUrl: 'https://example.com/adapter' }),
+      inputRow({ routeName: 'manual seed row', approved: false, comparableForChange: false, manualSeed: true, sourceUrl: 'https://example.com/manual' }),
     ],
     { fetchedAt: '2026-06-02T00:00:00.000Z' },
   )
@@ -85,6 +92,7 @@ test('prepareFreightLogisticsRows applies QC flags for source, date, unit, relev
   assert.equal(byRoute.get('low relevance')?.data_quality_flag, 'low_relevance_to_coffee')
   assert.equal(byRoute.get('suspicious')?.data_quality_flag, 'suspicious_value')
   assert.equal(byRoute.get('adapter row')?.data_quality_flag, 'needs_human_review')
+  assert.equal(byRoute.get('manual seed row')?.data_quality_flag, 'needs_human_review')
 })
 
 test('prepareFreightLogisticsRows calculates change metrics only for comparable USD/FEU series', () => {
@@ -112,6 +120,22 @@ test('prepareFreightLogisticsRows calculates change metrics only for comparable 
   assert.equal(scfi?.wow_change_pct, null)
 })
 
+test('TEU conversions are capped and do not drive comparable change metrics by default', () => {
+  const prepared = prepareFreightLogisticsRows(
+    [
+      inputRow({ observationDate: '2026-05-23', freightValue: 3000, unit: 'USD/TEU', comparableForChange: false }),
+      inputRow({ observationDate: '2026-05-30', freightValue: 3300, unit: 'USD/FEU' }),
+    ],
+    { fetchedAt: '2026-06-02T00:00:00.000Z' },
+  )
+
+  const teu = prepared.factRows.find(row => row.unit === 'USD/TEU')
+  const latest = prepared.factRows.find(row => row.observation_date === '2026-05-30')
+  assert.equal(teu?.confidence_score, 0.68)
+  assert.equal(teu?.notes.includes('TEU-to-FEU conversion is approximate'), true)
+  assert.equal(latest?.wow_change_pct, null)
+})
+
 test('prepareFreightLogisticsRows collapses duplicate fact grain and preserves latest row metadata', () => {
   const prepared = prepareFreightLogisticsRows(
     [
@@ -124,7 +148,7 @@ test('prepareFreightLogisticsRows collapses duplicate fact grain and preserves l
   assert.equal(prepared.factRows.length, 1)
   assert.equal(prepared.duplicateRawRowsCollapsed, 1)
   assert.equal(prepared.factRows[0]?.freight_value, 3300)
-  assert.equal(prepared.factRows[0]?.notes, 'second duplicate')
+  assert.equal(prepared.factRows[0]?.notes.includes('second duplicate'), true)
 })
 
 test('public source parsers handle Drewry-like HTML, SCFI index points, and text events', () => {
@@ -152,6 +176,65 @@ test('public source parsers handle Drewry-like HTML, SCFI index points, and text
   assert.equal(eventRows.length, 1)
   assert.equal(eventRows[0]?.unit, 'text_event')
   assert.equal(eventRows[0]?.fromPublicAdapter, true)
+})
+
+test('source health classifier maps public, research-only, licensed, and parser-drift states', () => {
+  const drewry = FREIGHT_LOGISTICS_SOURCES.find(item => item.id === 'drewry_wci_public')!
+  const scfi = FREIGHT_LOGISTICS_SOURCES.find(item => item.id === 'scfi_public')!
+  const freightos = FREIGHT_LOGISTICS_SOURCES.find(item => item.id === 'freightos_fbx_research')!
+  const licensed = FREIGHT_LOGISTICS_SOURCES.find(item => item.id === 'freightos_fbx_licensed')!
+
+  const available = classifyFreightSourceHealth({
+    source: drewry,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 200,
+    contentType: 'text/html',
+    bodyText: '<p>30 May 2026 World Container Index rose to $2,300 per 40ft container. Shanghai to Rotterdam $3,200.</p>',
+  })
+  assert.equal(available.status, 'available')
+  assert.ok(available.extractedRows >= 1)
+
+  const drift = classifyFreightSourceHealth({
+    source: scfi,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 200,
+    contentType: 'text/html',
+    bodyText: '<html><p>SCFI freight index page without numeric value</p></html>',
+  })
+  assert.equal(drift.status, 'parser_drift')
+
+  const researchOnly = classifyFreightSourceHealth({
+    source: freightos,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: null,
+    contentType: null,
+    bodyText: null,
+  })
+  assert.equal(researchOnly.status, 'research_only')
+
+  const licensedMissing = classifyFreightSourceHealth({
+    source: licensed,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: null,
+    contentType: null,
+    bodyText: null,
+  })
+  assert.equal(licensedMissing.status, 'auth_gated')
+})
+
+test('review queue predicate includes review-needed rows and excludes clean approved rows', () => {
+  const prepared = prepareFreightLogisticsRows(
+    [
+      inputRow({ routeName: 'clean approved', sourceUrl: 'https://example.com/clean' }),
+      inputRow({ routeName: 'manual unapproved', approved: false, comparableForChange: false, manualSeed: true, sourceUrl: 'https://example.com/manual' }),
+      inputRow({ routeName: 'teu conversion', unit: 'USD/TEU', sourceUrl: 'https://example.com/teu' }),
+    ],
+    { fetchedAt: '2026-06-02T00:00:00.000Z' },
+  )
+  const byRoute = new Map(prepared.factRows.map(row => [row.route_name, row]))
+  assert.equal(isFreightLogisticsReviewQueueCandidate(byRoute.get('clean approved')!, { asOfDate: '2026-06-02' }), false)
+  assert.equal(isFreightLogisticsReviewQueueCandidate(byRoute.get('manual unapproved')!, { asOfDate: '2026-06-02' }), true)
+  assert.equal(isFreightLogisticsReviewQueueCandidate(byRoute.get('teu conversion')!, { asOfDate: '2026-06-02' }), true)
 })
 
 test('QC and methodology markdown include required Step 9 guardrails', () => {
@@ -190,12 +273,32 @@ test('QC and methodology markdown include required Step 9 guardrails', () => {
     },
   )
 
-  const qc = renderFreightLogisticsQcMarkdown(prepared.qc, { generatedAt: '2026-06-02T00:00:00.000Z' })
+  const sourceHealth = [
+    classifyFreightSourceHealth({
+      source: FREIGHT_LOGISTICS_SOURCES.find(item => item.id === 'freightos_fbx_research')!,
+      probedAt: '2026-06-02T00:00:00.000Z',
+      httpStatus: null,
+      contentType: null,
+      bodyText: null,
+    }),
+  ]
+  const qc = renderFreightLogisticsQcMarkdown(prepared.qc, {
+    generatedAt: '2026-06-02T00:00:00.000Z',
+    sourceHealth,
+  })
+  const healthMarkdown = renderFreightLogisticsSourceHealthMarkdown({
+    generatedAt: '2026-06-02T00:00:00.000Z',
+    sourceHealth,
+  })
   const methodology = renderFreightLogisticsMethodology()
   assert.equal(qc.includes('TEU/FEU Conversion Check'), true)
   assert.equal(qc.includes('Index Points Not Converted'), true)
+  assert.equal(qc.includes('Manual Seed Rows'), true)
+  assert.equal(qc.includes('Source Health Summary'), true)
   assert.equal(qc.includes('Source Errors'), true)
   assert.equal(qc.includes('Freight proxy is not a Vietnam coffee freight quote'), true)
+  assert.equal(healthMarkdown.includes('research_only'), true)
   assert.equal(methodology.includes('not transaction-level quotes'), true)
   assert.equal(methodology.includes('Do not claim freight caused a mirror gap'), true)
+  assert.equal(methodology.includes('approved comparable USD/FEU series'), true)
 })

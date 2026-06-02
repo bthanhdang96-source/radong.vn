@@ -53,6 +53,9 @@ export type FreightLogisticsInputRow = {
   notes: string | null
   rawPayload: Record<string, unknown>
   fromPublicAdapter: boolean
+  approved: boolean
+  comparableForChange: boolean
+  manualSeed: boolean
 }
 
 type RawFreightLogisticsProxyRow = {
@@ -122,6 +125,9 @@ export type FreightLogisticsQcReport = {
   indexPointRows: FreightLogisticsFactRow[]
   eventRowsMissingNotes: FreightLogisticsFactRow[]
   sourceErrors: FreightSourceError[]
+  manualSeedRows: FreightLogisticsFactRow[]
+  staleRows: FreightLogisticsFactRow[]
+  approximateConversionRows: FreightLogisticsFactRow[]
 }
 
 export type FreightLogisticsPreparedRows = {
@@ -139,6 +145,9 @@ export type FreightLogisticsSyncOptions = {
   fetchedAt?: string
   seedCsvPath?: string
   fetchSources?: boolean
+  probeSources?: boolean
+  sourceHealthOnly?: boolean
+  maxItemsPerSource?: number
   sourceIds?: string[]
   fromDate?: string
   toDate?: string
@@ -153,6 +162,7 @@ export type FreightLogisticsSyncResult = {
   factRowsPersisted: number
   sourceRowsFetched: number
   sourceErrors: FreightSourceError[]
+  sourceHealth: FreightSourceHealthRow[]
   duplicateRawRowsCollapsed: number
   duplicateFactRowsCollapsed: number
   qc: FreightLogisticsQcReport
@@ -162,6 +172,7 @@ export type FreightLogisticsSyncResult = {
     factCsvPath: string | null
     qcReportPath: string | null
     sourceResearchPath: string | null
+    sourceHealthPath: string | null
     methodologyPath: string | null
   }
 }
@@ -202,10 +213,43 @@ type FreightSourceDescriptor = {
   id: string
   sourceName: string
   sourceUrl: string
-  sourceType: 'drewry_public_page' | 'scfi_public_page' | 'logistics_event_page' | 'source_research'
+  sourceType: 'drewry_public_page' | 'scfi_public_page' | 'logistics_event_page' | 'source_research' | 'licensed_provider'
+  sourceMode: 'enabled' | 'probe_only' | 'licensed'
   reliabilityScore: number
   enabledByDefault: boolean
+  envKey?: string
   notes: string
+}
+
+export const FREIGHT_SOURCE_HEALTH_STATUSES = [
+  'available',
+  'empty',
+  'auth_gated',
+  'paywalled',
+  'unsupported_html',
+  'parser_drift',
+  'fetch_error',
+  'research_only',
+] as const
+
+export type FreightSourceHealthStatus = (typeof FREIGHT_SOURCE_HEALTH_STATUSES)[number]
+
+export type FreightSourceHealthRow = {
+  sourceId: string
+  sourceName: string
+  sourceUrl: string
+  sourceType: FreightSourceDescriptor['sourceType']
+  sourceMode: FreightSourceDescriptor['sourceMode']
+  enabledByDefault: boolean
+  reliabilityScore: number
+  probedAt: string
+  status: FreightSourceHealthStatus
+  httpStatus: number | null
+  contentType: string | null
+  itemCount: number
+  extractedRows: number
+  notes: string
+  errorMessage: string | null
 }
 
 export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
@@ -214,6 +258,7 @@ export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
     sourceName: 'Drewry World Container Index',
     sourceUrl: 'https://www.drewry.co.uk/wci',
     sourceType: 'drewry_public_page',
+    sourceMode: 'enabled',
     reliabilityScore: 0.82,
     enabledByDefault: true,
     notes: 'Public WCI page may expose composite and route snippets in USD per 40ft container; do not bypass paid access.',
@@ -223,6 +268,7 @@ export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
     sourceName: 'Shanghai Shipping Exchange SCFI',
     sourceUrl: 'https://en.sse.net.cn/indices/scfi.jsp',
     sourceType: 'scfi_public_page',
+    sourceMode: 'enabled',
     reliabilityScore: 0.78,
     enabledByDefault: true,
     notes: 'SCFI is index-points context and must not be converted to USD/FEU.',
@@ -232,6 +278,7 @@ export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
     sourceName: 'The Loadstar public logistics updates',
     sourceUrl: 'https://theloadstar.com/',
     sourceType: 'logistics_event_page',
+    sourceMode: 'enabled',
     reliabilityScore: 0.66,
     enabledByDefault: true,
     notes: 'Public logistics headlines are stored as event context requiring human review.',
@@ -241,6 +288,7 @@ export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
     sourceName: 'Freightos Baltic Index methodology',
     sourceUrl: 'https://www.freightos.com/data/',
     sourceType: 'source_research',
+    sourceMode: 'probe_only',
     reliabilityScore: 0.84,
     enabledByDefault: false,
     notes: 'FBX route data is valuable but numeric ingestion requires a clearly public value/API permission.',
@@ -250,9 +298,54 @@ export const FREIGHT_LOGISTICS_SOURCES: FreightSourceDescriptor[] = [
     sourceName: 'Xeneta public methodology',
     sourceUrl: 'https://help.xeneta.com/docs/rate-structure-and-methodology',
     sourceType: 'source_research',
+    sourceMode: 'probe_only',
     reliabilityScore: 0.75,
     enabledByDefault: false,
     notes: 'Xeneta public methodology is useful for source research; do not ingest paid platform values.',
+  },
+  {
+    id: 'drewry_licensed',
+    sourceName: 'Drewry licensed freight data',
+    sourceUrl: 'licensed-provider://drewry',
+    sourceType: 'licensed_provider',
+    sourceMode: 'licensed',
+    reliabilityScore: 0.92,
+    enabledByDefault: false,
+    envKey: 'DREWRY_FREIGHT_API_KEY',
+    notes: 'Licensed Drewry adapter placeholder; numeric ingestion requires approved credentials and license terms.',
+  },
+  {
+    id: 'freightos_fbx_licensed',
+    sourceName: 'Freightos FBX licensed freight data',
+    sourceUrl: 'licensed-provider://freightos-fbx',
+    sourceType: 'licensed_provider',
+    sourceMode: 'licensed',
+    reliabilityScore: 0.90,
+    enabledByDefault: false,
+    envKey: 'FREIGHTOS_FBX_API_KEY',
+    notes: 'Licensed Freightos FBX adapter placeholder; numeric ingestion requires approved credentials and license terms.',
+  },
+  {
+    id: 'xeneta_licensed',
+    sourceName: 'Xeneta licensed freight data',
+    sourceUrl: 'licensed-provider://xeneta',
+    sourceType: 'licensed_provider',
+    sourceMode: 'licensed',
+    reliabilityScore: 0.88,
+    enabledByDefault: false,
+    envKey: 'XENETA_API_KEY',
+    notes: 'Licensed Xeneta adapter placeholder; numeric ingestion requires approved credentials and license terms.',
+  },
+  {
+    id: 'custom_csv_licensed',
+    sourceName: 'Approved licensed freight CSV',
+    sourceUrl: 'licensed-provider://custom-csv',
+    sourceType: 'licensed_provider',
+    sourceMode: 'licensed',
+    reliabilityScore: 0.80,
+    enabledByDefault: false,
+    envKey: 'FREIGHT_LICENSED_CSV_PATH',
+    notes: 'Approved licensed CSV placeholder; file path must be explicitly configured and license reviewed before ingestion.',
   },
 ]
 
@@ -392,6 +485,12 @@ function normalizeUnit(value: string | null | undefined): FreightUnit | null {
   return ALLOWED_UNIT_SET.has(normalized) ? (normalized as FreightUnit) : 'unknown'
 }
 
+function toBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value
+  const normalized = normalizeText(typeof value === 'string' ? value : value === null || value === undefined ? null : String(value))?.toLowerCase()
+  return ['true', '1', 'yes', 'y', 'approved'].includes(normalized ?? '')
+}
+
 export function normalizeFreightValueToUsdPerFeu(value: number | null, unit: string | null | undefined) {
   const normalizedUnit = normalizeUnit(unit)
   if (value === null || !Number.isFinite(value)) {
@@ -422,6 +521,8 @@ function resolveQualityFlag(input: {
   freightValue: number | null
   relevanceToCoffee: FreightRelevance
   fromPublicAdapter: boolean
+  manualSeed: boolean
+  approved: boolean
 }): FreightQualityFlag {
   if (!input.sourceUrl) return 'missing_source_url'
   if (!input.observationDate) return 'missing_observation_date'
@@ -430,6 +531,7 @@ function resolveQualityFlag(input: {
   if (input.unit === 'index_points' && input.normalizedValueUsdPerFeu === null) return 'index_points_not_usd'
   if (input.relevanceToCoffee === 'low') return 'low_relevance_to_coffee'
   if (isSuspiciousValue(input.normalizedValueUsdPerFeu) || isSuspiciousValue(input.freightValue)) return 'suspicious_value'
+  if (input.manualSeed && !input.approved) return 'needs_human_review'
   if (input.fromPublicAdapter) return 'needs_human_review'
   return 'ok'
 }
@@ -462,6 +564,7 @@ function scoreConfidence(input: {
 }
 
 function normalizeInputRecord(record: Record<string, string>): FreightLogisticsInputRow {
+  const approved = toBoolean(record.approved)
   return {
     observationDate: normalizeText(record.observation_date),
     indexName: normalizeText(record.index_name),
@@ -481,6 +584,9 @@ function normalizeInputRecord(record: Record<string, string>): FreightLogisticsI
     notes: normalizeText(record.notes),
     rawPayload: { source: 'freight_logistics_proxy_csv', record },
     fromPublicAdapter: false,
+    approved,
+    comparableForChange: approved && toBoolean(record.comparable_for_change),
+    manualSeed: true,
   }
 }
 
@@ -523,6 +629,8 @@ function toFactRow(input: FreightLogisticsInputRow, fetchedAt: string): FreightL
   const sourceName = input.sourceName ?? 'Unknown source'
   const sourceUrl = input.sourceUrl ?? ''
   const conversionNote = normalized.note ? `${normalized.note} ` : ''
+  const manualSeedNote = input.manualSeed && !input.approved ? 'manual_seed_needs_review. ' : ''
+  const comparableNote = input.comparableForChange ? 'approved_comparable_change_series. ' : ''
   const flag = resolveQualityFlag({
     observationDate,
     sourceUrl,
@@ -531,8 +639,19 @@ function toFactRow(input: FreightLogisticsInputRow, fetchedAt: string): FreightL
     freightValue: input.freightValue,
     relevanceToCoffee,
     fromPublicAdapter: input.fromPublicAdapter,
+    manualSeed: input.manualSeed,
+    approved: input.approved,
   })
-  const confidence = scoreConfidence({
+  const confidence = unit === 'USD/TEU' ? Math.min(scoreConfidence({
+    provided: input.confidenceScore,
+    sourceName,
+    sourceUrl,
+    unit,
+    routeName: input.routeName,
+    observationDate,
+    proxyType,
+    flag,
+  }), 0.68) : scoreConfidence({
     provided: input.confidenceScore,
     sourceName,
     sourceUrl,
@@ -565,8 +684,13 @@ function toFactRow(input: FreightLogisticsInputRow, fetchedAt: string): FreightL
     fetched_at: input.fetchedAt ?? fetchedAt,
     data_quality_flag: flag,
     confidence_score: confidence,
-    notes: `${conversionNote}${input.notes ?? ''}`.trim(),
-    raw_payload: input.rawPayload,
+    notes: `${conversionNote}${manualSeedNote}${comparableNote}${input.notes ?? ''}`.trim(),
+    raw_payload: {
+      ...input.rawPayload,
+      approved: input.approved,
+      comparable_for_change: input.comparableForChange,
+      manual_seed: input.manualSeed,
+    },
   }
 }
 
@@ -589,7 +713,8 @@ function applyChangeMetrics(rows: FreightLogisticsFactRow[]) {
   const groups = new Map<string, FreightLogisticsFactRow[]>()
   for (const row of rows) {
     if (row.normalized_value_usd_per_feu === null) continue
-    const key = `${row.index_name}|${row.route_name ?? ''}`
+    if (!isComparableUsdFeuChangeRow(row)) continue
+    const key = `${row.source_name}|${row.index_name}|${row.route_name ?? ''}`
     const bucket = groups.get(key) ?? []
     bucket.push(row)
     groups.set(key, bucket)
@@ -610,6 +735,14 @@ function applyChangeMetrics(rows: FreightLogisticsFactRow[]) {
       current.yoy_change_pct = calculateChange(currentValue, year?.normalized_value_usd_per_feu ?? null)
     }
   }
+}
+
+function isComparableUsdFeuChangeRow(row: FreightLogisticsFactRow) {
+  return row.unit === 'USD/FEU'
+    && row.normalized_value_usd_per_feu !== null
+    && row.data_quality_flag === 'ok'
+    && row.raw_payload.comparable_for_change === true
+    && !row.notes.toLowerCase().includes('approximate')
 }
 
 function calculateChange(current: number, previous: number | null) {
@@ -676,6 +809,7 @@ function buildFreightLogisticsQcReport(rows: FreightLogisticsFactRow[], sourceEr
   }
 
   const dates = rows.map(row => row.observation_date).sort()
+  const today = new Date().toISOString().slice(0, 10)
   return {
     totalRows: rows.length,
     dateRange: { min: dates[0] ?? null, max: dates.at(-1) ?? null },
@@ -690,7 +824,23 @@ function buildFreightLogisticsQcReport(rows: FreightLogisticsFactRow[], sourceEr
     indexPointRows: rows.filter(row => row.unit === 'index_points'),
     eventRowsMissingNotes: rows.filter(row => row.unit === 'text_event' && !row.notes),
     sourceErrors,
+    manualSeedRows: rows.filter(row => row.raw_payload.manual_seed === true),
+    staleRows: rows.filter(row => daysBetween(row.observation_date, today) > 45),
+    approximateConversionRows: rows.filter(row => row.notes.toLowerCase().includes('teu-to-feu conversion is approximate')),
   }
+}
+
+export function isFreightLogisticsReviewQueueCandidate(row: Pick<FreightLogisticsFactRow, 'data_quality_flag' | 'unit' | 'notes' | 'raw_payload' | 'observation_date'>, options: { asOfDate: string }) {
+  if (['needs_human_review', 'index_points_not_usd', 'suspicious_value', 'low_relevance_to_coffee', 'possible_duplicate'].includes(row.data_quality_flag)) {
+    return true
+  }
+  if (row.unit === 'USD/TEU' || row.notes.toLowerCase().includes('teu-to-feu conversion is approximate')) {
+    return true
+  }
+  if (row.raw_payload.manual_seed === true && row.raw_payload.approved !== true) {
+    return true
+  }
+  return daysBetween(row.observation_date, options.asOfDate) > 45
 }
 
 export function parseDrewryWciPublicHtml(html: string, options: { fetchedAt: string; sourceUrl?: string }): FreightLogisticsInputRow[] {
@@ -797,8 +947,19 @@ export function parseLogisticsEventPublicHtml(html: string, source: FreightSourc
   }))
 }
 
-function adapterRow(overrides: Omit<FreightLogisticsInputRow, 'fromPublicAdapter' | 'fetchedAt'> & { fetchedAt?: string | null }): FreightLogisticsInputRow {
-  return { fetchedAt: null, ...overrides, fromPublicAdapter: true }
+function adapterRow(overrides: Omit<FreightLogisticsInputRow, 'fromPublicAdapter' | 'fetchedAt' | 'approved' | 'comparableForChange' | 'manualSeed'> & {
+  fetchedAt?: string | null
+  approved?: boolean
+  comparableForChange?: boolean
+}): FreightLogisticsInputRow {
+  return {
+    fetchedAt: null,
+    ...overrides,
+    fromPublicAdapter: true,
+    approved: overrides.approved ?? false,
+    comparableForChange: overrides.comparableForChange ?? false,
+    manualSeed: false,
+  }
 }
 
 async function fetchSourceText(url: string) {
@@ -816,9 +977,171 @@ async function fetchSourceText(url: string) {
   }, { attempts: 3, initialDelayMs: 600 })
 }
 
+async function fetchSourceProbeResponse(url: string) {
+  return retryTransient(async () => {
+    const response = await fetch(url, {
+      headers: {
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'user-agent': 'NongSanVN freight logistics source probe/1.0',
+      },
+    })
+    return {
+      httpStatus: response.status,
+      contentType: response.headers.get('content-type'),
+      bodyText: await response.text(),
+      ok: response.ok,
+    }
+  }, { attempts: 2, initialDelayMs: 600 })
+}
+
+function countLogisticsEventMatches(html: string) {
+  return stripHtml(html)
+    .split(/(?<=[.!?])\s+/)
+    .filter(sentence => /coffee|container|port|congestion|freight|shipping|red sea|cai mep|cat lai/i.test(sentence))
+    .length
+}
+
+export function classifyFreightSourceHealth(input: {
+  source: FreightSourceDescriptor
+  probedAt: string
+  httpStatus: number | null
+  contentType: string | null
+  bodyText: string | null
+  errorMessage?: string | null
+  maxItems?: number
+}): FreightSourceHealthRow {
+  const base = {
+    sourceId: input.source.id,
+    sourceName: input.source.sourceName,
+    sourceUrl: input.source.sourceUrl,
+    sourceType: input.source.sourceType,
+    sourceMode: input.source.sourceMode,
+    enabledByDefault: input.source.enabledByDefault,
+    reliabilityScore: input.source.reliabilityScore,
+    probedAt: input.probedAt,
+    httpStatus: input.httpStatus,
+    contentType: input.contentType,
+    itemCount: 0,
+    extractedRows: 0,
+    notes: input.source.notes,
+    errorMessage: input.errorMessage ?? null,
+  }
+
+  if (input.source.sourceType === 'licensed_provider') {
+    const hasCredential = input.source.envKey ? Boolean(process.env[input.source.envKey]) : false
+    return {
+      ...base,
+      status: hasCredential ? 'paywalled' : 'auth_gated',
+      errorMessage: hasCredential
+        ? 'Licensed provider credential is configured, but ingestion remains disabled until license terms and adapter contract are approved.'
+        : `Missing ${input.source.envKey ?? 'licensed provider credential'}; no licensed numeric ingestion attempted.`,
+    }
+  }
+
+  if (input.source.sourceType === 'source_research') {
+    return {
+      ...base,
+      status: 'research_only',
+      errorMessage: 'Research-only source; numeric ingestion requires public value/API permission or a licensed provider adapter.',
+    }
+  }
+
+  if (input.errorMessage) {
+    const lower = input.errorMessage.toLowerCase()
+    if (lower.includes('401') || lower.includes('403') || lower.includes('auth')) {
+      return { ...base, status: 'auth_gated' }
+    }
+    if (lower.includes('paywall') || lower.includes('subscription')) {
+      return { ...base, status: 'paywalled' }
+    }
+    return { ...base, status: 'fetch_error' }
+  }
+
+  const bodyText = input.bodyText ?? ''
+  if (/subscribe|subscription|required login|sign in|paywall/i.test(bodyText) && input.source.id !== 'loadstar_public') {
+    return { ...base, status: 'paywalled', errorMessage: 'Public page appears to require subscription/login for full numeric data.' }
+  }
+
+  if (input.source.sourceType === 'drewry_public_page') {
+    const rows = parseDrewryWciPublicHtml(bodyText, { fetchedAt: input.probedAt, sourceUrl: input.source.sourceUrl })
+    if (rows.length === 0 && /world container index|drewry/i.test(stripHtml(bodyText))) {
+      return { ...base, status: 'parser_drift', errorMessage: 'Drewry page reachable, but parser extracted no public numeric rows.' }
+    }
+    return { ...base, status: rows.length > 0 ? 'available' : 'empty', itemCount: rows.length, extractedRows: rows.length }
+  }
+
+  if (input.source.sourceType === 'scfi_public_page') {
+    const rows = parseScfiPublicHtml(bodyText, { fetchedAt: input.probedAt, sourceUrl: input.source.sourceUrl })
+    if (rows.length === 0 && /scfi|shanghai containerized freight/i.test(stripHtml(bodyText))) {
+      return { ...base, status: 'parser_drift', errorMessage: 'SCFI page reachable, but parser extracted no public index-points row.' }
+    }
+    return { ...base, status: rows.length > 0 ? 'available' : 'empty', itemCount: rows.length, extractedRows: rows.length }
+  }
+
+  if (input.source.sourceType === 'logistics_event_page') {
+    const matches = countLogisticsEventMatches(bodyText)
+    return {
+      ...base,
+      status: matches > 0 ? 'available' : 'empty',
+      itemCount: matches,
+      extractedRows: Math.min(matches, input.maxItems ?? 5),
+    }
+  }
+
+  return { ...base, status: 'unsupported_html' }
+}
+
+export async function probeFreightLogisticsSources(options: {
+  fetchedAt: string
+  sourceIds?: string[]
+  maxItemsPerSource?: number
+}): Promise<FreightSourceHealthRow[]> {
+  const requested = new Set(options.sourceIds ?? [])
+  const sources = FREIGHT_LOGISTICS_SOURCES.filter(source => requested.size > 0 ? requested.has(source.id) : true)
+  const rows: FreightSourceHealthRow[] = []
+
+  for (const source of sources) {
+    if (source.sourceType === 'source_research' || source.sourceType === 'licensed_provider') {
+      rows.push(classifyFreightSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: null,
+        contentType: null,
+        bodyText: null,
+      }))
+      continue
+    }
+
+    try {
+      const response = await fetchSourceProbeResponse(source.sourceUrl)
+      rows.push(classifyFreightSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: response.httpStatus,
+        contentType: response.contentType,
+        bodyText: response.bodyText,
+        errorMessage: response.ok ? null : `HTTP ${response.httpStatus}`,
+        maxItems: options.maxItemsPerSource,
+      }))
+    } catch (error) {
+      rows.push(classifyFreightSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: null,
+        contentType: null,
+        bodyText: null,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  return rows
+}
+
 export async function fetchFreightLogisticsSourceRows(options: {
   fetchedAt: string
   sourceIds?: string[]
+  maxItemsPerSource?: number
 }): Promise<{ rows: FreightLogisticsInputRow[]; errors: FreightSourceError[] }> {
   const requested = new Set(options.sourceIds ?? [])
   const sources = FREIGHT_LOGISTICS_SOURCES.filter(source => requested.size > 0 ? requested.has(source.id) : source.enabledByDefault)
@@ -826,8 +1149,8 @@ export async function fetchFreightLogisticsSourceRows(options: {
   const errors: FreightSourceError[] = []
 
   for (const source of sources) {
-    if (source.sourceType === 'source_research') {
-      errors.push({ sourceId: source.id, sourceName: source.sourceName, sourceUrl: source.sourceUrl, message: 'Research-only source; numeric ingestion requires public value/API permission.' })
+    if (source.sourceType === 'source_research' || source.sourceType === 'licensed_provider') {
+      errors.push({ sourceId: source.id, sourceName: source.sourceName, sourceUrl: source.sourceUrl, message: `Source type ${source.sourceType} is ${source.sourceMode}; numeric ingestion requires approved public value/API permission or licensed credentials.` })
       continue
     }
     try {
@@ -843,13 +1166,18 @@ export async function fetchFreightLogisticsSourceRows(options: {
   return { rows, errors }
 }
 
-export function renderFreightLogisticsQcMarkdown(report: FreightLogisticsQcReport, options: { generatedAt: string }) {
+export function renderFreightLogisticsQcMarkdown(report: FreightLogisticsQcReport, options: {
+  generatedAt: string
+  sourceRowsFetched?: number
+  sourceHealth?: FreightSourceHealthRow[]
+}) {
   const lines = [
     '# Freight Logistics Proxy QC Report',
     '',
     `- Generated at: ${options.generatedAt}`,
     `- Total rows: ${report.totalRows}`,
     `- Date range: ${report.dateRange.min ?? 'n/a'} -> ${report.dateRange.max ?? 'n/a'}`,
+    `- Public adapter rows fetched: ${options.sourceRowsFetched ?? 0}`,
     '',
     '## Data Quality Flags',
     '',
@@ -902,6 +1230,27 @@ export function renderFreightLogisticsQcMarkdown(report: FreightLogisticsQcRepor
     lines.push('- none')
   }
 
+  lines.push('', '## Manual Seed Rows', '')
+  if (report.manualSeedRows.length > 0) {
+    for (const row of report.manualSeedRows.slice(0, 20)) lines.push(`- ${row.observation_date} | ${row.index_name} | approved=${row.raw_payload.approved === true} | flag=${row.data_quality_flag}`)
+  } else {
+    lines.push('- none')
+  }
+
+  lines.push('', '## Stale Rows', '')
+  if (report.staleRows.length > 0) {
+    for (const row of report.staleRows.slice(0, 20)) lines.push(`- ${row.observation_date} | ${row.index_name} | ${row.route_name ?? 'n/a'}`)
+  } else {
+    lines.push('- none')
+  }
+
+  lines.push('', '## Source Health Summary', '')
+  if (options.sourceHealth && options.sourceHealth.length > 0) {
+    for (const row of options.sourceHealth) lines.push(`- ${row.sourceId} | status=${row.status} | mode=${row.sourceMode} | extracted=${row.extractedRows} | http=${row.httpStatus ?? 'n/a'}`)
+  } else {
+    lines.push('- not probed in this run')
+  }
+
   lines.push('', '## Latest Freight Observations', '')
   for (const row of report.latestRows) lines.push(`- ${row.observation_date} | ${row.index_name} | ${row.route_name ?? 'n/a'} | unit=${row.unit} | normalized=${row.normalized_value_usd_per_feu ?? 'n/a'} | flag=${row.data_quality_flag}`)
 
@@ -919,12 +1268,18 @@ export function renderFreightLogisticsQcMarkdown(report: FreightLogisticsQcRepor
     '- Freight proxy is not a Vietnam coffee freight quote.',
     '- Route-level signals can help monitor landed-cost pressure, but they do not prove causality for mirror gaps or export unit values.',
     '- Index points are not converted to USD unless source methodology explicitly allows it.',
+    '- Licensed Drewry/FBX/Xeneta values are not ingested without approved credentials and license terms.',
     '',
   )
   return lines.join('\n')
 }
 
-export function renderFreightLogisticsSourceResearchMarkdown(options: { generatedAt: string; sourceRowsFetched: number; sourceErrors: FreightSourceError[] }) {
+export function renderFreightLogisticsSourceResearchMarkdown(options: {
+  generatedAt: string
+  sourceRowsFetched: number
+  sourceErrors: FreightSourceError[]
+  sourceHealth?: FreightSourceHealthRow[]
+}) {
   const lines = [
     '# Freight Logistics Proxy Source Research',
     '',
@@ -936,9 +1291,18 @@ export function renderFreightLogisticsSourceResearchMarkdown(options: { generate
     '',
   ]
   for (const source of FREIGHT_LOGISTICS_SOURCES) {
-    lines.push(`- ${source.id} | ${source.sourceName} | type=${source.sourceType} | enabled=${source.enabledByDefault} | reliability=${source.reliabilityScore}`)
+    lines.push(`- ${source.id} | ${source.sourceName} | type=${source.sourceType} | mode=${source.sourceMode} | enabled=${source.enabledByDefault} | reliability=${source.reliabilityScore}`)
     lines.push(`  Source: ${source.sourceUrl}`)
     lines.push(`  Note: ${source.notes}`)
+  }
+  lines.push('', '## Source Health', '')
+  if (options.sourceHealth && options.sourceHealth.length > 0) {
+    for (const row of options.sourceHealth) {
+      lines.push(`- ${row.sourceId} | status=${row.status} | mode=${row.sourceMode} | http=${row.httpStatus ?? 'n/a'} | extracted=${row.extractedRows}`)
+      if (row.errorMessage) lines.push(`  Error: ${row.errorMessage}`)
+    }
+  } else {
+    lines.push('- not probed in this run')
   }
   lines.push('', '## Adapter Errors', '')
   if (options.sourceErrors.length > 0) {
@@ -953,8 +1317,47 @@ export function renderFreightLogisticsSourceResearchMarkdown(options: { generate
     '- Do not scrape paid/restricted Drewry, FBX, or Xeneta datasets.',
     '- Public snippets are stored as proxy observations only when date/unit/source are visible.',
     '- Semi-manual rows must include source URL and notes for auditability.',
+    '- Licensed provider rows require approved credentials and license terms before ingestion.',
     '',
   )
+  return lines.join('\n')
+}
+
+export function renderFreightLogisticsSourceHealthMarkdown(options: {
+  generatedAt: string
+  sourceHealth: FreightSourceHealthRow[]
+}) {
+  const lines = [
+    '# Freight Logistics Proxy Source Health',
+    '',
+    `- Generated at: ${options.generatedAt}`,
+    `- Sources probed: ${options.sourceHealth.length}`,
+    '',
+    '## Probe Results',
+    '',
+  ]
+
+  if (options.sourceHealth.length === 0) {
+    lines.push('- none')
+  } else {
+    for (const row of options.sourceHealth) {
+      lines.push(`- ${row.sourceId} | ${row.sourceName} | status=${row.status} | mode=${row.sourceMode} | enabled=${row.enabledByDefault}`)
+      lines.push(`  URL: ${row.sourceUrl}`)
+      lines.push(`  HTTP: ${row.httpStatus ?? 'n/a'} | content_type=${row.contentType ?? 'n/a'} | items=${row.itemCount} | extracted=${row.extractedRows}`)
+      lines.push(`  Note: ${row.errorMessage ?? row.notes}`)
+    }
+  }
+
+  lines.push(
+    '',
+    '## Interpretation',
+    '',
+    '- available means the public endpoint is reachable and parser extracted proxy rows or event matches.',
+    '- parser_drift means the page is reachable but current parser found no usable public snippet.',
+    '- auth_gated, paywalled, research_only, and licensed sources are not ingested without approved access and source terms.',
+    '',
+  )
+
   return lines.join('\n')
 }
 
@@ -973,6 +1376,7 @@ export function renderFreightLogisticsMethodology() {
     '- USD/FEU is kept unchanged.',
     '- USD/TEU is multiplied by 2 as an approximate FEU conversion.',
     '- index_points, days, text_event, and unknown units are not converted to USD/FEU.',
+    '- Change metrics are calculated only for approved comparable USD/FEU series from the same source/index/route.',
     '',
     '## Interpretation',
     '',
@@ -1050,10 +1454,20 @@ export async function syncFreightLogisticsProxy(options: FreightLogisticsSyncOpt
   const dryRun = options.dryRun ?? false
   const writeArtifacts = options.writeArtifacts ?? true
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd())
-  const seedCsvPath = resolve(options.seedCsvPath ?? resolve(workspaceRoot, 'data', 'raw', 'freight_logistics_proxy.csv'))
-  const adapterResult = options.fetchSources ? await fetchFreightLogisticsSourceRows({ fetchedAt, sourceIds: options.sourceIds }) : { rows: [], errors: [] }
-  const csvRows = options.sourceRows ?? await loadInputRowsFromCsv(seedCsvPath)
-  const inputRows = [...csvRows, ...adapterResult.rows].filter(row => {
+  const seedCsvPath = resolve(options.seedCsvPath ?? resolve(workspaceRoot, 'data', 'seed', 'freight_logistics_proxy_seed.csv'))
+  const shouldProbeSources = options.probeSources || options.sourceHealthOnly || options.fetchSources
+  const sourceHealth = shouldProbeSources ? await probeFreightLogisticsSources({
+    fetchedAt,
+    sourceIds: options.sourceIds,
+    maxItemsPerSource: options.maxItemsPerSource,
+  }) : []
+  const adapterResult = options.fetchSources ? await fetchFreightLogisticsSourceRows({
+    fetchedAt,
+    sourceIds: options.sourceIds,
+    maxItemsPerSource: options.maxItemsPerSource,
+  }) : { rows: [], errors: [] }
+  const csvRows = options.sourceRows ?? (options.sourceHealthOnly ? [] : await loadInputRowsFromCsv(seedCsvPath))
+  const inputRows = options.sourceHealthOnly ? [] : [...csvRows, ...adapterResult.rows].filter(row => {
     const observationDate = toIsoDate(row.observationDate)
     if (options.fromDate && observationDate && observationDate < options.fromDate) return false
     if (options.toDate && observationDate && observationDate > options.toDate) return false
@@ -1061,21 +1475,23 @@ export async function syncFreightLogisticsProxy(options: FreightLogisticsSyncOpt
   })
   const prepared = prepareFreightLogisticsRows(inputRows, { fetchedAt, sourceErrors: adapterResult.errors })
 
-  const rawCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'raw', 'freight_logistics_proxy.csv') : null
-  const factCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'fact_freight_logistics_proxy.csv') : null
-  const qcReportPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'freight_logistics_proxy_qc.md') : null
+  const rawCsvPath = writeArtifacts && !options.sourceHealthOnly ? resolve(workspaceRoot, 'data', 'raw', 'freight_logistics_proxy.csv') : null
+  const factCsvPath = writeArtifacts && !options.sourceHealthOnly ? resolve(workspaceRoot, 'data', 'processed', 'fact_freight_logistics_proxy.csv') : null
+  const qcReportPath = writeArtifacts && !options.sourceHealthOnly ? resolve(workspaceRoot, 'reports', 'data_quality', 'freight_logistics_proxy_qc.md') : null
   const sourceResearchPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'freight_logistics_proxy_source_research.md') : null
-  const methodologyPath = writeArtifacts ? resolve(workspaceRoot, 'docs', 'methodology', 'freight_logistics_proxy_methodology.md') : null
+  const sourceHealthPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'freight_logistics_proxy_source_health.md') : null
+  const methodologyPath = writeArtifacts && !options.sourceHealthOnly ? resolve(workspaceRoot, 'docs', 'methodology', 'freight_logistics_proxy_methodology.md') : null
 
   if (rawCsvPath) await writeArtifactFile(rawCsvPath, toCsv(prepared.rawRows, RAW_COLUMNS as string[]))
   if (factCsvPath) await writeArtifactFile(factCsvPath, toCsv(prepared.factRows, FACT_COLUMNS as string[]))
-  if (qcReportPath) await writeArtifactFile(qcReportPath, renderFreightLogisticsQcMarkdown(prepared.qc, { generatedAt: fetchedAt }))
-  if (sourceResearchPath) await writeArtifactFile(sourceResearchPath, renderFreightLogisticsSourceResearchMarkdown({ generatedAt: fetchedAt, sourceRowsFetched: adapterResult.rows.length, sourceErrors: adapterResult.errors }))
+  if (qcReportPath) await writeArtifactFile(qcReportPath, renderFreightLogisticsQcMarkdown(prepared.qc, { generatedAt: fetchedAt, sourceRowsFetched: adapterResult.rows.length, sourceHealth }))
+  if (sourceResearchPath) await writeArtifactFile(sourceResearchPath, renderFreightLogisticsSourceResearchMarkdown({ generatedAt: fetchedAt, sourceRowsFetched: adapterResult.rows.length, sourceErrors: adapterResult.errors, sourceHealth }))
+  if (sourceHealthPath) await writeArtifactFile(sourceHealthPath, renderFreightLogisticsSourceHealthMarkdown({ generatedAt: fetchedAt, sourceHealth }))
   if (methodologyPath) await writeArtifactFile(methodologyPath, renderFreightLogisticsMethodology())
 
   let rawRowsPersisted = 0
   let factRowsPersisted = 0
-  if (!dryRun && getSupabaseAdminClient()) {
+  if (!dryRun && !options.sourceHealthOnly && getSupabaseAdminClient()) {
     rawRowsPersisted = await upsertRowsInChunks('raw_freight_logistics_proxy', prepared.rawRows, 'source_name,source_url,observation_date,index_name,route_name')
     factRowsPersisted = await upsertRowsInChunks('fact_freight_logistics_proxy', prepared.factRows, 'observation_date,index_name,route_name,source_name')
   }
@@ -1088,11 +1504,12 @@ export async function syncFreightLogisticsProxy(options: FreightLogisticsSyncOpt
     factRowsPersisted,
     sourceRowsFetched: adapterResult.rows.length,
     sourceErrors: adapterResult.errors,
+    sourceHealth,
     duplicateRawRowsCollapsed: prepared.duplicateRawRowsCollapsed,
     duplicateFactRowsCollapsed: prepared.duplicateFactRowsCollapsed,
     qc: prepared.qc,
     rows: prepared.factRows,
-    artifacts: { rawCsvPath, factCsvPath, qcReportPath, sourceResearchPath, methodologyPath },
+    artifacts: { rawCsvPath, factCsvPath, qcReportPath, sourceResearchPath, sourceHealthPath, methodologyPath },
   }
 }
 
@@ -1171,5 +1588,17 @@ export async function getFreightLogisticsMonthlyResponse(limit = 100) {
   } catch (error) {
     if (!(error instanceof Error) || !isRelationMissing(error.message)) console.error('[Supabase Freight Monthly] Falling back:', error)
     return { success: true, status: 'fallback', count: 0, data: [], errors: ['Freight monthly proxy is unavailable'] }
+  }
+}
+
+export async function getFreightLogisticsReviewQueueResponse(limit = 100): Promise<FreightLogisticsResponse> {
+  if (!getSupabaseRuntimeStatus().hasReadConfig) return buildFallbackResponse('Freight logistics review queue requires Supabase curated data')
+  try {
+    const rows = await getRowsFromView('vw_coffee_freight_logistics_review_queue', Math.max(1, Math.min(limit, 500)))
+    const data = (rows ?? []).map(toFreightItem)
+    return { success: true, status: 'live', lastUpdated: data[0]?.observationDate ?? new Date().toISOString(), count: data.length, data, errors: [] }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) console.error('[Supabase Freight Review Queue] Falling back:', error)
+    return buildFallbackResponse('Freight logistics review queue is unavailable')
   }
 }
