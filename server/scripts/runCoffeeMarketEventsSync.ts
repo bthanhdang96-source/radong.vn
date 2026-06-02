@@ -26,9 +26,14 @@ function parseIntegerOption(name: string) {
 async function main() {
   const dryRun = hasFlag('dry-run')
   const writeArtifacts = !hasFlag('no-artifacts')
+  const fetchSources = hasFlag('fetch-sources')
   const staleDays = parseIntegerOption('stale-days')
   const seedCsvPath = getOption('seed-csv') ?? undefined
   const rawCsvPath = getOption('raw-csv') ?? undefined
+  const sourceIds = process.argv
+    .filter(arg => arg.startsWith('--source='))
+    .map(arg => arg.slice('--source='.length))
+    .filter(Boolean)
 
   const result = await syncCoffeeMarketEvents({
     dryRun,
@@ -36,11 +41,15 @@ async function main() {
     staleDays,
     seedCsvPath,
     rawCsvPath,
+    fetchSources,
+    sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
     workspaceRoot: resolve(process.cwd(), '..'),
   })
 
   console.log(`[Coffee Market Events] rawRows=${result.rawRowsPrepared}`)
   console.log(`[Coffee Market Events] factRows=${result.factRowsPrepared}`)
+  console.log(`[Coffee Market Events] sourceRowsFetched=${result.sourceRowsFetched}`)
+  console.log(`[Coffee Market Events] sourceErrors=${result.sourceErrors.map(error => `${error.sourceId}: ${error.message}`).join('; ') || 'none'}`)
   console.log(
     `[Coffee Market Events] persisted raw=${result.rawRowsPersisted} fact=${result.factRowsPersisted} dryRun=${dryRun}`,
   )
@@ -50,8 +59,14 @@ async function main() {
   if (result.artifacts.factCsvPath) {
     console.log(`[Coffee Market Events] factCsv=${result.artifacts.factCsvPath}`)
   }
+  if (result.artifacts.rawSourceCsvPath) {
+    console.log(`[Coffee Market Events] rawSourceCsv=${result.artifacts.rawSourceCsvPath}`)
+  }
   if (result.artifacts.qcReportPath) {
     console.log(`[Coffee Market Events] qcReport=${result.artifacts.qcReportPath}`)
+  }
+  if (result.artifacts.sourceResearchPath) {
+    console.log(`[Coffee Market Events] sourceResearch=${result.artifacts.sourceResearchPath}`)
   }
   if (result.artifacts.methodologyPath) {
     console.log(`[Coffee Market Events] methodology=${result.artifacts.methodologyPath}`)

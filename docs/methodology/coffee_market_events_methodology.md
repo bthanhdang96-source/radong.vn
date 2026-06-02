@@ -17,3 +17,5 @@
 - Events are contextual signals, not deterministic forecasts.
 - High-impact claims should prefer reliable sources and confidence >= 0.75.
 - Low-reliability or unclear-impact events require human review before customer-facing use.
+- Public source adapters ingest only RSS/API-like endpoints. HTML scraping of official portals is deferred until source terms and stability are clear.
+- Adapter rows are stored as raw-feed inputs and require human review before use in the Coffee Brief.

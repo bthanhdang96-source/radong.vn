@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  COFFEE_MARKET_EVENT_SOURCES,
+  parseCoffeeMarketEventRssItems,
   prepareCoffeeMarketEventsRows,
   renderCoffeeMarketEventsMethodology,
+  renderCoffeeMarketEventSourceResearchMarkdown,
   renderCoffeeMarketEventsQcMarkdown,
 } from '../services/coffeeMarketEvents.js'
 
@@ -155,4 +158,62 @@ test('renderCoffeeMarketEventsMethodology includes cautious interpretation notes
   assert.equal(markdown.includes('contextual signals, not deterministic forecasts'), true)
   assert.equal(markdown.includes('High-impact claims should prefer reliable sources'), true)
   assert.equal(markdown.includes('Low-reliability or unclear-impact events require human review'), true)
+  assert.equal(markdown.includes('Public source adapters ingest only RSS/API-like endpoints'), true)
+})
+
+test('parseCoffeeMarketEventRssItems filters coffee items and classifies public feed rows', () => {
+  const source = {
+    ...COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'eurostat_agriculture_rss')!,
+    sourceName: 'Fixture Official Feed',
+    sourceUrl: 'https://example.com/rss.xml',
+  }
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss><channel>',
+    '<item>',
+    '<title>Brazil coffee drought raises crop concern</title>',
+    '<link>https://example.com/brazil-coffee</link>',
+    '<pubDate>Mon, 01 Jun 2026 08:00:00 GMT</pubDate>',
+    '<description><![CDATA[Dryness in Brazil coffee areas may lower production.]]></description>',
+    '</item>',
+    '<item>',
+    '<title>EU wheat statistics update</title>',
+    '<link>https://example.com/wheat</link>',
+    '<pubDate>Mon, 01 Jun 2026 09:00:00 GMT</pubDate>',
+    '<description>Wheat-only update.</description>',
+    '</item>',
+    '</channel></rss>',
+  ].join('')
+
+  const rows = parseCoffeeMarketEventRssItems(xml, source, {
+    fetchedAt: '2026-06-02T00:00:00.000Z',
+  })
+
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]?.eventTitle, 'Brazil coffee drought raises crop concern')
+  assert.equal(rows[0]?.countryIso, 'BRA')
+  assert.equal(rows[0]?.eventType, 'weather')
+  assert.equal(rows[0]?.expectedImpactDirection, 'bullish')
+  assert.equal(rows[0]?.expectedImpactArea, 'supply')
+  assert.equal(rows[0]?.fromRawFeed, true)
+})
+
+test('source research markdown documents disabled official-source limitations and errors', () => {
+  const markdown = renderCoffeeMarketEventSourceResearchMarkdown({
+    generatedAt: '2026-06-02T00:00:00.000Z',
+    fetchedRows: 0,
+    errors: [
+      {
+        sourceId: 'usda_fas_gain_search_api',
+        sourceName: 'USDA FAS GAIN public search',
+        sourceUrl: 'https://gain.fas.usda.gov/#/search',
+        message: 'Source type api_research is research-only in this MVP',
+      },
+    ],
+  })
+
+  assert.equal(markdown.includes('Configured Sources'), true)
+  assert.equal(markdown.includes('usda_fas_gain_search_api'), true)
+  assert.equal(markdown.includes('no generic HTML scraping'), true)
+  assert.equal(markdown.includes('Source type api_research is research-only'), true)
 })

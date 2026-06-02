@@ -1,6 +1,6 @@
 # Coffee Market Event QC Report
 
-- Generated at: 2026-06-01T17:42:41.020Z
+- Generated at: 2026-06-02T14:14:22.415Z
 - Total events: 16
 - Event date range: 2026-05-23 -> 2026-06-01
 

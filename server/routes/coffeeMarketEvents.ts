@@ -97,6 +97,10 @@ router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (re
     const staleDays = parseInteger(req.body?.staleDays)
     const seedCsvPath = typeof req.body?.seedCsvPath === 'string' ? req.body.seedCsvPath : undefined
     const rawCsvPath = typeof req.body?.rawCsvPath === 'string' ? req.body.rawCsvPath : undefined
+    const fetchSources = req.body?.fetchSources === true
+    const sourceIds = Array.isArray(req.body?.sourceIds)
+      ? req.body.sourceIds.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
+      : undefined
 
     const result = await syncCoffeeMarketEvents({
       dryRun,
@@ -104,6 +108,8 @@ router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (re
       staleDays,
       seedCsvPath,
       rawCsvPath,
+      fetchSources,
+      sourceIds,
     })
 
     res.json({
@@ -114,6 +120,8 @@ router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (re
       factRows: result.factRowsPrepared,
       rawRowsPersisted: result.rawRowsPersisted,
       factRowsPersisted: result.factRowsPersisted,
+      sourceRowsFetched: result.sourceRowsFetched,
+      sourceErrors: result.sourceErrors,
       duplicateRawRowsCollapsed: result.duplicateRawRowsCollapsed,
       duplicateFactRowsCollapsed: result.duplicateFactRowsCollapsed,
       qualityFlagCounts: result.qc.countByQualityFlag,

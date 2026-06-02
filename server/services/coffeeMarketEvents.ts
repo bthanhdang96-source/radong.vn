@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { XMLParser } from 'fast-xml-parser'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from './supabaseClient.js'
+import { retryTransient } from './transientNetwork.js'
 
 export const ALLOWED_EVENT_TYPES = [
   'weather',
@@ -102,7 +104,7 @@ export type MarketEventFactRow = {
   notes: string
 }
 
-type MarketEventInputRow = {
+export type MarketEventInputRow = {
   eventDate: string | null
   publishedAt: string | null
   commodityGroup: string | null
@@ -184,7 +186,21 @@ export type CoffeeMarketEventsSyncOptions = {
   fetchedAt?: string
   seedCsvPath?: string
   rawCsvPath?: string
+  fetchSources?: boolean
+  sourceIds?: string[]
   sourceRows?: MarketEventInputRow[]
+}
+
+export type CoffeeMarketEventSourceError = {
+  sourceId: string
+  sourceName: string
+  sourceUrl: string
+  message: string
+}
+
+export type CoffeeMarketEventSourceFetchResult = {
+  rows: MarketEventInputRow[]
+  errors: CoffeeMarketEventSourceError[]
 }
 
 export type CoffeeMarketEventsSyncResult = {
@@ -197,9 +213,13 @@ export type CoffeeMarketEventsSyncResult = {
   duplicateFactRowsCollapsed: number
   qc: MarketEventQcReport
   rows: MarketEventFactRow[]
+  sourceRowsFetched: number
+  sourceErrors: CoffeeMarketEventSourceError[]
   artifacts: {
+    rawSourceCsvPath: string | null
     factCsvPath: string | null
     qcReportPath: string | null
+    sourceResearchPath: string | null
     methodologyPath: string | null
   }
 }
@@ -209,6 +229,72 @@ const DEFAULT_STALE_DAYS = 90
 const BRIEF_MIN_CONFIDENCE = 0.60
 const BRIEF_MIN_RELIABILITY = 0.60
 const BRIEF_LOOKBACK_DAYS = 14
+
+const feedParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '',
+  textNodeName: 'text',
+  trimValues: true,
+})
+
+type MarketEventSourceDescriptor = {
+  id: string
+  sourceName: string
+  sourceUrl: string
+  sourceType: 'rss' | 'api_research'
+  reliabilityScore: number
+  enabledByDefault: boolean
+  countryOrRegion: string | null
+  countryIso: string | null
+  notes: string
+}
+
+export const COFFEE_MARKET_EVENT_SOURCES: MarketEventSourceDescriptor[] = [
+  {
+    id: 'eurostat_agriculture_rss',
+    sourceName: 'Eurostat Agriculture RSS',
+    sourceUrl: 'https://ec.europa.eu/eurostat/api/dissemination/catalogue/rss/en/statistics-update.rss',
+    sourceType: 'rss',
+    reliabilityScore: 0.90,
+    enabledByDefault: true,
+    countryOrRegion: 'EU',
+    countryIso: 'EUU',
+    notes: 'Official EU statistics RSS. Coffee-specific rows are rare; deterministic coffee keyword filtering is required.',
+  },
+  {
+    id: 'usda_fas_gain_search_api',
+    sourceName: 'USDA FAS GAIN public search',
+    sourceUrl: 'https://gain.fas.usda.gov/#/search',
+    sourceType: 'api_research',
+    reliabilityScore: 0.93,
+    enabledByDefault: false,
+    countryOrRegion: null,
+    countryIso: null,
+    notes: 'GAIN search is the preferred USDA/FAS coffee source, but the observed API requires auth at implementation time; keep disabled until a stable public endpoint or key is provided.',
+  },
+  {
+    id: 'ico_public_updates',
+    sourceName: 'International Coffee Organization updates',
+    sourceUrl: 'https://ico.org/',
+    sourceType: 'api_research',
+    reliabilityScore: 0.88,
+    enabledByDefault: false,
+    countryOrRegion: null,
+    countryIso: null,
+    notes: 'ICO is authoritative for coffee context, but no stable public RSS/API feed was confirmed for event ingestion in this follow-up.',
+  },
+  {
+    id: 'vietnam_official_portals',
+    sourceName: 'Vietnam official coffee policy portals',
+    sourceUrl: 'https://www.mard.gov.vn/',
+    sourceType: 'api_research',
+    reliabilityScore: 0.92,
+    enabledByDefault: false,
+    countryOrRegion: 'Vietnam',
+    countryIso: 'VNM',
+    notes: 'Vietnam official portals remain research-only until a stable RSS/API endpoint is confirmed; avoid brittle HTML scraping.',
+  },
+]
 
 const SOURCE_RELIABILITY_HINTS: Array<{ pattern: RegExp; score: number }> = [
   { pattern: /(usda|fas|mard|customs|european commission|ec\.europa|government|gov\.vn)/i, score: 0.92 },
@@ -321,6 +407,32 @@ function asStringArray(value: unknown): string[] {
   return value
     .map(item => (typeof item === 'string' ? normalizeText(item) : null))
     .filter((item): item is string => Boolean(item))
+}
+
+function toArray<T>(value: T | T[] | undefined): T[] {
+  if (!value) {
+    return []
+  }
+  return Array.isArray(value) ? value : [value]
+}
+
+function stripHtml(value: string | null) {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return null
+  }
+  return normalized.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+}
+
+function truncateText(value: string | null, maxLength = 260) {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return null
+  }
+  if (normalized.length <= maxLength) {
+    return normalized
+  }
+  return normalized.slice(0, maxLength - 1).trimEnd()
 }
 
 function parseEntities(value: string | null): Record<string, unknown> | null {
@@ -536,6 +648,227 @@ function normalizeRawRecord(record: Record<string, string>): MarketEventInputRow
     rawPayload: { source: 'raw_csv', record, detectedCountries },
     fromRawFeed: true,
   }
+}
+
+function containsCoffeeSignal(text: string) {
+  return /\b(coffee|robusta|arabica|green bean|cafe|café)\b/i.test(text)
+}
+
+function detectCountry(text: string, fallback: Pick<MarketEventSourceDescriptor, 'countryOrRegion' | 'countryIso'>) {
+  const candidates: Array<{ pattern: RegExp; region: string; iso: string }> = [
+    { pattern: /\bviet\s?nam|vietnam|dak lak|gia lai|lam dong|central highlands/i, region: 'Vietnam', iso: 'VNM' },
+    { pattern: /\bbrazil|sao paulo|minas gerais/i, region: 'Brazil', iso: 'BRA' },
+    { pattern: /\bindonesia|sumatra|java\b/i, region: 'Indonesia', iso: 'IDN' },
+    { pattern: /\beuropean union|\beu\b|eurostat|eudr/i, region: 'EU', iso: 'EUU' },
+    { pattern: /\bunited states|\bus\b|usa\b/i, region: 'United States', iso: 'USA' },
+    { pattern: /\bgermany|deutschland/i, region: 'Germany', iso: 'DEU' },
+    { pattern: /\bitaly|italia/i, region: 'Italy', iso: 'ITA' },
+    { pattern: /\bjapan\b/i, region: 'Japan', iso: 'JPN' },
+    { pattern: /\bsouth korea|korea\b/i, region: 'South Korea', iso: 'KOR' },
+    { pattern: /\bcolombia\b/i, region: 'Colombia', iso: 'COL' },
+    { pattern: /\bethiopia\b/i, region: 'Ethiopia', iso: 'ETH' },
+    { pattern: /\buganda\b/i, region: 'Uganda', iso: 'UGA' },
+  ]
+  const found = candidates.find(candidate => candidate.pattern.test(text))
+  return {
+    countryOrRegion: found?.region ?? fallback.countryOrRegion,
+    countryIso: found?.iso ?? fallback.countryIso,
+  }
+}
+
+function classifyEventType(text: string): MarketEventType {
+  if (/\b(drought|rain|frost|weather|heat|flood|dryness|el nino|la nina)\b/i.test(text)) return 'weather'
+  if (/\b(harvest|harvesting)\b/i.test(text)) return 'harvest'
+  if (/\b(crop|production|yield|flowering|outlook|forecast)\b/i.test(text)) return 'crop_outlook'
+  if (/\b(export ban|export tax|export policy|shipment restriction)\b/i.test(text)) return 'export_policy'
+  if (/\b(import|tariff|customs|border)\b/i.test(text)) return 'import_policy'
+  if (/\b(regulation|eudr|law|compliance|due diligence|standard|certificate)\b/i.test(text)) return 'regulation'
+  if (/\b(port|freight|shipping|container|logistics|truck)\b/i.test(text)) return 'logistics'
+  if (/\b(stock|stocks|inventory|warehouse)\b/i.test(text)) return 'inventory'
+  if (/\b(futures|ice|contract|settlement)\b/i.test(text)) return 'futures_market'
+  if (/\b(currency|exchange rate|fx|dong|real|yen|euro|dollar)\b/i.test(text)) return 'currency_fx'
+  if (/\b(demand|consumption|roaster|retail)\b/i.test(text)) return 'demand_signal'
+  if (/\b(supply|availability|shortage)\b/i.test(text)) return 'supply_signal'
+  if (/\b(trade|exports|imports|shipment|flow)\b/i.test(text)) return 'trade_flow'
+  if (/\b(inflation|interest rate|macro|gdp)\b/i.test(text)) return 'macro'
+  return 'other'
+}
+
+function classifyImpact(text: string, eventType: MarketEventType): {
+  direction: MarketImpactDirection
+  area: MarketImpactArea
+  score: number
+  horizon: MarketTimeHorizon
+} {
+  if (/\b(drought|frost|shortage|disruption|delay|congestion|lower production|crop loss)\b/i.test(text)) {
+    return { direction: 'bullish', area: eventType === 'logistics' ? 'logistics' : 'supply', score: 1, horizon: 'short_term' }
+  }
+  if (/\b(record crop|higher production|bumper|improves export|eases|surplus|higher stocks)\b/i.test(text)) {
+    return { direction: 'bearish', area: eventType === 'inventory' ? 'inventory' : 'supply', score: -1, horizon: 'short_term' }
+  }
+  if (eventType === 'demand_signal') {
+    return { direction: 'bullish', area: 'demand', score: 1, horizon: 'short_term' }
+  }
+  if (eventType === 'regulation' || eventType === 'import_policy' || eventType === 'export_policy') {
+    return { direction: 'neutral', area: 'policy', score: 0, horizon: 'medium_term' }
+  }
+  if (eventType === 'currency_fx') {
+    return { direction: 'unclear', area: 'fx', score: 0, horizon: 'short_term' }
+  }
+  return { direction: 'unclear', area: 'other', score: 0, horizon: 'unclear' }
+}
+
+function pickRssLink(item: Record<string, unknown>) {
+  const linkNode = item.link
+  if (typeof linkNode === 'string') {
+    return normalizeText(linkNode)
+  }
+  if (linkNode && typeof linkNode === 'object' && 'href' in linkNode && typeof linkNode.href === 'string') {
+    return normalizeText(linkNode.href)
+  }
+  if (typeof item.guid === 'string' && /^https?:\/\//i.test(item.guid)) {
+    return normalizeText(item.guid)
+  }
+  return null
+}
+
+function pickRssDate(item: Record<string, unknown>, fallback: string) {
+  const rawDate =
+    typeof item.pubDate === 'string'
+      ? item.pubDate
+      : typeof item.published === 'string'
+        ? item.published
+        : typeof item.updated === 'string'
+          ? item.updated
+          : typeof item.date === 'string'
+            ? item.date
+            : null
+  return toIsoTimestamp(rawDate) ?? fallback
+}
+
+export function parseCoffeeMarketEventRssItems(
+  xml: string,
+  source: MarketEventSourceDescriptor,
+  options: { fetchedAt: string; maxItems?: number },
+): MarketEventInputRow[] {
+  const parsed = feedParser.parse(xml) as {
+    rss?: { channel?: { item?: Array<Record<string, unknown>> | Record<string, unknown> } }
+    feed?: { entry?: Array<Record<string, unknown>> | Record<string, unknown> }
+  }
+  const rawItems = [
+    ...toArray(parsed.rss?.channel?.item),
+    ...toArray(parsed.feed?.entry),
+  ].slice(0, options.maxItems ?? 50)
+
+  return rawItems.flatMap(item => {
+    const title = stripHtml(typeof item.title === 'string' ? item.title : null)
+    const summary = stripHtml(
+      typeof item.description === 'string'
+        ? item.description
+        : typeof item.summary === 'string'
+          ? item.summary
+          : typeof item.content === 'string'
+            ? item.content
+            : null,
+    )
+    const text = `${title ?? ''} ${summary ?? ''}`
+    if (!title || !containsCoffeeSignal(text)) {
+      return []
+    }
+
+    const publishedAt = pickRssDate(item, options.fetchedAt)
+    const eventType = classifyEventType(text)
+    const impact = classifyImpact(text, eventType)
+    const country = detectCountry(text, source)
+    const sourceUrl = pickRssLink(item) ?? source.sourceUrl
+
+    return [{
+      eventDate: publishedAt.slice(0, 10),
+      publishedAt,
+      commodityGroup: COMMODITY_GROUP,
+      countryOrRegion: country.countryOrRegion,
+      countryIso: country.countryIso,
+      eventType,
+      eventTitle: title,
+      eventSummary: truncateText(summary),
+      expectedImpactDirection: impact.direction,
+      expectedImpactArea: impact.area,
+      impactScore: impact.score,
+      timeHorizon: impact.horizon,
+      confidenceScore: null,
+      sourceName: source.sourceName,
+      sourceUrl,
+      sourceReliabilityScore: source.reliabilityScore,
+      entities: {
+        countries: country.countryOrRegion ? [country.countryOrRegion] : [],
+        commodities: ['coffee'],
+        organizations: [source.sourceName],
+      },
+      notes: `Adapter source=${source.id}; source rows require human review before brief use.`,
+      rawPayload: { source: source.id, item },
+      fromRawFeed: true,
+    }]
+  })
+}
+
+async function fetchSourceText(url: string) {
+  return retryTransient(async () => {
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/rss+xml, application/xml, text/xml, */*',
+        'user-agent': 'NongSanVN coffee market event adapter/1.0',
+      },
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status}`)
+    }
+    return response.text()
+  }, { attempts: 3, initialDelayMs: 500 })
+}
+
+export async function fetchCoffeeMarketEventSourceRows(options: {
+  fetchedAt: string
+  sourceIds?: string[]
+  maxItemsPerSource?: number
+}): Promise<CoffeeMarketEventSourceFetchResult> {
+  const requestedIds = new Set(options.sourceIds ?? [])
+  const sources = COFFEE_MARKET_EVENT_SOURCES.filter(source => {
+    if (requestedIds.size > 0) {
+      return requestedIds.has(source.id)
+    }
+    return source.enabledByDefault
+  })
+  const rows: MarketEventInputRow[] = []
+  const errors: CoffeeMarketEventSourceError[] = []
+
+  for (const source of sources) {
+    if (source.sourceType !== 'rss') {
+      errors.push({
+        sourceId: source.id,
+        sourceName: source.sourceName,
+        sourceUrl: source.sourceUrl,
+        message: `Source type ${source.sourceType} is research-only in this MVP`,
+      })
+      continue
+    }
+
+    try {
+      const xml = await fetchSourceText(source.sourceUrl)
+      rows.push(...parseCoffeeMarketEventRssItems(xml, source, {
+        fetchedAt: options.fetchedAt,
+        maxItems: options.maxItemsPerSource,
+      }))
+    } catch (error) {
+      errors.push({
+        sourceId: source.id,
+        sourceName: source.sourceName,
+        sourceUrl: source.sourceUrl,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return { rows, errors }
 }
 
 async function loadInputRowsFromCsv(seedCsvPath: string, rawCsvPath: string) {
@@ -991,8 +1324,55 @@ export function renderCoffeeMarketEventsMethodology() {
     '- Events are contextual signals, not deterministic forecasts.',
     '- High-impact claims should prefer reliable sources and confidence >= 0.75.',
     '- Low-reliability or unclear-impact events require human review before customer-facing use.',
+    '- Public source adapters ingest only RSS/API-like endpoints. HTML scraping of official portals is deferred until source terms and stability are clear.',
+    '- Adapter rows are stored as raw-feed inputs and require human review before use in the Coffee Brief.',
     '',
   ].join('\n')
+}
+
+export function renderCoffeeMarketEventSourceResearchMarkdown(options: {
+  generatedAt: string
+  fetchedRows: number
+  errors: CoffeeMarketEventSourceError[]
+}) {
+  const lines = [
+    '# Coffee Market Event Source Research',
+    '',
+    `- Generated at: ${options.generatedAt}`,
+    `- Adapter rows fetched: ${options.fetchedRows}`,
+    '- Source strategy: public RSS/API endpoints only; no generic HTML scraping.',
+    '',
+    '## Configured Sources',
+    '',
+  ]
+
+  for (const source of COFFEE_MARKET_EVENT_SOURCES) {
+    lines.push(
+      `- ${source.id} | ${source.sourceName} | type=${source.sourceType} | enabledByDefault=${source.enabledByDefault} | reliability=${source.reliabilityScore}`,
+      `  Source: ${source.sourceUrl}`,
+      `  Note: ${source.notes}`,
+    )
+  }
+
+  lines.push('', '## Source Errors', '')
+  if (options.errors.length === 0) {
+    lines.push('- none')
+  } else {
+    for (const error of options.errors) {
+      lines.push(`- ${error.sourceId} | ${error.message} | ${error.sourceUrl}`)
+    }
+  }
+
+  lines.push(
+    '',
+    '## Guardrails',
+    '',
+    '- Source-derived rows remain reviewable raw-feed items.',
+    '- Missing or auth-gated official APIs are documented instead of bypassed with brittle scraping.',
+    '- Coffee keyword filtering is deterministic and may miss indirectly relevant policy items.',
+    '',
+  )
+  return lines.join('\n')
 }
 
 export function prepareCoffeeMarketEventsRows(
@@ -1096,6 +1476,29 @@ const FACT_COLUMNS: Array<keyof MarketEventFactRow> = [
   'notes',
 ]
 
+const RAW_SOURCE_COLUMNS: Array<keyof MarketEventInputRow> = [
+  'eventDate',
+  'publishedAt',
+  'commodityGroup',
+  'countryOrRegion',
+  'countryIso',
+  'eventType',
+  'eventTitle',
+  'eventSummary',
+  'expectedImpactDirection',
+  'expectedImpactArea',
+  'impactScore',
+  'timeHorizon',
+  'confidenceScore',
+  'sourceName',
+  'sourceUrl',
+  'sourceReliabilityScore',
+  'entities',
+  'notes',
+  'rawPayload',
+  'fromRawFeed',
+]
+
 export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOptions = {}): Promise<CoffeeMarketEventsSyncResult> {
   const fetchedAt = options.fetchedAt ?? new Date().toISOString()
   const dryRun = options.dryRun ?? false
@@ -1103,21 +1506,42 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd())
   const seedCsvPath = resolve(options.seedCsvPath ?? resolve(workspaceRoot, 'data', 'seed', 'coffee_market_events_seed.csv'))
   const rawCsvPath = resolve(options.rawCsvPath ?? resolve(workspaceRoot, 'data', 'raw', 'market_event_items.csv'))
-  const inputRows = options.sourceRows ?? (await loadInputRowsFromCsv(seedCsvPath, rawCsvPath))
+  const adapterResult = options.fetchSources
+    ? await fetchCoffeeMarketEventSourceRows({
+      fetchedAt,
+      sourceIds: options.sourceIds,
+    })
+    : { rows: [], errors: [] }
+  const inputRows = [
+    ...(options.sourceRows ?? (await loadInputRowsFromCsv(seedCsvPath, rawCsvPath))),
+    ...adapterResult.rows,
+  ]
   const prepared = prepareCoffeeMarketEventsRows(inputRows, {
     fetchedAt,
     staleDays: options.staleDays ?? DEFAULT_STALE_DAYS,
   })
 
+  const rawSourceCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'raw', 'market_event_source_items.csv') : null
   const factCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'fact_market_event.csv') : null
   const qcReportPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'market_event_qc.md') : null
+  const sourceResearchPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'market_event_source_research.md') : null
   const methodologyPath = writeArtifacts ? resolve(workspaceRoot, 'docs', 'methodology', 'coffee_market_events_methodology.md') : null
 
+  if (rawSourceCsvPath) {
+    await writeArtifactFile(rawSourceCsvPath, toCsv(adapterResult.rows, RAW_SOURCE_COLUMNS as string[]))
+  }
   if (factCsvPath) {
     await writeArtifactFile(factCsvPath, toCsv(prepared.factRows, FACT_COLUMNS as string[]))
   }
   if (qcReportPath) {
     await writeArtifactFile(qcReportPath, renderCoffeeMarketEventsQcMarkdown(prepared.qc, { generatedAt: fetchedAt }))
+  }
+  if (sourceResearchPath) {
+    await writeArtifactFile(sourceResearchPath, renderCoffeeMarketEventSourceResearchMarkdown({
+      generatedAt: fetchedAt,
+      fetchedRows: adapterResult.rows.length,
+      errors: adapterResult.errors,
+    }))
   }
   if (methodologyPath) {
     await writeArtifactFile(methodologyPath, renderCoffeeMarketEventsMethodology())
@@ -1148,9 +1572,13 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
     duplicateFactRowsCollapsed: prepared.duplicateFactRowsCollapsed,
     qc: prepared.qc,
     rows: prepared.factRows,
+    sourceRowsFetched: adapterResult.rows.length,
+    sourceErrors: adapterResult.errors,
     artifacts: {
+      rawSourceCsvPath,
       factCsvPath,
       qcReportPath,
+      sourceResearchPath,
       methodologyPath,
     },
   }
