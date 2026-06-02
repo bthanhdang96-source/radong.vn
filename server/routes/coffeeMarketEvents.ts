@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import {
   getCoffeeMarketEventBriefCandidatesResponse,
+  getCoffeeMarketEventReviewQueueResponse,
   getCoffeeMarketEventsResponse,
   getCoffeePolicyWatchResponse,
   getCoffeeSupplyRiskEventsResponse,
@@ -90,14 +91,31 @@ router.get('/coffee/market-events/brief-candidates', async (req, res) => {
   }
 })
 
+router.get('/coffee/market-events/review-queue', async (req, res) => {
+  try {
+    const limit = parseLimit(req.query.limit, 100, 500)
+    const payload = await getCoffeeMarketEventReviewQueueResponse(limit)
+    res.json(payload)
+  } catch (error) {
+    console.error('[API] Error fetching coffee market event review queue:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch coffee market event review queue data',
+    })
+  }
+})
+
 router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (req, res) => {
   try {
     const dryRun = req.body?.dryRun === true
     const writeArtifacts = req.body?.writeArtifacts !== false
     const staleDays = parseInteger(req.body?.staleDays)
+    const maxItemsPerSource = parseInteger(req.body?.maxItemsPerSource)
     const seedCsvPath = typeof req.body?.seedCsvPath === 'string' ? req.body.seedCsvPath : undefined
     const rawCsvPath = typeof req.body?.rawCsvPath === 'string' ? req.body.rawCsvPath : undefined
     const fetchSources = req.body?.fetchSources === true
+    const probeSources = req.body?.probeSources === true
+    const sourceHealthOnly = req.body?.sourceHealthOnly === true
     const sourceIds = Array.isArray(req.body?.sourceIds)
       ? req.body.sourceIds.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
       : undefined
@@ -109,6 +127,9 @@ router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (re
       seedCsvPath,
       rawCsvPath,
       fetchSources,
+      probeSources,
+      sourceHealthOnly,
+      maxItemsPerSource,
       sourceIds,
     })
 
@@ -122,6 +143,7 @@ router.post('/admin/coffee/market-events/refresh', requireAdminApiKey, async (re
       factRowsPersisted: result.factRowsPersisted,
       sourceRowsFetched: result.sourceRowsFetched,
       sourceErrors: result.sourceErrors,
+      sourceHealth: result.sourceHealth,
       duplicateRawRowsCollapsed: result.duplicateRawRowsCollapsed,
       duplicateFactRowsCollapsed: result.duplicateFactRowsCollapsed,
       qualityFlagCounts: result.qc.countByQualityFlag,

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  classifyCoffeeMarketEventSourceHealth,
   COFFEE_MARKET_EVENT_SOURCES,
+  isCoffeeMarketEventReviewQueueCandidate,
   parseCoffeeMarketEventRssItems,
   prepareCoffeeMarketEventsRows,
   renderCoffeeMarketEventsMethodology,
+  renderCoffeeMarketEventSourceHealthMarkdown,
   renderCoffeeMarketEventSourceResearchMarkdown,
   renderCoffeeMarketEventsQcMarkdown,
+  type MarketEventFactRow,
 } from '../services/coffeeMarketEvents.js'
 
 type MarketEventInputRow = Parameters<typeof prepareCoffeeMarketEventsRows>[0][number]
@@ -151,6 +155,8 @@ test('renderCoffeeMarketEventsQcMarkdown includes required Step 8 QC sections', 
   assert.equal(markdown.includes('Possible Duplicate Events'), true)
   assert.equal(markdown.includes('Events Usable For Coffee Brief'), true)
   assert.equal(markdown.includes('Events Needing Human Review'), true)
+  assert.equal(markdown.includes('Source Health Summary'), true)
+  assert.equal(markdown.includes('Official Source Limitations'), true)
 })
 
 test('renderCoffeeMarketEventsMethodology includes cautious interpretation notes', () => {
@@ -198,7 +204,112 @@ test('parseCoffeeMarketEventRssItems filters coffee items and classifies public 
   assert.equal(rows[0]?.fromRawFeed, true)
 })
 
+test('source health classifier maps official feed and blocked source states', () => {
+  const eurostat = COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'eurostat_agriculture_rss')!
+  const usda = COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'usda_fas_gain_search_api')!
+  const ico = COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'ico_public_updates')!
+  const vietnam = COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'vietnam_official_portals')!
+
+  const xml = [
+    '<rss><channel>',
+    '<item><title>Brazil coffee drought raises crop concern</title><link>https://example.com/coffee</link></item>',
+    '<item><title>Wheat report</title><link>https://example.com/wheat</link></item>',
+    '</channel></rss>',
+  ].join('')
+
+  const available = classifyCoffeeMarketEventSourceHealth({
+    source: eurostat,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 200,
+    contentType: 'application/rss+xml',
+    bodyText: xml,
+  })
+  assert.equal(available.status, 'available')
+  assert.equal(available.itemCount, 2)
+  assert.equal(available.coffeeHitCount, 1)
+
+  const authGated = classifyCoffeeMarketEventSourceHealth({
+    source: usda,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: null,
+    contentType: null,
+    bodyText: null,
+  })
+  assert.equal(authGated.status, 'auth_gated')
+
+  const unsupportedHtml = classifyCoffeeMarketEventSourceHealth({
+    source: ico,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 200,
+    contentType: 'text/html',
+    bodyText: '<html><h1>Press Releases</h1></html>',
+  })
+  assert.equal(unsupportedHtml.status, 'unsupported_html')
+
+  const retired = classifyCoffeeMarketEventSourceHealth({
+    source: vietnam,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 200,
+    contentType: 'text/html',
+    bodyText: '<html>IPAD retired - site no longer available to the public</html>',
+  })
+  assert.equal(retired.status, 'retired')
+
+  const fetchError = classifyCoffeeMarketEventSourceHealth({
+    source: eurostat,
+    probedAt: '2026-06-02T00:00:00.000Z',
+    httpStatus: 500,
+    contentType: 'text/plain',
+    bodyText: null,
+    errorMessage: 'HTTP 500',
+  })
+  assert.equal(fetchError.status, 'fetch_error')
+})
+
+test('review queue predicate includes only review-needed rows and recent adapter candidates', () => {
+  const base: MarketEventFactRow = {
+    event_date: '2026-06-01',
+    published_at: null,
+    commodity_group: 'coffee',
+    country_or_region: 'Brazil',
+    country_iso: 'BRA',
+    event_type: 'weather',
+    event_title: 'Brazil coffee weather update',
+    event_summary: null,
+    expected_impact_direction: 'bullish',
+    expected_impact_area: 'supply',
+    impact_score: 1,
+    time_horizon: 'short_term',
+    confidence_score: 0.8,
+    source_name: 'Fixture',
+    source_url: 'https://example.com/ok',
+    source_reliability_score: 0.9,
+    fetched_at: '2026-06-02T00:00:00.000Z',
+    event_cluster_id: null,
+    duplicate_of: null,
+    data_quality_flag: 'ok',
+    entities: {},
+    raw_payload: {},
+    notes: '',
+  }
+
+  assert.equal(isCoffeeMarketEventReviewQueueCandidate(base, { asOfDate: '2026-06-02' }), false)
+  assert.equal(isCoffeeMarketEventReviewQueueCandidate({ ...base, data_quality_flag: 'needs_human_review' }, { asOfDate: '2026-06-02' }), true)
+  assert.equal(isCoffeeMarketEventReviewQueueCandidate({ ...base, data_quality_flag: 'unclear_impact' }, { asOfDate: '2026-06-02' }), true)
+  assert.equal(isCoffeeMarketEventReviewQueueCandidate({ ...base, notes: 'Adapter source=eurostat_agriculture_rss; review required.' }, { asOfDate: '2026-06-02' }), true)
+  assert.equal(isCoffeeMarketEventReviewQueueCandidate({ ...base, event_date: '2026-04-01', notes: 'Adapter source=eurostat_agriculture_rss; review required.' }, { asOfDate: '2026-06-02' }), false)
+})
+
 test('source research markdown documents disabled official-source limitations and errors', () => {
+  const sourceHealth = [
+    classifyCoffeeMarketEventSourceHealth({
+      source: COFFEE_MARKET_EVENT_SOURCES.find(item => item.id === 'usda_fas_gain_search_api')!,
+      probedAt: '2026-06-02T00:00:00.000Z',
+      httpStatus: null,
+      contentType: null,
+      bodyText: null,
+    }),
+  ]
   const markdown = renderCoffeeMarketEventSourceResearchMarkdown({
     generatedAt: '2026-06-02T00:00:00.000Z',
     fetchedRows: 0,
@@ -207,13 +318,23 @@ test('source research markdown documents disabled official-source limitations an
         sourceId: 'usda_fas_gain_search_api',
         sourceName: 'USDA FAS GAIN public search',
         sourceUrl: 'https://gain.fas.usda.gov/#/search',
-        message: 'Source type api_research is research-only in this MVP',
+        message: 'Source type api_research is probe_only; ingestion requires a stable RSS/XML/JSON endpoint',
       },
     ],
+    sourceHealth,
+  })
+
+  const healthMarkdown = renderCoffeeMarketEventSourceHealthMarkdown({
+    generatedAt: '2026-06-02T00:00:00.000Z',
+    sourceHealth,
   })
 
   assert.equal(markdown.includes('Configured Sources'), true)
   assert.equal(markdown.includes('usda_fas_gain_search_api'), true)
+  assert.equal(markdown.includes('mode=probe_only'), true)
+  assert.equal(markdown.includes('auth_gated'), true)
   assert.equal(markdown.includes('no generic HTML scraping'), true)
-  assert.equal(markdown.includes('Source type api_research is research-only'), true)
+  assert.equal(markdown.includes('Source type api_research is probe_only'), true)
+  assert.equal(healthMarkdown.includes('Coffee Market Event Source Health'), true)
+  assert.equal(healthMarkdown.includes('auth_gated'), true)
 })

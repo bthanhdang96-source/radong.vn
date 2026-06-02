@@ -1,8 +1,9 @@
 # Coffee Market Event QC Report
 
-- Generated at: 2026-06-02T14:14:22.415Z
+- Generated at: 2026-06-02T16:24:05.434Z
 - Total events: 16
 - Event date range: 2026-05-23 -> 2026-06-01
+- Adapter rows fetched: 0
 
 ## Count By Event Type
 
@@ -84,6 +85,23 @@
 - 2026-05-31 | Brazil dryness raises concern for coffee trees | flag=needs_human_review | raw intake row
 - 2026-05-30 | Coffee traders monitor Brazil weather stress | flag=needs_human_review | possible duplicate of Reuters context
 - 2026-05-28 | Vietnam coffee truck flow normalizes after rain | flag=needs_human_review | medium reliability source
+
+## Source Health Summary
+
+- eurostat_agriculture_rss | status=available | mode=enabled | items=1641 | coffee_hits=0
+- usda_fas_gain_search_api | status=auth_gated | mode=probe_only | items=0 | coffee_hits=0
+- ico_public_updates | status=unsupported_html | mode=probe_only | items=0 | coffee_hits=0
+- vietnam_official_portals | status=fetch_error | mode=probe_only | items=0 | coffee_hits=0
+
+## Source Errors
+
+- none
+
+## Official Source Limitations
+
+- USDA FAS GAIN, ICO, and Vietnam official portals remain probe-only until approved RSS/XML/JSON/API endpoints are configured.
+- HTML-only official pages are documented as source health evidence, not ingested as structured market events.
+- Adapter rows remain reviewable and are not promoted automatically into Coffee Brief candidates.
 
 ## Methodology Warnings
 

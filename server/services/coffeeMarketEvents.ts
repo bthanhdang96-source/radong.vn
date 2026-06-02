@@ -187,6 +187,9 @@ export type CoffeeMarketEventsSyncOptions = {
   seedCsvPath?: string
   rawCsvPath?: string
   fetchSources?: boolean
+  probeSources?: boolean
+  sourceHealthOnly?: boolean
+  maxItemsPerSource?: number
   sourceIds?: string[]
   sourceRows?: MarketEventInputRow[]
 }
@@ -203,6 +206,36 @@ export type CoffeeMarketEventSourceFetchResult = {
   errors: CoffeeMarketEventSourceError[]
 }
 
+export const MARKET_EVENT_SOURCE_HEALTH_STATUSES = [
+  'available',
+  'empty',
+  'auth_gated',
+  'retired',
+  'unsupported_html',
+  'fetch_error',
+] as const
+
+export type MarketEventSourceHealthStatus = (typeof MARKET_EVENT_SOURCE_HEALTH_STATUSES)[number]
+
+export type MarketEventSourceHealthRow = {
+  sourceId: string
+  sourceName: string
+  sourceUrl: string
+  sourceType: MarketEventSourceDescriptor['sourceType']
+  sourceMode: MarketEventSourceDescriptor['sourceMode']
+  enabledByDefault: boolean
+  requiresManualReview: boolean
+  reliabilityScore: number
+  probedAt: string
+  status: MarketEventSourceHealthStatus
+  httpStatus: number | null
+  contentType: string | null
+  itemCount: number
+  coffeeHitCount: number
+  notes: string
+  errorMessage: string | null
+}
+
 export type CoffeeMarketEventsSyncResult = {
   fetchedAt: string
   rawRowsPrepared: number
@@ -215,11 +248,13 @@ export type CoffeeMarketEventsSyncResult = {
   rows: MarketEventFactRow[]
   sourceRowsFetched: number
   sourceErrors: CoffeeMarketEventSourceError[]
+  sourceHealth: MarketEventSourceHealthRow[]
   artifacts: {
     rawSourceCsvPath: string | null
     factCsvPath: string | null
     qcReportPath: string | null
     sourceResearchPath: string | null
+    sourceHealthPath: string | null
     methodologyPath: string | null
   }
 }
@@ -241,9 +276,11 @@ type MarketEventSourceDescriptor = {
   id: string
   sourceName: string
   sourceUrl: string
-  sourceType: 'rss' | 'api_research'
+  sourceType: 'rss' | 'api_research' | 'official_html_probe'
+  sourceMode: 'enabled' | 'probe_only'
   reliabilityScore: number
   enabledByDefault: boolean
+  requiresManualReview: boolean
   countryOrRegion: string | null
   countryIso: string | null
   notes: string
@@ -255,19 +292,23 @@ export const COFFEE_MARKET_EVENT_SOURCES: MarketEventSourceDescriptor[] = [
     sourceName: 'Eurostat Agriculture RSS',
     sourceUrl: 'https://ec.europa.eu/eurostat/api/dissemination/catalogue/rss/en/statistics-update.rss',
     sourceType: 'rss',
+    sourceMode: 'enabled',
     reliabilityScore: 0.90,
     enabledByDefault: true,
+    requiresManualReview: true,
     countryOrRegion: 'EU',
     countryIso: 'EUU',
-    notes: 'Official EU statistics RSS. Coffee-specific rows are rare; deterministic coffee keyword filtering is required.',
+    notes: 'Official EU statistics RSS. Coffee-specific rows are rare, so source health reports coffee hit counts separately.',
   },
   {
     id: 'usda_fas_gain_search_api',
     sourceName: 'USDA FAS GAIN public search',
     sourceUrl: 'https://gain.fas.usda.gov/#/search',
     sourceType: 'api_research',
+    sourceMode: 'probe_only',
     reliabilityScore: 0.93,
     enabledByDefault: false,
+    requiresManualReview: true,
     countryOrRegion: null,
     countryIso: null,
     notes: 'GAIN search is the preferred USDA/FAS coffee source, but the observed API requires auth at implementation time; keep disabled until a stable public endpoint or key is provided.',
@@ -275,21 +316,25 @@ export const COFFEE_MARKET_EVENT_SOURCES: MarketEventSourceDescriptor[] = [
   {
     id: 'ico_public_updates',
     sourceName: 'International Coffee Organization updates',
-    sourceUrl: 'https://ico.org/',
-    sourceType: 'api_research',
+    sourceUrl: 'https://ico.org/press-releases/',
+    sourceType: 'official_html_probe',
+    sourceMode: 'probe_only',
     reliabilityScore: 0.88,
     enabledByDefault: false,
+    requiresManualReview: true,
     countryOrRegion: null,
     countryIso: null,
-    notes: 'ICO is authoritative for coffee context, but no stable public RSS/API feed was confirmed for event ingestion in this follow-up.',
+    notes: 'ICO is authoritative for coffee context, but this public page is HTML-only; numeric/event ingestion stays disabled without a stable RSS/API feed.',
   },
   {
     id: 'vietnam_official_portals',
     sourceName: 'Vietnam official coffee policy portals',
     sourceUrl: 'https://www.mard.gov.vn/',
-    sourceType: 'api_research',
+    sourceType: 'official_html_probe',
+    sourceMode: 'probe_only',
     reliabilityScore: 0.92,
     enabledByDefault: false,
+    requiresManualReview: true,
     countryOrRegion: 'Vietnam',
     countryIso: 'VNM',
     notes: 'Vietnam official portals remain research-only until a stable RSS/API endpoint is confirmed; avoid brittle HTML scraping.',
@@ -746,6 +791,17 @@ function pickRssDate(item: Record<string, unknown>, fallback: string) {
   return toIsoTimestamp(rawDate) ?? fallback
 }
 
+function countFeedItems(xml: string) {
+  const parsed = feedParser.parse(xml) as {
+    rss?: { channel?: { item?: Array<Record<string, unknown>> | Record<string, unknown> } }
+    feed?: { entry?: Array<Record<string, unknown>> | Record<string, unknown> }
+  }
+  return [
+    ...toArray(parsed.rss?.channel?.item),
+    ...toArray(parsed.feed?.entry),
+  ].length
+}
+
 export function parseCoffeeMarketEventRssItems(
   xml: string,
   source: MarketEventSourceDescriptor,
@@ -811,6 +867,80 @@ export function parseCoffeeMarketEventRssItems(
   })
 }
 
+export function classifyCoffeeMarketEventSourceHealth(input: {
+  source: MarketEventSourceDescriptor
+  probedAt: string
+  httpStatus: number | null
+  contentType: string | null
+  bodyText: string | null
+  errorMessage?: string | null
+  maxItems?: number
+}): MarketEventSourceHealthRow {
+  const base = {
+    sourceId: input.source.id,
+    sourceName: input.source.sourceName,
+    sourceUrl: input.source.sourceUrl,
+    sourceType: input.source.sourceType,
+    sourceMode: input.source.sourceMode,
+    enabledByDefault: input.source.enabledByDefault,
+    requiresManualReview: input.source.requiresManualReview,
+    reliabilityScore: input.source.reliabilityScore,
+    probedAt: input.probedAt,
+    httpStatus: input.httpStatus,
+    contentType: input.contentType,
+    itemCount: 0,
+    coffeeHitCount: 0,
+    notes: input.source.notes,
+    errorMessage: input.errorMessage ?? null,
+  }
+
+  if (input.errorMessage) {
+    const lower = input.errorMessage.toLowerCase()
+    if (lower.includes('401') || lower.includes('403') || lower.includes('auth')) {
+      return { ...base, status: 'auth_gated' }
+    }
+    return { ...base, status: 'fetch_error' }
+  }
+
+  if (input.source.sourceType === 'api_research') {
+    return { ...base, status: 'auth_gated', errorMessage: 'Research-only/API-gated source; provide approved endpoint or key before ingestion.' }
+  }
+
+  const bodyText = input.bodyText ?? ''
+  if (/ipad retired|no longer available to the public|site no longer available/i.test(bodyText)) {
+    return { ...base, status: 'retired' }
+  }
+
+  if (input.source.sourceType === 'official_html_probe') {
+    return { ...base, status: 'unsupported_html', errorMessage: 'Official source is reachable as HTML, but no stable RSS/XML/JSON ingestion endpoint is configured.' }
+  }
+
+  if (input.source.sourceType === 'rss') {
+    try {
+      const itemCount = countFeedItems(bodyText)
+      const coffeeHitCount = parseCoffeeMarketEventRssItems(bodyText, input.source, {
+        fetchedAt: input.probedAt,
+        maxItems: input.maxItems,
+      }).length
+      return {
+        ...base,
+        status: itemCount > 0 ? 'available' : 'empty',
+        itemCount,
+        coffeeHitCount,
+        notes: `${input.source.notes} Source health item_count=${itemCount}; coffee_hit_count=${coffeeHitCount}.`,
+      }
+    } catch (error) {
+      return {
+        ...base,
+        status: 'fetch_error',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  return { ...base, status: 'unsupported_html' }
+}
+
 async function fetchSourceText(url: string) {
   return retryTransient(async () => {
     const response = await fetch(url, {
@@ -824,6 +954,71 @@ async function fetchSourceText(url: string) {
     }
     return response.text()
   }, { attempts: 3, initialDelayMs: 500 })
+}
+
+async function fetchSourceProbeResponse(url: string) {
+  return retryTransient(async () => {
+    const response = await fetch(url, {
+      headers: {
+        accept: 'application/rss+xml, application/xml, application/json, text/html, text/xml, */*',
+        'user-agent': 'NongSanVN coffee market event source probe/1.0',
+      },
+    })
+    const text = await response.text()
+    return {
+      httpStatus: response.status,
+      contentType: response.headers.get('content-type'),
+      bodyText: text,
+      ok: response.ok,
+    }
+  }, { attempts: 2, initialDelayMs: 500 })
+}
+
+export async function probeCoffeeMarketEventSources(options: {
+  fetchedAt: string
+  sourceIds?: string[]
+  maxItemsPerSource?: number
+}): Promise<MarketEventSourceHealthRow[]> {
+  const requestedIds = new Set(options.sourceIds ?? [])
+  const sources = COFFEE_MARKET_EVENT_SOURCES.filter(source => requestedIds.size > 0 ? requestedIds.has(source.id) : true)
+  const rows: MarketEventSourceHealthRow[] = []
+
+  for (const source of sources) {
+    if (source.sourceType === 'api_research') {
+      rows.push(classifyCoffeeMarketEventSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: null,
+        contentType: null,
+        bodyText: null,
+      }))
+      continue
+    }
+
+    try {
+      const response = await fetchSourceProbeResponse(source.sourceUrl)
+      rows.push(classifyCoffeeMarketEventSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: response.httpStatus,
+        contentType: response.contentType,
+        bodyText: response.bodyText,
+        errorMessage: response.ok ? null : `HTTP ${response.httpStatus}`,
+        maxItems: options.maxItemsPerSource,
+      }))
+    } catch (error) {
+      rows.push(classifyCoffeeMarketEventSourceHealth({
+        source,
+        probedAt: options.fetchedAt,
+        httpStatus: null,
+        contentType: null,
+        bodyText: null,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  return rows
 }
 
 export async function fetchCoffeeMarketEventSourceRows(options: {
@@ -847,7 +1042,7 @@ export async function fetchCoffeeMarketEventSourceRows(options: {
         sourceId: source.id,
         sourceName: source.sourceName,
         sourceUrl: source.sourceUrl,
-        message: `Source type ${source.sourceType} is research-only in this MVP`,
+        message: `Source type ${source.sourceType} is ${source.sourceMode}; ingestion requires a stable RSS/XML/JSON endpoint`,
       })
       continue
     }
@@ -1214,13 +1409,19 @@ function buildMarketEventQcReport(rows: MarketEventFactRow[]): MarketEventQcRepo
   }
 }
 
-export function renderCoffeeMarketEventsQcMarkdown(report: MarketEventQcReport, options: { generatedAt: string }) {
+export function renderCoffeeMarketEventsQcMarkdown(report: MarketEventQcReport, options: {
+  generatedAt: string
+  sourceRowsFetched?: number
+  sourceErrors?: CoffeeMarketEventSourceError[]
+  sourceHealth?: MarketEventSourceHealthRow[]
+}) {
   const lines: string[] = [
     '# Coffee Market Event QC Report',
     '',
     `- Generated at: ${options.generatedAt}`,
     `- Total events: ${report.totalEvents}`,
     `- Event date range: ${report.eventDateRange.min ?? 'n/a'} -> ${report.eventDateRange.max ?? 'n/a'}`,
+    `- Adapter rows fetched: ${options.sourceRowsFetched ?? 0}`,
     '',
     '## Count By Event Type',
     '',
@@ -1290,6 +1491,31 @@ export function renderCoffeeMarketEventsQcMarkdown(report: MarketEventQcReport, 
     }
   }
 
+  lines.push('', '## Source Health Summary', '')
+  if (!options.sourceHealth || options.sourceHealth.length === 0) {
+    lines.push('- not probed in this run')
+  } else {
+    for (const row of options.sourceHealth) {
+      lines.push(`- ${row.sourceId} | status=${row.status} | mode=${row.sourceMode} | items=${row.itemCount} | coffee_hits=${row.coffeeHitCount}`)
+    }
+  }
+
+  lines.push('', '## Source Errors', '')
+  if (!options.sourceErrors || options.sourceErrors.length === 0) {
+    lines.push('- none')
+  } else {
+    for (const error of options.sourceErrors) {
+      lines.push(`- ${error.sourceId} | ${error.message}`)
+    }
+  }
+
+  lines.push('', '## Official Source Limitations', '')
+  lines.push(
+    '- USDA FAS GAIN, ICO, and Vietnam official portals remain probe-only until approved RSS/XML/JSON/API endpoints are configured.',
+    '- HTML-only official pages are documented as source health evidence, not ingested as structured market events.',
+    '- Adapter rows remain reviewable and are not promoted automatically into Coffee Brief candidates.',
+  )
+
   lines.push(
     '',
     '## Methodology Warnings',
@@ -1334,6 +1560,7 @@ export function renderCoffeeMarketEventSourceResearchMarkdown(options: {
   generatedAt: string
   fetchedRows: number
   errors: CoffeeMarketEventSourceError[]
+  sourceHealth?: MarketEventSourceHealthRow[]
 }) {
   const lines = [
     '# Coffee Market Event Source Research',
@@ -1348,10 +1575,22 @@ export function renderCoffeeMarketEventSourceResearchMarkdown(options: {
 
   for (const source of COFFEE_MARKET_EVENT_SOURCES) {
     lines.push(
-      `- ${source.id} | ${source.sourceName} | type=${source.sourceType} | enabledByDefault=${source.enabledByDefault} | reliability=${source.reliabilityScore}`,
+      `- ${source.id} | ${source.sourceName} | type=${source.sourceType} | mode=${source.sourceMode} | enabledByDefault=${source.enabledByDefault} | requiresManualReview=${source.requiresManualReview} | reliability=${source.reliabilityScore}`,
       `  Source: ${source.sourceUrl}`,
       `  Note: ${source.notes}`,
     )
+  }
+
+  lines.push('', '## Source Health', '')
+  if (!options.sourceHealth || options.sourceHealth.length === 0) {
+    lines.push('- not probed in this run')
+  } else {
+    for (const row of options.sourceHealth) {
+      lines.push(`- ${row.sourceId} | status=${row.status} | mode=${row.sourceMode} | http=${row.httpStatus ?? 'n/a'} | items=${row.itemCount} | coffee_hits=${row.coffeeHitCount}`)
+      if (row.errorMessage) {
+        lines.push(`  Error: ${row.errorMessage}`)
+      }
+    }
   }
 
   lines.push('', '## Source Errors', '')
@@ -1368,10 +1607,49 @@ export function renderCoffeeMarketEventSourceResearchMarkdown(options: {
     '## Guardrails',
     '',
     '- Source-derived rows remain reviewable raw-feed items.',
+    '- Source registry states distinguish enabled ingestion from probe_only source research.',
     '- Missing or auth-gated official APIs are documented instead of bypassed with brittle scraping.',
     '- Coffee keyword filtering is deterministic and may miss indirectly relevant policy items.',
     '',
   )
+  return lines.join('\n')
+}
+
+export function renderCoffeeMarketEventSourceHealthMarkdown(options: {
+  generatedAt: string
+  sourceHealth: MarketEventSourceHealthRow[]
+}) {
+  const lines = [
+    '# Coffee Market Event Source Health',
+    '',
+    `- Generated at: ${options.generatedAt}`,
+    `- Sources probed: ${options.sourceHealth.length}`,
+    '',
+    '## Probe Results',
+    '',
+  ]
+
+  if (options.sourceHealth.length === 0) {
+    lines.push('- none')
+  } else {
+    for (const row of options.sourceHealth) {
+      lines.push(`- ${row.sourceId} | ${row.sourceName} | status=${row.status} | mode=${row.sourceMode} | enabled=${row.enabledByDefault} | review=${row.requiresManualReview}`)
+      lines.push(`  URL: ${row.sourceUrl}`)
+      lines.push(`  HTTP: ${row.httpStatus ?? 'n/a'} | content_type=${row.contentType ?? 'n/a'} | items=${row.itemCount} | coffee_hits=${row.coffeeHitCount}`)
+      lines.push(`  Note: ${row.errorMessage ?? row.notes}`)
+    }
+  }
+
+  lines.push(
+    '',
+    '## Interpretation',
+    '',
+    '- available means the endpoint is reachable and parseable; coffee_hits may still be zero for broad official feeds.',
+    '- auth_gated and unsupported_html sources are not ingested until an approved stable endpoint is configured.',
+    '- retired sources should stay disabled and be replaced with the official successor endpoint before ingestion.',
+    '',
+  )
+
   return lines.join('\n')
 }
 
@@ -1425,6 +1703,16 @@ export function prepareCoffeeMarketEventsRows(
     duplicateFactRowsCollapsed: rawRows.length - factRows.length,
     qc,
   }
+}
+
+export function isCoffeeMarketEventReviewQueueCandidate(row: Pick<MarketEventFactRow, 'data_quality_flag' | 'notes' | 'event_date'>, options: { asOfDate: string }) {
+  if (['needs_human_review', 'unclear_impact', 'missing_source_url', 'possible_duplicate'].includes(row.data_quality_flag)) {
+    return true
+  }
+  if (!row.notes.includes('Adapter source=')) {
+    return false
+  }
+  return daysBetween(row.event_date, options.asOfDate) <= 30
 }
 
 async function writeArtifactFile(path: string, content: string) {
@@ -1506,16 +1794,27 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd())
   const seedCsvPath = resolve(options.seedCsvPath ?? resolve(workspaceRoot, 'data', 'seed', 'coffee_market_events_seed.csv'))
   const rawCsvPath = resolve(options.rawCsvPath ?? resolve(workspaceRoot, 'data', 'raw', 'market_event_items.csv'))
+  const shouldProbeSources = options.probeSources || options.sourceHealthOnly || options.fetchSources
+  const sourceHealth = shouldProbeSources
+    ? await probeCoffeeMarketEventSources({
+      fetchedAt,
+      sourceIds: options.sourceIds,
+      maxItemsPerSource: options.maxItemsPerSource,
+    })
+    : []
   const adapterResult = options.fetchSources
     ? await fetchCoffeeMarketEventSourceRows({
       fetchedAt,
       sourceIds: options.sourceIds,
+      maxItemsPerSource: options.maxItemsPerSource,
     })
     : { rows: [], errors: [] }
-  const inputRows = [
-    ...(options.sourceRows ?? (await loadInputRowsFromCsv(seedCsvPath, rawCsvPath))),
-    ...adapterResult.rows,
-  ]
+  const inputRows = options.sourceHealthOnly
+    ? []
+    : [
+      ...(options.sourceRows ?? (await loadInputRowsFromCsv(seedCsvPath, rawCsvPath))),
+      ...adapterResult.rows,
+    ]
   const prepared = prepareCoffeeMarketEventsRows(inputRows, {
     fetchedAt,
     staleDays: options.staleDays ?? DEFAULT_STALE_DAYS,
@@ -1525,6 +1824,7 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
   const factCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'fact_market_event.csv') : null
   const qcReportPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'market_event_qc.md') : null
   const sourceResearchPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'market_event_source_research.md') : null
+  const sourceHealthPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'market_event_source_health.md') : null
   const methodologyPath = writeArtifacts ? resolve(workspaceRoot, 'docs', 'methodology', 'coffee_market_events_methodology.md') : null
 
   if (rawSourceCsvPath) {
@@ -1534,13 +1834,25 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
     await writeArtifactFile(factCsvPath, toCsv(prepared.factRows, FACT_COLUMNS as string[]))
   }
   if (qcReportPath) {
-    await writeArtifactFile(qcReportPath, renderCoffeeMarketEventsQcMarkdown(prepared.qc, { generatedAt: fetchedAt }))
+    await writeArtifactFile(qcReportPath, renderCoffeeMarketEventsQcMarkdown(prepared.qc, {
+      generatedAt: fetchedAt,
+      sourceRowsFetched: adapterResult.rows.length,
+      sourceErrors: adapterResult.errors,
+      sourceHealth,
+    }))
   }
   if (sourceResearchPath) {
     await writeArtifactFile(sourceResearchPath, renderCoffeeMarketEventSourceResearchMarkdown({
       generatedAt: fetchedAt,
       fetchedRows: adapterResult.rows.length,
       errors: adapterResult.errors,
+      sourceHealth,
+    }))
+  }
+  if (sourceHealthPath) {
+    await writeArtifactFile(sourceHealthPath, renderCoffeeMarketEventSourceHealthMarkdown({
+      generatedAt: fetchedAt,
+      sourceHealth,
     }))
   }
   if (methodologyPath) {
@@ -1549,7 +1861,7 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
 
   let rawRowsPersisted = 0
   let factRowsPersisted = 0
-  if (!dryRun && getSupabaseAdminClient()) {
+  if (!dryRun && !options.sourceHealthOnly && getSupabaseAdminClient()) {
     rawRowsPersisted = await upsertRowsInChunks(
       'raw_market_event_items',
       prepared.rawRows,
@@ -1574,11 +1886,13 @@ export async function syncCoffeeMarketEvents(options: CoffeeMarketEventsSyncOpti
     rows: prepared.factRows,
     sourceRowsFetched: adapterResult.rows.length,
     sourceErrors: adapterResult.errors,
+    sourceHealth,
     artifacts: {
       rawSourceCsvPath,
       factCsvPath,
       qcReportPath,
       sourceResearchPath,
+      sourceHealthPath,
       methodologyPath,
     },
   }
@@ -1817,5 +2131,31 @@ export async function getCoffeeMarketEventBriefCandidatesResponse(limit = 50): P
       console.error('[Supabase Coffee Brief Candidates] Falling back to empty payload:', error)
     }
     return buildFallbackResponse('Coffee brief candidates are unavailable')
+  }
+}
+
+export async function getCoffeeMarketEventReviewQueueResponse(limit = 100): Promise<CoffeeMarketEventsResponse> {
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return buildFallbackResponse('Coffee market event review queue requires Supabase curated data')
+  }
+
+  const rowLimit = Math.max(1, Math.min(limit, 500))
+  try {
+    const rows = await getRowsFromView('vw_coffee_market_event_review_queue', { limit: rowLimit })
+    const data = (rows ?? []).map(toCoffeeMarketEventItem)
+    return {
+      success: true,
+      status: 'live',
+      lastUpdated: data[0]?.eventDate ?? new Date().toISOString(),
+      count: data.length,
+      data,
+      errors: [],
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase Coffee Review Queue] Falling back to empty payload:', error)
+    }
+    return buildFallbackResponse('Coffee market event review queue is unavailable')
   }
 }
