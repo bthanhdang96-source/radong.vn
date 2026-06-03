@@ -170,6 +170,134 @@ test('prepareCoffeeExportRows filters by mot/customs/partner2 and collapses dupl
   assert.equal(prepared.unitDistribution.pack, 1)
 })
 
+test('prepareCoffeeExportRows supports multi-HS coffee product scope', () => {
+  const baseRow = {
+    typeCode: 'C',
+    freqCode: 'A',
+    period: '2023',
+    refPeriodId: 20230101,
+    reporterCode: 704,
+    reporterISO: 'VNM',
+    reporterDesc: 'Viet Nam',
+    flowCode: 'X',
+    flowDesc: 'Export',
+    classificationCode: 'H6',
+    customsCode: 'C00',
+    customsDesc: 'TOTAL CPC',
+    mosCode: '0',
+    motCode: 0,
+    motDesc: 'TOTAL MOT',
+    partnerCode: 276,
+    partnerISO: 'DEU',
+    partnerDesc: 'Germany',
+    partner2Code: 0,
+    partner2ISO: 'W00',
+    partner2Desc: 'World',
+    qtyUnitCode: 8,
+    qtyUnitAbbr: 'kg',
+    qty: 1000,
+    netWgt: 1000,
+    primaryValue: 3000,
+    isOriginalClassification: true,
+  }
+
+  const prepared = prepareCoffeeExportRows(
+    [
+      { ...baseRow, cmdCode: '090111', cmdDesc: 'Coffee; not roasted or decaffeinated' },
+      { ...baseRow, cmdCode: '090112', cmdDesc: 'Coffee; decaffeinated, not roasted', primaryValue: 4000 },
+      { ...baseRow, cmdCode: '090121', cmdDesc: 'Coffee; roasted, not decaffeinated', primaryValue: 6000 },
+      { ...baseRow, cmdCode: '210111', cmdDesc: 'Extracts essences and concentrates of coffee', primaryValue: 9000 },
+      { ...baseRow, cmdCode: '999999', cmdDesc: 'Not in selected coffee scope', primaryValue: 1 },
+    ],
+    {
+      periodType: 'A',
+      targetHsCodes: ['090111', '090112', '090121', '210111'],
+      fetchedAt: '2026-06-03T10:00:00.000Z',
+      sourceUrl: 'https://comtradeapi.un.org/public/v1/preview/C/A/HS?mock=1',
+      queryParams: { mock: true },
+    },
+  )
+
+  assert.equal(prepared.factRows.length, 4)
+  assert.deepEqual(
+    prepared.factRows.map(row => [row.hs6, row.analysis_bucket]).sort(),
+    [
+      ['090111', 'coffee_raw_core'],
+      ['090112', 'coffee_decaf_raw'],
+      ['090121', 'coffee_roasted'],
+      ['210111', 'coffee_instant'],
+    ],
+  )
+  assert.deepEqual(prepared.hs6Distribution, {
+    '090111': 1,
+    '090112': 1,
+    '090121': 1,
+    '210111': 1,
+  })
+})
+
+test('prepareCoffeeExportRows defaults to raw core HS 090111 only', () => {
+  const prepared = prepareCoffeeExportRows(
+    [
+      {
+        typeCode: 'C',
+        freqCode: 'A',
+        period: '2023',
+        reporterCode: 704,
+        reporterISO: 'VNM',
+        reporterDesc: 'Viet Nam',
+        flowCode: 'X',
+        flowDesc: 'Export',
+        partnerCode: 276,
+        partnerISO: 'DEU',
+        partnerDesc: 'Germany',
+        partner2Code: 0,
+        classificationCode: 'H6',
+        cmdCode: '090111',
+        cmdDesc: 'Coffee; not roasted or decaffeinated',
+        customsCode: 'C00',
+        motCode: 0,
+        qtyUnitAbbr: 'kg',
+        qty: 1000,
+        netWgt: 1000,
+        primaryValue: 3000,
+      },
+      {
+        typeCode: 'C',
+        freqCode: 'A',
+        period: '2023',
+        reporterCode: 704,
+        reporterISO: 'VNM',
+        reporterDesc: 'Viet Nam',
+        flowCode: 'X',
+        flowDesc: 'Export',
+        partnerCode: 276,
+        partnerISO: 'DEU',
+        partnerDesc: 'Germany',
+        partner2Code: 0,
+        classificationCode: 'H6',
+        cmdCode: '090112',
+        cmdDesc: 'Coffee; decaffeinated, not roasted',
+        customsCode: 'C00',
+        motCode: 0,
+        qtyUnitAbbr: 'kg',
+        qty: 1000,
+        netWgt: 1000,
+        primaryValue: 4000,
+      },
+    ],
+    {
+      periodType: 'A',
+      fetchedAt: '2026-06-03T10:00:00.000Z',
+      sourceUrl: 'https://comtradeapi.un.org/public/v1/preview/C/A/HS?mock=1',
+      queryParams: { mock: true },
+    },
+  )
+
+  assert.equal(prepared.factRows.length, 1)
+  assert.equal(prepared.factRows[0]?.hs6, '090111')
+})
+
 test('buildCoffeeExportQcReport summarizes quality counters and markdown output', () => {
   const prepared = prepareCoffeeExportRows(
     [

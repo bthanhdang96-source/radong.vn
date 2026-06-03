@@ -4,8 +4,9 @@
 
 - Reporter: Vietnam (`reporterCode=704`, ISO `VNM`)
 - Flow: Export (`flowCode=X`)
-- Commodity: Coffee, not roasted, not decaffeinated
-- HS6: `090111`
+- Default commodity: Coffee, not roasted, not decaffeinated
+- Default HS6: `090111`
+- Optional product scope: official coffee HS6 groups `090111`, `090112`, `090121`, `090122`, `090190`, `210111`, `210112`
 - Analysis bucket: `coffee_raw_core`
 - Period:
   - Week 1 baseline: annual (`A`) from 2020 to latest available
@@ -18,7 +19,8 @@
 - Implemented query parameters:
   - `reporterCode=704`
   - `flowCode=X`
-  - `cmdCode=090111`
+- `cmdCode=090111`
+- Optional multi-HS runs use comma-separated `cmdCode` values selected from the coffee HS scope.
   - `period=<comma-separated list>`
   - `includeDesc=true` (to return text descriptions and unit labels)
 - Primary source metadata stored in raw/fact rows:
@@ -55,7 +57,7 @@ Target fact grain:
 
 - `period_type + period_label + reporter_iso + partner_iso + flow + hs6 + source_name`
 
-One row = one period, one partner market, Vietnam reporter, export flow, HS6 `090111`.
+One row = one period, one partner market, Vietnam reporter, export flow, one HS6 code. Default Week 1 artifacts remain HS6 `090111`; product-scope artifacts keep each HS6 separate.
 
 ## 6. Raw Layer and Filtering Rules
 
@@ -112,13 +114,15 @@ Included in this step:
 
 - HS6 `090111` only (`coffee_raw_core`)
 
-Explicitly excluded from Week 1 coffee-by-market fact:
+Default `raw_core` excludes from the core export unit-value benchmark:
 
 - Instant coffee (`210111`)
 - Roasted coffee (`090121`, `090122`)
 - Decaf raw coffee (`090112`)
 - Coffee byproducts (`090190`)
 - Other commodity groups (rice, pepper, cashew)
+
+Optional product-scope Step 2 runs may fetch those coffee HS6 groups for coverage analysis, but downstream Step 3-7 benchmark views must continue filtering to `analysis_bucket = coffee_raw_core` and `hs6 = 090111` unless separately extended.
 
 ## 11. Limitations
 
@@ -137,4 +141,3 @@ SUM(value_usd) / SUM(quantity_ton)
 ```
 
 Do not use `AVG(row_level_unit_price)`.
-

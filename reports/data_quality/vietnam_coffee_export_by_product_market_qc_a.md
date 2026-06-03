@@ -1,41 +1,53 @@
-# QC Report - Vietnam Coffee Exports by Market
+# QC Report - Vietnam Coffee Exports by Product Market
 
-Generated at: 2026-06-03T15:39:38.399Z
+Generated at: 2026-06-03T15:38:59.579Z
 Period type: A
-HS scope: raw_core
+HS scope: all_hs6
 
 ## Scope
 
 - Reporter: Vietnam (704 / VNM)
 - Flow: Export (X)
-- Target HS6: 090111
+- Target HS6: 090111, 090112, 090121, 090122, 090190, 210111, 210112
 - Filtered dimensions: customs=C00, partner2=0, mot=0
 - Multi-HS rows are product-scope observations; do not aggregate green, roasted, decaf, extract/preparation, and byproduct buckets into one unit-value benchmark.
 
 ## Row Counts
 
-- Total rows: 272
+- Total rows: 1110
 - Duplicate grain rows: 0
-- World aggregate rows: 4
+- World aggregate rows: 28
 - Missing value rows: 0
 - Missing quantity rows: 0
 - Unknown quantity unit rows: 0
 - Zero quantity rows: 0
-- Tiny quantity rows (< 0.1 ton): 0
-- Suspicious QC unit price rows (< 500 or > 15000 USD/ton): 2
+- Tiny quantity rows (< 0.1 ton): 10
+- Suspicious QC unit price rows (< 500 or > 15000 USD/ton): 20
 - Unsupported HS code rows: 0
 
 ## Quantity Units
 
-- kg: 272
+- kg: 1110
 
 ## HS6 Coverage
 
+- 210111: 252
+- 210112: 181
 - 090111: 272
+- 090112: 102
+- 090121: 182
+- 090122: 90
+- 090190: 31
 
 ## Analysis Bucket Coverage
 
+- coffee_byproduct: rows=31 | value_usd=7080074.36 | quantity_ton=23780.761
+- coffee_decaf_raw: rows=102 | value_usd=702094453.02 | quantity_ton=213824.158
+- coffee_instant: rows=252 | value_usd=3400143027.97 | quantity_ton=609724.026
+- coffee_preparation: rows=181 | value_usd=989043333.54 | quantity_ton=217710.207
 - coffee_raw_core: rows=272 | value_usd=19495549685.12 | quantity_ton=9519920.267
+- coffee_roasted: rows=182 | value_usd=298618590.6 | quantity_ton=50008.156
+- coffee_roasted_decaf: rows=90 | value_usd=32701619.88 | quantity_ton=14387.917
 
 ## Top Markets (Latest Period)
 

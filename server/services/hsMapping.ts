@@ -1,4 +1,9 @@
 export type HsPriority = 'P0' | 'P1' | 'P2'
+export type CoffeeHsScope = 'raw_core' | 'all_hs6' | 'green_only' | 'processed' | 'national_detail'
+export type CoffeeProcessingStage = 'green' | 'roasted' | 'extract' | 'preparation' | 'byproduct' | 'substitute' | 'unknown'
+export type CoffeeDecafStatus = 'non_decaf' | 'decaf' | 'not_applicable' | 'unknown'
+export type CoffeeSpeciesVariety = 'arabica' | 'robusta' | 'other' | 'unknown'
+export type HsCodeLevel = 'HS6' | 'HS8' | 'HS10' | 'tariffline'
 
 export type HsMappingRow = {
   commodityGroup: string
@@ -22,7 +27,19 @@ export type HsMappingRow = {
   conversionToTon: number
   confidenceScore: number
   notes: string
+  processingStage: CoffeeProcessingStage
+  decafStatus: CoffeeDecafStatus
+  speciesVariety: CoffeeSpeciesVariety
+  codeLevel: HsCodeLevel
+  parentHs6: string
+  isInternationallyComparable: boolean
 }
+
+type HsMappingSeedInput = Omit<
+  HsMappingRow,
+  'processingStage' | 'decafStatus' | 'speciesVariety' | 'codeLevel' | 'parentHs6' | 'isInternationallyComparable'
+> &
+  Partial<Pick<HsMappingRow, 'processingStage' | 'decafStatus' | 'speciesVariety' | 'codeLevel' | 'parentHs6' | 'isInternationallyComparable'>>
 
 export type NormalizedHsCode = {
   hs2: string
@@ -46,6 +63,8 @@ const PRIORITY_RANK: Record<HsPriority, number> = {
 const BLOCKED_AGGREGATION_PAIRS = new Set([
   'coffee_raw_core|coffee_instant',
   'coffee_instant|coffee_raw_core',
+  'coffee_raw_core|coffee_preparation',
+  'coffee_preparation|coffee_raw_core',
   'coffee_raw_core|coffee_roasted',
   'coffee_roasted|coffee_raw_core',
   'coffee_raw_core|coffee_roasted_decaf',
@@ -54,6 +73,10 @@ const BLOCKED_AGGREGATION_PAIRS = new Set([
   'coffee_byproduct|coffee_raw_core',
   'coffee_roasted|coffee_instant',
   'coffee_instant|coffee_roasted',
+  'coffee_roasted|coffee_preparation',
+  'coffee_preparation|coffee_roasted',
+  'coffee_instant|coffee_preparation',
+  'coffee_preparation|coffee_instant',
 ])
 
 function normalizeDigits(rawCode: string) {
@@ -101,6 +124,81 @@ function compareRows(left: HsMappingRow, right: HsMappingRow) {
   }
 
   return PRIORITY_RANK[left.dataPriority] - PRIORITY_RANK[right.dataPriority]
+}
+
+function inferProcessingStage(row: HsMappingSeedInput): CoffeeProcessingStage {
+  switch (row.analysisBucket) {
+    case 'coffee_raw_core':
+    case 'coffee_decaf_raw':
+      return 'green'
+    case 'coffee_roasted':
+    case 'coffee_roasted_decaf':
+      return 'roasted'
+    case 'coffee_instant':
+      return 'extract'
+    case 'coffee_preparation':
+      return 'preparation'
+    case 'coffee_byproduct':
+      return 'byproduct'
+    default:
+      return 'unknown'
+  }
+}
+
+function inferDecafStatus(row: HsMappingSeedInput): CoffeeDecafStatus {
+  if (row.hs6 === '090111' || row.hs6 === '090121') {
+    return 'non_decaf'
+  }
+  if (row.hs6 === '090112' || row.hs6 === '090122') {
+    return 'decaf'
+  }
+  if (row.hs6 === '090190' || row.hs6 === '210111' || row.hs6 === '210112') {
+    return 'not_applicable'
+  }
+  return 'unknown'
+}
+
+function inferSpeciesVariety(row: HsMappingSeedInput): CoffeeSpeciesVariety {
+  const nationalDigits = normalizeNationalCode(row.hs8Vn ?? row.hs10Vn ?? row.nationalCode)
+  switch (nationalDigits) {
+    case '09011120':
+      return 'arabica'
+    case '09011130':
+      return 'robusta'
+    case '09011190':
+      return 'other'
+    default:
+      return 'unknown'
+  }
+}
+
+function inferCodeLevel(row: HsMappingSeedInput): HsCodeLevel {
+  if (row.hs10Vn) {
+    return 'HS10'
+  }
+  if (row.hs8Vn) {
+    return 'HS8'
+  }
+  if (row.nationalCode && row.countryScope !== 'INT') {
+    return 'tariffline'
+  }
+  return 'HS6'
+}
+
+function enrichHsMappingRow(row: HsMappingSeedInput): HsMappingRow {
+  const codeLevel = row.codeLevel ?? inferCodeLevel(row)
+  const isInternationallyComparable =
+    row.isInternationallyComparable ?? (row.countryScope === 'INT' && !row.hs8Vn && !row.hs10Vn && !row.nationalCode && codeLevel === 'HS6')
+
+  return {
+    ...row,
+    processingStage: row.processingStage ?? inferProcessingStage(row),
+    decafStatus: row.decafStatus ?? inferDecafStatus(row),
+    speciesVariety: row.speciesVariety ?? inferSpeciesVariety(row),
+    codeLevel,
+    parentHs6: row.parentHs6 ?? row.hs6,
+    isInternationallyComparable,
+  }
 }
 
 function pickBestRow(rows: HsMappingRow[]) {
@@ -157,6 +255,28 @@ export function getMvpHsCodes(commodityGroup?: string, rows: HsMappingRow[] = CO
     .sort(compareRows)
 }
 
+export function isComparableHs6(row: HsMappingRow) {
+  return row.codeLevel === 'HS6' && row.isInternationallyComparable && row.parentHs6 === row.hs6
+}
+
+export function getCoffeeHsScope(scope: CoffeeHsScope = 'raw_core', rows: HsMappingRow[] = COFFEE_HS_MAPPING_SEED) {
+  const coffeeRows = rows.filter(row => row.commodityGroup === 'coffee')
+  switch (scope) {
+    case 'raw_core':
+      return coffeeRows.filter(row => isComparableHs6(row) && row.hs6 === '090111')
+    case 'all_hs6':
+      return coffeeRows.filter(row => isComparableHs6(row) && ['090111', '090112', '090121', '090122', '090190', '210111', '210112'].includes(row.hs6))
+    case 'green_only':
+      return coffeeRows.filter(row => isComparableHs6(row) && row.processingStage === 'green')
+    case 'processed':
+      return coffeeRows.filter(row => isComparableHs6(row) && ['extract', 'preparation'].includes(row.processingStage))
+    case 'national_detail':
+      return coffeeRows.filter(row => !isComparableHs6(row))
+    default:
+      return coffeeRows.filter(row => isComparableHs6(row) && row.hs6 === '090111')
+  }
+}
+
 export function shouldAggregate(bucketA: string, bucketB: string) {
   if (!bucketA || !bucketB) {
     return false
@@ -174,7 +294,9 @@ export function shouldAggregate(bucketA: string, bucketB: string) {
   return false
 }
 
-export const COFFEE_HS_MAPPING_SEED: HsMappingRow[] = [
+export const canAggregateCoffeeBuckets = shouldAggregate
+
+const COFFEE_HS_MAPPING_SEED_INPUT: HsMappingSeedInput[] = [
   {
     commodityGroup: 'coffee',
     commodityName: 'Coffee',
@@ -385,6 +507,29 @@ export const COFFEE_HS_MAPPING_SEED: HsMappingRow[] = [
   {
     commodityGroup: 'coffee',
     commodityName: 'Coffee',
+    productForm: 'Coffee preparations',
+    hs2: '21',
+    hs4: '2101',
+    hs6: '210112',
+    hs8Vn: null,
+    hs10Vn: null,
+    countryScope: 'INT',
+    nationalCode: null,
+    nationalCodeSystem: null,
+    partnerMarketGroup: null,
+    hsDescriptionEn: 'Preparations with a basis of extracts, essences or concentrates or with a basis of coffee',
+    hsDescriptionVi: 'Che pham nen chiet xuat tinh chat co dac hoac nen cafe',
+    analysisBucket: 'coffee_preparation',
+    includeInMvp: true,
+    dataPriority: 'P1',
+    standardUnit: 'ton',
+    conversionToTon: 1,
+    confidenceScore: 0.9,
+    notes: 'Processed coffee preparations do not aggregate with green coffee',
+  },
+  {
+    commodityGroup: 'coffee',
+    commodityName: 'Coffee',
     productForm: 'Partner mapping United States',
     hs2: '09',
     hs4: '0901',
@@ -452,3 +597,5 @@ export const COFFEE_HS_MAPPING_SEED: HsMappingRow[] = [
     notes: 'Applies to Germany Italy Spain under EU customs nomenclature',
   },
 ]
+
+export const COFFEE_HS_MAPPING_SEED: HsMappingRow[] = COFFEE_HS_MAPPING_SEED_INPUT.map(enrichHsMappingRow)

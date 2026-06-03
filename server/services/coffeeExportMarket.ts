@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { mapHsToCommodity } from './hsMapping.js'
+import { getCoffeeHsScope, mapHsToCommodity, normalizeHsCode, type CoffeeHsScope } from './hsMapping.js'
 import { getSupabaseAdminClient } from './supabaseClient.js'
 import { retryTransient } from './transientNetwork.js'
 
@@ -8,6 +8,7 @@ export type CoffeeExportPeriodType = 'A' | 'M'
 export type CoffeeExportQualityFlag =
   | 'ok'
   | 'aggregate_partner_excluded_or_flagged'
+  | 'unsupported_hs_code'
   | 'missing_value'
   | 'missing_quantity'
   | 'missing_or_unknown_quantity_unit'
@@ -158,6 +159,8 @@ type PeriodWindow = {
 
 export type CoffeeExportSyncOptions = {
   periodType?: CoffeeExportPeriodType
+  hsScope?: CoffeeHsScope
+  hsCodes?: string[]
   fromYear?: number
   toYear?: number
   monthlyMonths?: number
@@ -169,6 +172,8 @@ export type CoffeeExportSyncOptions = {
 
 export type CoffeeExportSyncResult = {
   periodType: CoffeeExportPeriodType
+  hsScope: CoffeeHsScope
+  targetHsCodes: string[]
   requestedPeriods: string[]
   sourceUrl: string
   sourceName: string
@@ -184,6 +189,7 @@ export type CoffeeExportSyncResult = {
   duplicateRowsCollapsed: number
   availablePeriodLabels: string[]
   unitDistribution: Record<string, number>
+  hs6Distribution: Record<string, number>
   qc: CoffeeExportQcReport
   artifacts: {
     rawCsvPath: string | null
@@ -201,6 +207,7 @@ export type CoffeeExportPreparedRows = {
   duplicateRowsCollapsed: number
   availablePeriodLabels: string[]
   unitDistribution: Record<string, number>
+  hs6Distribution: Record<string, number>
 }
 
 export type CoffeeExportQcReport = {
@@ -213,7 +220,12 @@ export type CoffeeExportQcReport = {
   zeroQuantityRows: number
   tinyQuantityRows: number
   suspiciousUnitPriceRows: number
+  unsupportedHsCodeRows: number
   unitDistribution: Record<string, number>
+  rowsByHs6: Record<string, number>
+  rowsByAnalysisBucket: Record<string, number>
+  valueUsdByAnalysisBucket: Record<string, number>
+  quantityTonByAnalysisBucket: Record<string, number>
   latestPeriodLabel: string | null
   topMarketsLatestPeriod: Array<{
     partnerCountry: string
@@ -238,6 +250,7 @@ const REPORTER_ISO = 'VNM'
 const REPORTER_COUNTRY = 'Vietnam'
 const COMMODITY_GROUP = 'coffee'
 const ANALYSIS_BUCKET = 'coffee_raw_core'
+const DEFAULT_HS_SCOPE = 'raw_core' satisfies CoffeeHsScope
 const PARTNER_PORTAL_VERIFICATION_LIMIT = 8
 const QC_UNIT_PRICE_MIN_USD_PER_TON = 500
 const QC_UNIT_PRICE_MAX_USD_PER_TON = 15_000
@@ -354,23 +367,34 @@ function chunkValues<T>(values: T[], size: number) {
   return output
 }
 
-function toComtradePreviewUrl(periodType: CoffeeExportPeriodType, periods: string[]) {
+function normalizeTargetHsCodes(options: Pick<CoffeeExportSyncOptions, 'hsScope' | 'hsCodes'>) {
+  if (options.hsCodes && options.hsCodes.length > 0) {
+    const codes = options.hsCodes.map(code => normalizeHsCode(code).hs6)
+    return [...new Set(codes)].sort()
+  }
+
+  const scope = options.hsScope ?? DEFAULT_HS_SCOPE
+  const codes = getCoffeeHsScope(scope).map(row => row.hs6)
+  return [...new Set(codes)].sort()
+}
+
+function toComtradePreviewUrl(periodType: CoffeeExportPeriodType, periods: string[], hsCodes: string[]) {
   const params = new URLSearchParams({
     reporterCode: String(REPORTER_CODE),
     flowCode: FLOW_CODE,
-    cmdCode: HS6_CODE,
+    cmdCode: hsCodes.join(','),
     period: periods.join(','),
     includeDesc: 'true',
   })
   return `${COMTRADE_PREVIEW_BASE_URL}/C/${periodType}/HS?${params.toString()}`
 }
 
-function summarizePreviewQuery(periodType: CoffeeExportPeriodType, periods: string[]) {
+function summarizePreviewQuery(periodType: CoffeeExportPeriodType, periods: string[], hsCodes: string[]) {
   return {
     endpoint: `${COMTRADE_PREVIEW_BASE_URL}/C/${periodType}/HS`,
     reporterCode: REPORTER_CODE,
     flowCode: FLOW_CODE,
-    cmdCode: HS6_CODE,
+    cmdCode: hsCodes.join(','),
     period: periods.join(','),
     includeDesc: true,
   }
@@ -384,8 +408,8 @@ function getPeriodChunks(periodType: CoffeeExportPeriodType, periods: string[], 
   return chunkValues(periods, periodType === 'A' ? 4 : 6)
 }
 
-async function fetchComtradePreviewChunk(periodType: CoffeeExportPeriodType, periods: string[]) {
-  const url = toComtradePreviewUrl(periodType, periods)
+async function fetchComtradePreviewChunk(periodType: CoffeeExportPeriodType, periods: string[], hsCodes: string[]) {
+  const url = toComtradePreviewUrl(periodType, periods, hsCodes)
   const response = await fetch(url, {
     headers: {
       'user-agent': 'nongsanvn-coffee-export-market/1.0 (+https://nongsanvn.vn)',
@@ -544,12 +568,17 @@ function pickPreferredFactRow(existing: FactCoffeeExportInsertRow, candidate: Fa
 }
 
 function buildFactQualityFlag(input: {
+  hasSupportedHsMapping: boolean
   isWorldAggregate: boolean
   valueUsd: number | null
   quantityTon: number | null
   quantitySource: QuantityNormalizationResult['quantitySource']
   unitPriceUsdPerTon: number | null
 }) {
+  if (!input.hasSupportedHsMapping) {
+    return 'unsupported_hs_code' satisfies CoffeeExportQualityFlag
+  }
+
   if (input.isWorldAggregate) {
     return 'aggregate_partner_excluded_or_flagged' satisfies CoffeeExportQualityFlag
   }
@@ -589,6 +618,8 @@ function confidenceForFlag(flag: CoffeeExportQualityFlag) {
       return 0.9
     case 'aggregate_partner_excluded_or_flagged':
       return 0.75
+    case 'unsupported_hs_code':
+      return 0.4
     case 'suspicious_unit_price':
       return 0.7
     case 'tiny_quantity_unit_price_unstable':
@@ -610,7 +641,7 @@ function toRawPayload(row: ComtradeRawRow) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, value ?? null]))
 }
 
-function isTargetComtradeRow(row: ComtradeRawRow, periodType: CoffeeExportPeriodType) {
+function isTargetComtradeRow(row: ComtradeRawRow, periodType: CoffeeExportPeriodType, targetHsCodes: Set<string>) {
   const freqCode = safeTrim(row.freqCode)?.toUpperCase()
   const reporterCode = toInteger(row.reporterCode)
   const flowCode = safeTrim(row.flowCode)?.toUpperCase()
@@ -631,7 +662,7 @@ function isTargetComtradeRow(row: ComtradeRawRow, periodType: CoffeeExportPeriod
     return false
   }
 
-  if (cmdCode !== HS6_CODE) {
+  if (!cmdCode || !targetHsCodes.has(cmdCode)) {
     return false
   }
 
@@ -654,6 +685,7 @@ export function prepareCoffeeExportRows(
   payloadRows: unknown[],
   options: {
     periodType: CoffeeExportPeriodType
+    targetHsCodes?: string[]
     fetchedAt: string
     sourceUrl: string
     sourceName?: string
@@ -662,9 +694,10 @@ export function prepareCoffeeExportRows(
   },
 ): CoffeeExportPreparedRows {
   const sourceName = options.sourceName ?? SOURCE_NAME
-  const hsMapping = mapHsToCommodity(HS6_CODE)
-  const hsDescription = hsMapping?.hsDescriptionEn ?? 'Coffee; not roasted or decaffeinated'
-  const reporterCountry = hsMapping?.countryScope === 'VNM' ? REPORTER_COUNTRY : REPORTER_COUNTRY
+  const targetHsCodes = new Set(options.targetHsCodes ?? [HS6_CODE])
+  const defaultHsMapping = mapHsToCommodity(HS6_CODE)
+  const defaultHsDescription = defaultHsMapping?.hsDescriptionEn ?? 'Coffee; not roasted or decaffeinated'
+  const reporterCountry = defaultHsMapping?.countryScope === 'VNM' ? REPORTER_COUNTRY : REPORTER_COUNTRY
   const filteredRows: ComtradeRawRow[] = []
 
   for (const item of payloadRows) {
@@ -672,7 +705,7 @@ export function prepareCoffeeExportRows(
       continue
     }
     const row = item as ComtradeRawRow
-    if (!isTargetComtradeRow(row, options.periodType)) {
+    if (!isTargetComtradeRow(row, options.periodType, targetHsCodes)) {
       continue
     }
     filteredRows.push(row)
@@ -681,6 +714,7 @@ export function prepareCoffeeExportRows(
   const rawRowsByKey = new Map<string, RawCoffeeExportInsertRow>()
   const factRowsByGrain = new Map<string, FactCoffeeExportInsertRow>()
   const unitDistribution = new Map<string, number>()
+  const hs6Distribution = new Map<string, number>()
   const availablePeriodLabels = new Set<string>()
   let duplicateRowsCollapsed = 0
 
@@ -692,6 +726,10 @@ export function prepareCoffeeExportRows(
     }
 
     const partnerCode = toText(row.partnerCode)
+    const cmdCode = safeTrim(row.cmdCode) ?? HS6_CODE
+    const hsMapping = mapHsToCommodity(cmdCode)
+    const analysisBucket = hsMapping?.analysisBucket ?? 'coffee_unknown'
+    const hsDescription = safeTrim(row.cmdDesc) ?? hsMapping?.hsDescriptionEn ?? defaultHsDescription
     const partnerIso = safeTrim(row.partnerISO) ?? toIsoFromPartnerCode(partnerCode)
     const partnerDesc = safeTrim(row.partnerDesc) ?? `Partner ${partnerCode ?? 'unknown'}`
     const reporterIso = safeTrim(row.reporterISO) ?? REPORTER_ISO
@@ -712,6 +750,7 @@ export function prepareCoffeeExportRows(
         : null
     const worldAggregate = isAggregatePartner(partnerCode, partnerIso, partnerDesc)
     const qualityFlag = buildFactQualityFlag({
+      hasSupportedHsMapping: Boolean(hsMapping),
       isWorldAggregate: worldAggregate,
       valueUsd,
       quantityTon: quantityNormalized.quantityTon,
@@ -721,6 +760,7 @@ export function prepareCoffeeExportRows(
     const confidenceScore = confidenceForFlag(qualityFlag)
     const unitKey = normalizeQtyUnit(qtyUnitAbbr) ?? 'unknown'
     unitDistribution.set(unitKey, (unitDistribution.get(unitKey) ?? 0) + 1)
+    hs6Distribution.set(cmdCode, (hs6Distribution.get(cmdCode) ?? 0) + 1)
     availablePeriodLabels.add(period.periodLabel)
 
     const rawInsert: RawCoffeeExportInsertRow = {
@@ -745,7 +785,7 @@ export function prepareCoffeeExportRows(
       flow_code: safeTrim(row.flowCode) ?? FLOW_CODE,
       flow_desc: safeTrim(row.flowDesc) ?? FLOW_LABEL,
       classification_code: safeTrim(row.classificationCode),
-      cmd_code: safeTrim(row.cmdCode) ?? HS6_CODE,
+      cmd_code: cmdCode,
       cmd_desc: safeTrim(row.cmdDesc),
       customs_code: safeTrim(row.customsCode),
       customs_desc: safeTrim(row.customsDesc),
@@ -785,9 +825,9 @@ export function prepareCoffeeExportRows(
       partner_iso: partnerIso,
       flow: FLOW_LABEL,
       commodity_group: COMMODITY_GROUP,
-      analysis_bucket: ANALYSIS_BUCKET,
-      hs6: HS6_CODE,
-      hs_description: safeTrim(row.cmdDesc) ?? hsDescription,
+      analysis_bucket: analysisBucket,
+      hs6: cmdCode,
+      hs_description: hsDescription,
       quantity_raw: qty,
       quantity_unit_raw: qtyUnitAbbr,
       net_weight_kg: netWeightKg,
@@ -798,7 +838,7 @@ export function prepareCoffeeExportRows(
       fetched_at: options.fetchedAt,
       data_quality_flag: qualityFlag,
       confidence_score: confidenceScore,
-      notes: `Comtrade filtered on customs=C00, mot=0, partner2=0; quantity_source=${quantityNormalized.quantitySource}`,
+      notes: `Comtrade filtered on customs=C00, mot=0, partner2=0; quantity_source=${quantityNormalized.quantitySource}; hs_scope=${[...targetHsCodes].join('+')}`,
     }
 
     const grainKey = buildGrainKey(factRow)
@@ -820,12 +860,17 @@ export function prepareCoffeeExportRows(
     duplicateRowsCollapsed,
     availablePeriodLabels: [...availablePeriodLabels].sort(),
     unitDistribution: Object.fromEntries([...unitDistribution.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    hs6Distribution: Object.fromEntries([...hs6Distribution.entries()].sort(([left], [right]) => left.localeCompare(right))),
   }
 }
 
 export function buildCoffeeExportQcReport(rows: FactCoffeeExportInsertRow[]): CoffeeExportQcReport {
   const duplicateMap = new Map<string, number>()
   const unitDistribution = new Map<string, number>()
+  const rowsByHs6 = new Map<string, number>()
+  const rowsByAnalysisBucket = new Map<string, number>()
+  const valueUsdByAnalysisBucket = new Map<string, number>()
+  const quantityTonByAnalysisBucket = new Map<string, number>()
   let worldAggregateRows = 0
   let missingValueRows = 0
   let missingQuantityRows = 0
@@ -833,15 +878,23 @@ export function buildCoffeeExportQcReport(rows: FactCoffeeExportInsertRow[]): Co
   let zeroQuantityRows = 0
   let tinyQuantityRows = 0
   let suspiciousUnitPriceRows = 0
+  let unsupportedHsCodeRows = 0
   let latestPeriodLabel: string | null = null
 
   for (const row of rows) {
     const key = buildGrainKey(row)
     duplicateMap.set(key, (duplicateMap.get(key) ?? 0) + 1)
     unitDistribution.set(row.quantity_unit_raw?.toLowerCase() ?? 'unknown', (unitDistribution.get(row.quantity_unit_raw?.toLowerCase() ?? 'unknown') ?? 0) + 1)
+    rowsByHs6.set(row.hs6, (rowsByHs6.get(row.hs6) ?? 0) + 1)
+    rowsByAnalysisBucket.set(row.analysis_bucket, (rowsByAnalysisBucket.get(row.analysis_bucket) ?? 0) + 1)
+    valueUsdByAnalysisBucket.set(row.analysis_bucket, (valueUsdByAnalysisBucket.get(row.analysis_bucket) ?? 0) + (row.value_usd ?? 0))
+    quantityTonByAnalysisBucket.set(row.analysis_bucket, (quantityTonByAnalysisBucket.get(row.analysis_bucket) ?? 0) + (row.quantity_ton ?? 0))
 
     if (row.data_quality_flag === 'aggregate_partner_excluded_or_flagged') {
       worldAggregateRows += 1
+    }
+    if (row.data_quality_flag === 'unsupported_hs_code') {
+      unsupportedHsCodeRows += 1
     }
     if (row.data_quality_flag === 'missing_value') {
       missingValueRows += 1
@@ -892,25 +945,37 @@ export function buildCoffeeExportQcReport(rows: FactCoffeeExportInsertRow[]): Co
     zeroQuantityRows,
     tinyQuantityRows,
     suspiciousUnitPriceRows,
+    unsupportedHsCodeRows,
     unitDistribution: Object.fromEntries([...unitDistribution.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    rowsByHs6: Object.fromEntries([...rowsByHs6.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    rowsByAnalysisBucket: Object.fromEntries([...rowsByAnalysisBucket.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    valueUsdByAnalysisBucket: Object.fromEntries([...valueUsdByAnalysisBucket.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    quantityTonByAnalysisBucket: Object.fromEntries([...quantityTonByAnalysisBucket.entries()].sort(([left], [right]) => left.localeCompare(right))),
     latestPeriodLabel,
     topMarketsLatestPeriod,
   }
 }
 
-export function renderCoffeeExportQcMarkdown(report: CoffeeExportQcReport, options: { generatedAt: string; periodType: CoffeeExportPeriodType }) {
+export function renderCoffeeExportQcMarkdown(
+  report: CoffeeExportQcReport,
+  options: { generatedAt: string; periodType: CoffeeExportPeriodType; hsScope?: CoffeeHsScope; targetHsCodes?: string[] },
+) {
+  const targetHsCodes = options.targetHsCodes ?? [HS6_CODE]
+  const isSingleRawCore = targetHsCodes.length === 1 && targetHsCodes[0] === HS6_CODE
   const rows = [
-    '# QC Report - Vietnam Coffee Exports by Market',
+    isSingleRawCore ? '# QC Report - Vietnam Coffee Exports by Market' : '# QC Report - Vietnam Coffee Exports by Product Market',
     '',
     `Generated at: ${options.generatedAt}`,
     `Period type: ${options.periodType}`,
+    `HS scope: ${options.hsScope ?? DEFAULT_HS_SCOPE}`,
     '',
     '## Scope',
     '',
     '- Reporter: Vietnam (704 / VNM)',
     '- Flow: Export (X)',
-    '- HS6: 090111 (Coffee; not roasted or decaffeinated)',
+    `- Target HS6: ${targetHsCodes.join(', ')}`,
     '- Filtered dimensions: customs=C00, partner2=0, mot=0',
+    '- Multi-HS rows are product-scope observations; do not aggregate green, roasted, decaf, extract/preparation, and byproduct buckets into one unit-value benchmark.',
     '',
     '## Row Counts',
     '',
@@ -923,6 +988,7 @@ export function renderCoffeeExportQcMarkdown(report: CoffeeExportQcReport, optio
     `- Zero quantity rows: ${report.zeroQuantityRows}`,
     `- Tiny quantity rows (< ${QC_TINY_QUANTITY_TON_THRESHOLD} ton): ${report.tinyQuantityRows}`,
     `- Suspicious QC unit price rows (< ${QC_UNIT_PRICE_MIN_USD_PER_TON} or > ${QC_UNIT_PRICE_MAX_USD_PER_TON} USD/ton): ${report.suspiciousUnitPriceRows}`,
+    `- Unsupported HS code rows: ${report.unsupportedHsCodeRows}`,
     '',
     '## Quantity Units',
     '',
@@ -930,6 +996,18 @@ export function renderCoffeeExportQcMarkdown(report: CoffeeExportQcReport, optio
 
   for (const [unit, count] of Object.entries(report.unitDistribution)) {
     rows.push(`- ${unit}: ${count}`)
+  }
+
+  rows.push('', '## HS6 Coverage', '')
+  for (const [hs6, count] of Object.entries(report.rowsByHs6)) {
+    rows.push(`- ${hs6}: ${count}`)
+  }
+
+  rows.push('', '## Analysis Bucket Coverage', '')
+  for (const [bucket, count] of Object.entries(report.rowsByAnalysisBucket)) {
+    rows.push(
+      `- ${bucket}: rows=${count} | value_usd=${roundNumber(report.valueUsdByAnalysisBucket[bucket] ?? 0, 2)} | quantity_ton=${roundNumber(report.quantityTonByAnalysisBucket[bucket] ?? 0, 3)}`,
+    )
   }
 
   rows.push('', '## Top Markets (Latest Period)', '')
@@ -952,6 +1030,7 @@ export function renderCoffeeExportQcMarkdown(report: CoffeeExportQcReport, optio
     '',
     '- Unit price is only for QC anomaly detection in this step.',
     '- Step 3 should calculate official export unit value as SUM(value_usd) / SUM(quantity_ton).',
+    '- Step 3-7 benchmark views remain scoped to HS6 090111 / coffee_raw_core unless explicitly extended.',
     '- World aggregate rows are flagged and excluded from market ranking.',
     '',
   )
@@ -1134,6 +1213,7 @@ function buildPortalVerificationRows(
 
   const candidates = factRows
     .filter(row => row.period_label === latestPeriodLabel)
+    .filter(row => row.analysis_bucket === ANALYSIS_BUCKET && row.hs6 === HS6_CODE)
     .filter(row => row.data_quality_flag !== 'aggregate_partner_excluded_or_flagged')
     .filter(row => typeof row.value_usd === 'number' && row.value_usd > 0)
     .sort((left, right) => (right.value_usd ?? 0) - (left.value_usd ?? 0))
@@ -1157,7 +1237,7 @@ function buildPortalVerificationRows(
       reporter_iso: REPORTER_ISO,
       partner_iso: partnerIso,
       partner_country: candidate.partner_country,
-      hs6: HS6_CODE,
+      hs6: candidate.hs6,
       verification_type: 'official_partner_portal_reference',
       source_name: source.sourceName,
       source_url: source.sourceUrl,
@@ -1187,12 +1267,15 @@ function countWarnings(qc: CoffeeExportQcReport) {
     qc.zeroQuantityRows +
     qc.tinyQuantityRows +
     qc.suspiciousUnitPriceRows +
+    qc.unsupportedHsCodeRows +
     qc.duplicateGrainRows
   )
 }
 
 export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncOptions = {}): Promise<CoffeeExportSyncResult> {
   const periodType = options.periodType ?? 'A'
+  const hsScope = options.hsScope ?? DEFAULT_HS_SCOPE
+  const targetHsCodes = normalizeTargetHsCodes({ hsScope, hsCodes: options.hsCodes })
   const periodWindow = parsePeriodWindow(options)
   const periods =
     periodType === 'A'
@@ -1203,13 +1286,15 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
   const dryRun = options.dryRun ?? false
   const writeArtifacts = options.writeArtifacts ?? true
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd())
-  const sourceUrl = toComtradePreviewUrl(periodType, periods)
+  const sourceUrl = toComtradePreviewUrl(periodType, periods, targetHsCodes)
   const shouldPersist = !dryRun && Boolean(getSupabaseAdminClient())
 
   const syncRunId = shouldPersist
     ? await startSyncRun(periodType, periodWindow, {
         periodCount: periods.length,
         periodChunks: periodChunks.length,
+        hsScope,
+        targetHsCodes,
       })
     : null
 
@@ -1217,25 +1302,31 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
   const payloadRows: unknown[] = []
 
   try {
-    for (const chunk of periodChunks) {
-      const rows = await retryTransient(
-        () => fetchComtradePreviewChunk(periodType, chunk),
-        { attempts: 5, initialDelayMs: 800 },
-      )
-      payloadRows.push(...rows)
-      requestCount += 1
+    for (const hsCode of targetHsCodes) {
+      for (const chunk of periodChunks) {
+        const rows = await retryTransient(
+          () => fetchComtradePreviewChunk(periodType, chunk, [hsCode]),
+          { attempts: 5, initialDelayMs: 800 },
+        )
+        payloadRows.push(...rows)
+        requestCount += 1
+      }
     }
 
     const prepared = prepareCoffeeExportRows(payloadRows, {
       periodType,
+      targetHsCodes,
       fetchedAt,
       sourceUrl,
       syncRunId,
-      queryParams: summarizePreviewQuery(periodType, periods),
+      queryParams: summarizePreviewQuery(periodType, periods, targetHsCodes),
     })
 
     const qc = buildCoffeeExportQcReport(prepared.factRows)
-    const qcMarkdown = renderCoffeeExportQcMarkdown(qc, { generatedAt: fetchedAt, periodType })
+    const qcMarkdown = renderCoffeeExportQcMarkdown(qc, { generatedAt: fetchedAt, periodType, hsScope, targetHsCodes })
+
+    const writesRawCoreArtifacts = hsScope === 'raw_core' && targetHsCodes.length === 1 && targetHsCodes[0] === HS6_CODE
+    const productScopeSuffix = hsScope === 'all_hs6' ? 'all_hs6' : targetHsCodes.join('_')
 
     const rawCsvPath =
       writeArtifacts
@@ -1244,16 +1335,32 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
             'data',
             'raw',
             'un_comtrade',
-            `vietnam_coffee_090111_exports_${periodType === 'A' ? 'annual' : 'monthly'}.csv`,
+            writesRawCoreArtifacts
+              ? `vietnam_coffee_090111_exports_${periodType === 'A' ? 'annual' : 'monthly'}.csv`
+              : `vietnam_coffee_exports_${productScopeSuffix}_${periodType === 'A' ? 'annual' : 'monthly'}.csv`,
           )
         : null
     const factCsvPath =
       writeArtifacts
-        ? resolve(workspaceRoot, 'data', 'processed', `fact_vietnam_coffee_export_by_market_${periodType.toLowerCase()}.csv`)
+        ? resolve(
+            workspaceRoot,
+            'data',
+            'processed',
+            writesRawCoreArtifacts
+              ? `fact_vietnam_coffee_export_by_market_${periodType.toLowerCase()}.csv`
+              : `fact_vietnam_coffee_export_by_product_market_${periodType.toLowerCase()}.csv`,
+          )
         : null
     const qcReportPath =
       writeArtifacts
-        ? resolve(workspaceRoot, 'reports', 'data_quality', `vietnam_coffee_export_by_market_qc_${periodType.toLowerCase()}.md`)
+        ? resolve(
+            workspaceRoot,
+            'reports',
+            'data_quality',
+            writesRawCoreArtifacts
+              ? `vietnam_coffee_export_by_market_qc_${periodType.toLowerCase()}.md`
+              : `vietnam_coffee_export_by_product_market_qc_${periodType.toLowerCase()}.md`,
+          )
         : null
 
     if (rawCsvPath) {
@@ -1377,6 +1484,7 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
         requestedPeriods: periods,
         availablePeriods: prepared.availablePeriodLabels,
         unitDistribution: prepared.unitDistribution,
+        hs6Distribution: prepared.hs6Distribution,
         excludedRows: prepared.excludedRows,
         duplicateRowsCollapsed: prepared.duplicateRowsCollapsed,
       },
@@ -1384,6 +1492,8 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
 
     return {
       periodType,
+      hsScope,
+      targetHsCodes,
       requestedPeriods: periods,
       sourceUrl,
       sourceName: SOURCE_NAME,
@@ -1399,6 +1509,7 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
       duplicateRowsCollapsed: prepared.duplicateRowsCollapsed,
       availablePeriodLabels: prepared.availablePeriodLabels,
       unitDistribution: prepared.unitDistribution,
+      hs6Distribution: prepared.hs6Distribution,
       qc,
       artifacts: {
         rawCsvPath,
@@ -1416,6 +1527,8 @@ export async function syncVietnamCoffeeExportByMarket(options: CoffeeExportSyncO
       warningCount: 0,
       metadata: {
         periodType,
+        hsScope,
+        targetHsCodes,
         requestedPeriods: periods,
       },
       errorMessage: error instanceof Error ? error.message : String(error),
