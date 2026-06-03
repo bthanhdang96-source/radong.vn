@@ -4,13 +4,15 @@
 
 - Commodity: coffee raw core (HS 090111).
 - Origin/exporter: Vietnam (VNM, code 704).
-- Importers (P0+P1): DEU, USA, ITA, JPN, KOR, BEL, ESP, NLD, FRA, GBR.
-- Frequency in v1: annual only (A), from 2020 to latest completed year.
+- Default importers: core tier DEU, USA, ITA, JPN, KOR, BEL, ESP, NLD, FRA, GBR.
+- Expanded annual importers can include RUS, DZA, PHL, CHN, MYS, THA, AUS, TUR, UKR, CHE, or verified dynamic top export markets.
+- Frequency: annual benchmark by default; monthly runs are review-only and limited to pilot importers unless explicitly overridden.
 
 ## Data Source
 
 - Primary source: UN Comtrade public preview endpoint.
 - Query pattern: reporter=importer, partner=Vietnam, flow=Import (M), cmdCode=090111.
+- Partner official portals are tracked as reference/probe status only unless stable API/RSS/CSV endpoints are approved.
 - Full raw payload is preserved for traceability.
 
 ## Transform Rules

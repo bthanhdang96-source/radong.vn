@@ -3,11 +3,15 @@ import test from 'node:test'
 import {
   buildCoffeeMirrorGapRows,
   buildCoffeeMirrorImportQcReport,
+  buildMonthlyPeriods,
   COFFEE_MIRROR_IMPORTERS,
   normalizeMirrorImportQuantityToTon,
   prepareCoffeeMirrorImportRows,
   renderCoffeeMirrorImportQcMarkdown,
+  resolveDynamicTopExportImportersFromRows,
+  resolveMirrorImporters,
   verifyCoffeeMirrorImporterCodes,
+  type DynamicExportMarketRow,
   type MirrorComtradeRawRow,
   type MirrorImportUnitValueRow,
 } from '../services/coffeeMirrorImportUnitValue.js'
@@ -119,21 +123,115 @@ function importFactRow(overrides: Partial<MirrorImportUnitValueRow>): MirrorImpo
 
 test('importer validation fixture verifies configured P0/P1 Comtrade reporter codes', () => {
   const result = verifyCoffeeMirrorImporterCodes(COFFEE_MIRROR_IMPORTERS)
+  const expected = new Map([
+    ['DEU', 276],
+    ['USA', 842],
+    ['ITA', 380],
+    ['JPN', 392],
+    ['KOR', 410],
+    ['BEL', 56],
+    ['ESP', 724],
+    ['NLD', 528],
+    ['FRA', 251],
+    ['GBR', 826],
+    ['RUS', 643],
+    ['DZA', 12],
+    ['PHL', 608],
+    ['CHN', 156],
+    ['MYS', 458],
+    ['THA', 764],
+    ['AUS', 36],
+    ['TUR', 792],
+    ['UKR', 804],
+    ['CHE', 757],
+  ])
   assert.deepEqual(
     result.map(item => ({ iso: item.importer.iso, code: item.importer.code, ok: item.ok })),
-    [
-      { iso: 'DEU', code: 276, ok: true },
-      { iso: 'USA', code: 842, ok: true },
-      { iso: 'ITA', code: 380, ok: true },
-      { iso: 'JPN', code: 392, ok: true },
-      { iso: 'KOR', code: 410, ok: true },
-      { iso: 'BEL', code: 56, ok: true },
-      { iso: 'ESP', code: 724, ok: true },
-      { iso: 'NLD', code: 528, ok: true },
-      { iso: 'FRA', code: 251, ok: true },
-      { iso: 'GBR', code: 826, ok: true },
-    ],
+    [...expected.entries()].map(([iso, code]) => ({ iso, code, ok: true })),
   )
+})
+
+test('importer tier resolver supports core, extended, all, and custom importers', () => {
+  assert.deepEqual(
+    resolveMirrorImporters({ importerTier: 'core' }).importers.map(importer => importer.iso),
+    ['DEU', 'USA', 'ITA', 'JPN', 'KOR', 'BEL', 'ESP', 'NLD', 'FRA', 'GBR'],
+  )
+  assert.deepEqual(
+    resolveMirrorImporters({ importerTier: 'extended_static' }).importers.map(importer => importer.iso).sort(),
+    ['AUS', 'CHE', 'CHN', 'DZA', 'MYS', 'PHL', 'RUS', 'THA', 'TUR', 'UKR'],
+  )
+  assert.equal(resolveMirrorImporters({ importerTier: 'all' }).importers.length, 20)
+
+  const custom = resolveMirrorImporters({ importers: ['DEU', 'PHL', 'XXX'] })
+  assert.deepEqual(
+    custom.importers.map(importer => importer.iso),
+    ['DEU', 'PHL'],
+  )
+  assert.deepEqual(custom.skippedUnverifiedImporters, ['XXX'])
+})
+
+test('dynamic top exporter resolver uses only verified coffee raw core markets', () => {
+  const rows: DynamicExportMarketRow[] = [
+    {
+      period_type: 'A',
+      period_start: '2023-01-01',
+      period_label: '2023',
+      partner_country: 'Germany',
+      partner_iso: 'DEU',
+      export_value_usd: 1000,
+      export_quantity_ton: 10,
+      export_unit_value_usd_per_ton: 100,
+      unit_value_flag: 'ok',
+      confidence_score: 0.9,
+      hs6: '090111',
+      flow: 'Export',
+      commodity_group: 'coffee',
+      analysis_bucket: 'coffee_raw_core',
+    },
+    {
+      period_type: 'A',
+      period_start: '2023-01-01',
+      period_label: '2023',
+      partner_country: 'Unverified Market',
+      partner_iso: 'ZZZ',
+      export_value_usd: 900,
+      export_quantity_ton: 9,
+      export_unit_value_usd_per_ton: 100,
+      unit_value_flag: 'ok',
+      confidence_score: 0.9,
+      hs6: '090111',
+      flow: 'Export',
+      commodity_group: 'coffee',
+      analysis_bucket: 'coffee_raw_core',
+    },
+    {
+      period_type: 'A',
+      period_start: '2023-01-01',
+      period_label: '2023',
+      partner_country: 'Processed Coffee Market',
+      partner_iso: 'PHL',
+      export_value_usd: 2000,
+      export_quantity_ton: 10,
+      export_unit_value_usd_per_ton: 200,
+      unit_value_flag: 'ok',
+      confidence_score: 0.9,
+      hs6: '210111',
+      flow: 'Export',
+      commodity_group: 'coffee',
+      analysis_bucket: 'coffee_instant',
+    },
+  ]
+
+  const resolved = resolveDynamicTopExportImportersFromRows(rows, { topN: 5, includeStaticCore: false })
+  assert.deepEqual(
+    resolved.importers.map(importer => importer.iso),
+    ['DEU'],
+  )
+  assert.deepEqual(resolved.skippedUnverifiedImporters, ['ZZZ'])
+})
+
+test('monthly period builder returns latest completed months only', () => {
+  assert.deepEqual(buildMonthlyPeriods(3, new Date(Date.UTC(2026, 5, 4))), ['202603', '202604', '202605'])
 })
 
 test('normalizeMirrorImportQuantityToTon prioritizes net weight, then qty kg, then qty ton', () => {
@@ -311,6 +409,30 @@ test('buildCoffeeMirrorGapRows computes mirror gap and gap quality flags by mark
   assert.equal(spain?.mirror_gap_flag, 'large_quantity_gap')
 })
 
+test('monthly mirror gap review includes import-only rows without annual fallback', () => {
+  const monthlyImportRow = importFactRow({
+    period_type: 'M',
+    period_start: '2026-05-01',
+    period_label: '202605',
+    importer_country: 'Germany',
+    importer_iso: 'DEU',
+    import_quantity_ton: 25,
+    import_value_usd: 80_000,
+    import_unit_value_usd_per_ton: 3_200,
+  })
+
+  assert.equal(buildCoffeeMirrorGapRows([], [monthlyImportRow]).length, 0)
+
+  const reviewRows = buildCoffeeMirrorGapRows([], [monthlyImportRow], { includeImportOnlyRows: true })
+  assert.equal(reviewRows.length, 1)
+  assert.equal(reviewRows[0].period_type, 'M')
+  assert.equal(reviewRows[0].period_label, '202605')
+  assert.equal(reviewRows[0].market_iso, 'DEU')
+  assert.equal(reviewRows[0].vietnam_export_unit_value_usd_per_ton, null)
+  assert.equal(reviewRows[0].partner_import_unit_value_usd_per_ton, 3_200)
+  assert.equal(reviewRows[0].mirror_gap_flag, 'missing_export_unit_value')
+})
+
 test('QC markdown includes duplicate, coverage, mirror-gap, and interpretation sections', () => {
   const prepared = transform([
     rawRow({ reporterISO: 'DEU', netWgt: 9_000, primaryValue: 20_000 }),
@@ -347,4 +469,42 @@ test('QC markdown includes duplicate, coverage, mirror-gap, and interpretation s
   assert.equal(markdown.includes('Top 20 Highest Import Unit Values'), true)
   assert.equal(markdown.includes('Interpretation Guardrails'), true)
   assert.equal(markdown.includes('not transaction price'), true)
+})
+
+test('monthly QC markdown includes review warning, monthly coverage, skipped importers, and portal status', () => {
+  const prepared = prepareCoffeeMirrorImportRows(
+    [
+      rawRow({ reporterISO: 'DEU', period: '202605', freqCode: 'M', refPeriodId: '202605', netWgt: 20_000, primaryValue: 60_000 }),
+      rawRow({ reporterISO: 'USA', period: '202605', freqCode: 'M', refPeriodId: '202605', netWgt: 30_000, primaryValue: 120_000 }),
+    ],
+    {
+      periodType: 'M',
+      fetchedAt: '2026-06-01T00:00:00.000Z',
+      sourceUrl: 'https://comtradeapi.un.org/mock',
+      queryParams: { test: true },
+    },
+  )
+  const gaps = buildCoffeeMirrorGapRows([], prepared.factRows, { includeImportOnlyRows: true })
+  const importerResolution = resolveMirrorImporters({ periodType: 'M', importers: ['DEU', 'USA', 'XXX'] })
+  const report = buildCoffeeMirrorImportQcReport({
+    prepared,
+    mirrorGapRows: gaps,
+    importerResolution,
+    monthlyReviewMode: true,
+    partnerPortalVerificationStatus: {
+      DEU: 'probe_only',
+      USA: 'probe_only',
+    },
+  })
+  const markdown = renderCoffeeMirrorImportQcMarkdown(report, {
+    generatedAt: '2026-06-01T00:00:00.000Z',
+  })
+
+  assert.equal(markdown.includes('Monthly review mode: yes'), true)
+  assert.equal(markdown.includes('## Monthly Coverage'), true)
+  assert.equal(markdown.includes('202605|DEU'), true)
+  assert.equal(markdown.includes('202605|USA'), true)
+  assert.equal(markdown.includes('- XXX'), true)
+  assert.equal(markdown.includes('DEU: probe_only'), true)
+  assert.equal(markdown.includes('must not be mixed with annual export or import rows'), true)
 })

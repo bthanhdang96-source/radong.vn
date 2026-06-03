@@ -1,6 +1,11 @@
 import '../env.js'
 import { resolve } from 'node:path'
-import { syncCoffeeMirrorImportUnitValue, type MirrorImportPeriodType } from '../services/coffeeMirrorImportUnitValue.js'
+import {
+  syncCoffeeMirrorImportUnitValue,
+  type MirrorImporterTier,
+  type MirrorImportPeriodType,
+  type MirrorMonthlyMode,
+} from '../services/coffeeMirrorImportUnitValue.js'
 
 function hasFlag(name: string) {
   return process.argv.includes(`--${name}`)
@@ -27,11 +32,26 @@ async function main() {
   const dryRun = hasFlag('dry-run')
   const writeArtifacts = !hasFlag('no-artifacts')
   const periodType = (getOption('period-type') ?? 'A') as MirrorImportPeriodType
+  const importerTier = (getOption('importer-tier') ?? 'core') as MirrorImporterTier
+  const importers = getOption('importers')
+    ?.split(',')
+    .map(value => value.trim().toUpperCase())
+    .filter(Boolean)
+  const monthlyMode = getOption('monthly-mode') as MirrorMonthlyMode | null
+  const months = parseIntegerOption('months')
+  const topExportImporters = parseIntegerOption('top-export-importers')
+  const includeStaticCore = getOption('include-static-core') !== 'false'
   const fromYear = parseIntegerOption('from-year')
   const toYear = parseIntegerOption('to-year')
 
   const result = await syncCoffeeMirrorImportUnitValue({
     periodType,
+    importerTier,
+    importers,
+    monthlyMode: monthlyMode ?? undefined,
+    months,
+    topExportImporters,
+    includeStaticCore,
     fromYear,
     toYear,
     dryRun,
@@ -39,6 +59,10 @@ async function main() {
     workspaceRoot: resolve(process.cwd(), '..'),
   })
 
+  console.log(`[Coffee Mirror Import] periodType=${result.periodType} importerTier=${result.importerTier}`)
+  console.log(`[Coffee Mirror Import] importers=${result.importers.map(importer => importer.iso).join(',')}`)
+  console.log(`[Coffee Mirror Import] skippedUnverifiedImporters=${result.skippedUnverifiedImporters.join(',') || 'none'}`)
+  console.log(`[Coffee Mirror Import] monthlyReviewMode=${result.monthlyReviewMode}`)
   console.log(`[Coffee Mirror Import] periods=${result.requestedPeriods.join(',')}`)
   console.log(`[Coffee Mirror Import] rawRows=${result.rawRowsPrepared}/${result.rawRowsFetched}`)
   console.log(`[Coffee Mirror Import] factRows=${result.factRowsPrepared}`)

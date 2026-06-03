@@ -5,6 +5,15 @@ import { getSupabaseAdminClient } from './supabaseClient.js'
 import { retryTransient } from './transientNetwork.js'
 
 export type MirrorImportPeriodType = 'A' | 'M'
+export type MirrorImporterTier = 'core' | 'extended_static' | 'dynamic_top_export' | 'all'
+export type MirrorMonthlyMode = 'review'
+export type PartnerPortalVerificationStatus =
+  | 'available'
+  | 'probe_only'
+  | 'auth_gated'
+  | 'unsupported_html'
+  | 'fetch_error'
+  | 'not_configured'
 
 export type MirrorImportUnitValueFlag =
   | 'ok'
@@ -27,9 +36,18 @@ export type MirrorGapFlag =
   | 'large_quantity_gap'
 
 export type MirrorImporter = {
-  iso: 'DEU' | 'USA' | 'ITA' | 'JPN' | 'KOR' | 'BEL' | 'ESP' | 'NLD' | 'FRA' | 'GBR'
+  iso: string
   code: number
   country: string
+  tier: 'core' | 'extended_static'
+}
+
+export type MirrorImporterResolution = {
+  importerTier: MirrorImporterTier
+  importers: MirrorImporter[]
+  skippedUnverifiedImporters: string[]
+  includeStaticCore: boolean
+  topExportImporters: number
 }
 
 type ComtradePreviewResponse = {
@@ -143,6 +161,14 @@ type ExportUnitValueRow = {
   hs6: string
 }
 
+export type DynamicExportMarketRow = ExportUnitValueRow & {
+  flow?: string | null
+  commodity_group?: string | null
+  analysis_bucket?: string | null
+  export_value_usd?: number | null
+  export_quantity_ton?: number | null
+}
+
 export type CoffeeMirrorGapRow = {
   period_type: MirrorImportPeriodType
   period_start: string
@@ -198,6 +224,12 @@ export type MirrorImportQcReport = {
   flagCounts: Record<MirrorImportUnitValueFlag, number>
   unitDistribution: Record<string, number>
   importerCoverage: Record<string, number>
+  importerTier: MirrorImporterTier
+  importerList: string[]
+  skippedUnverifiedImporters: string[]
+  monthlyReviewMode: boolean
+  monthlyCoverage: Record<string, number>
+  partnerPortalVerificationStatus: Record<string, PartnerPortalVerificationStatus>
   mirrorGapFlagCounts: Record<MirrorGapFlag, number>
   missingMirrorRows: number
   latestPeriodLabel: string | null
@@ -208,6 +240,12 @@ export type MirrorImportQcReport = {
 
 export type MirrorImportSyncOptions = {
   periodType?: MirrorImportPeriodType
+  importerTier?: MirrorImporterTier
+  importers?: string[]
+  monthlyMode?: MirrorMonthlyMode
+  months?: number
+  topExportImporters?: number
+  includeStaticCore?: boolean
   fromYear?: number
   toYear?: number
   dryRun?: boolean
@@ -217,10 +255,15 @@ export type MirrorImportSyncOptions = {
   fetchedAt?: string
   sourceRows?: MirrorComtradeRawRow[]
   exportRows?: ExportUnitValueRow[]
+  dynamicExportRows?: DynamicExportMarketRow[]
 }
 
 export type MirrorImportSyncResult = {
   periodType: MirrorImportPeriodType
+  importerTier: MirrorImporterTier
+  importers: MirrorImporter[]
+  skippedUnverifiedImporters: string[]
+  monthlyReviewMode: boolean
   requestedPeriods: string[]
   sourceName: string
   sourceUrl: string
@@ -253,6 +296,11 @@ export type MirrorImportSyncResult = {
 type QuantityNormalizationResult = {
   quantityTon: number | null
   quantitySource: 'net_wgt_kg' | 'qty_kg' | 'qty_ton' | 'unknown'
+}
+
+type PeriodWindow = {
+  fromYear: number
+  toYear: number
 }
 
 type AggregationBucket = {
@@ -299,18 +347,34 @@ const LARGE_GAP_PCT_THRESHOLD = 50
 const INTERPRETATION_NOTE =
   'Mirror gap compares Vietnam export unit value with partner-reported import unit value; differences can reflect CIF/FOB, freight, insurance, timing, reporting, or classification effects.'
 
-const IMPORTERS: MirrorImporter[] = [
-  { iso: 'DEU', code: 276, country: 'Germany' },
-  { iso: 'USA', code: 842, country: 'United States' },
-  { iso: 'ITA', code: 380, country: 'Italy' },
-  { iso: 'JPN', code: 392, country: 'Japan' },
-  { iso: 'KOR', code: 410, country: 'South Korea' },
-  { iso: 'BEL', code: 56, country: 'Belgium' },
-  { iso: 'ESP', code: 724, country: 'Spain' },
-  { iso: 'NLD', code: 528, country: 'Netherlands' },
-  { iso: 'FRA', code: 251, country: 'France' },
-  { iso: 'GBR', code: 826, country: 'United Kingdom' },
+const CORE_IMPORTERS: MirrorImporter[] = [
+  { iso: 'DEU', code: 276, country: 'Germany', tier: 'core' },
+  { iso: 'USA', code: 842, country: 'United States', tier: 'core' },
+  { iso: 'ITA', code: 380, country: 'Italy', tier: 'core' },
+  { iso: 'JPN', code: 392, country: 'Japan', tier: 'core' },
+  { iso: 'KOR', code: 410, country: 'South Korea', tier: 'core' },
+  { iso: 'BEL', code: 56, country: 'Belgium', tier: 'core' },
+  { iso: 'ESP', code: 724, country: 'Spain', tier: 'core' },
+  { iso: 'NLD', code: 528, country: 'Netherlands', tier: 'core' },
+  { iso: 'FRA', code: 251, country: 'France', tier: 'core' },
+  { iso: 'GBR', code: 826, country: 'United Kingdom', tier: 'core' },
 ]
+
+const EXTENDED_STATIC_IMPORTERS: MirrorImporter[] = [
+  { iso: 'RUS', code: 643, country: 'Russian Federation', tier: 'extended_static' },
+  { iso: 'DZA', code: 12, country: 'Algeria', tier: 'extended_static' },
+  { iso: 'PHL', code: 608, country: 'Philippines', tier: 'extended_static' },
+  { iso: 'CHN', code: 156, country: 'China', tier: 'extended_static' },
+  { iso: 'MYS', code: 458, country: 'Malaysia', tier: 'extended_static' },
+  { iso: 'THA', code: 764, country: 'Thailand', tier: 'extended_static' },
+  { iso: 'AUS', code: 36, country: 'Australia', tier: 'extended_static' },
+  { iso: 'TUR', code: 792, country: 'Turkiye', tier: 'extended_static' },
+  { iso: 'UKR', code: 804, country: 'Ukraine', tier: 'extended_static' },
+  { iso: 'CHE', code: 757, country: 'Switzerland', tier: 'extended_static' },
+]
+
+const IMPORTERS: MirrorImporter[] = [...CORE_IMPORTERS, ...EXTENDED_STATIC_IMPORTERS]
+const MONTHLY_PILOT_IMPORTER_ISOS = new Set(['DEU', 'USA', 'ITA', 'JPN', 'KOR', 'BEL', 'ESP', 'NLD'])
 
 const IMPORTER_BY_ISO: ReadonlyMap<string, MirrorImporter> = new Map(
   IMPORTERS.map(importer => [importer.iso, importer]),
@@ -318,6 +382,19 @@ const IMPORTER_BY_ISO: ReadonlyMap<string, MirrorImporter> = new Map(
 const IMPORTER_BY_CODE: ReadonlyMap<string, MirrorImporter> = new Map(
   IMPORTERS.map(importer => [String(importer.code), importer]),
 )
+
+const PARTNER_PORTAL_REFERENCES: Record<string, { status: PartnerPortalVerificationStatus; notes: string }> = {
+  USA: { status: 'probe_only', notes: 'US Census trade data reference; numeric adapter not configured.' },
+  DEU: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  ITA: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  ESP: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  NLD: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  FRA: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  BEL: { status: 'probe_only', notes: 'Eurostat/Comext reference for EU markets; numeric adapter not configured.' },
+  JPN: { status: 'probe_only', notes: 'Japan Customs trade statistics reference; numeric adapter not configured.' },
+  KOR: { status: 'probe_only', notes: 'Korea Customs reference; numeric adapter not configured.' },
+  GBR: { status: 'probe_only', notes: 'UK trade data reference; numeric adapter not configured.' },
+}
 
 const RAW_COLUMNS: Array<keyof RawMirrorImportRow> = [
   'sync_run_id',
@@ -454,6 +531,17 @@ function buildAnnualPeriods(fromYear: number, toYear: number) {
   return periods
 }
 
+export function buildMonthlyPeriods(monthCount = 24, referenceDate = new Date()) {
+  const safeMonths = Math.max(1, Math.min(Math.trunc(monthCount), 60))
+  const latestMonthStart = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth() - 1, 1))
+  const periods: string[] = []
+  for (let index = safeMonths - 1; index >= 0; index -= 1) {
+    const date = new Date(Date.UTC(latestMonthStart.getUTCFullYear(), latestMonthStart.getUTCMonth() - index, 1))
+    periods.push(`${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+  return periods
+}
+
 function parsePeriodWindow(options: Pick<MirrorImportSyncOptions, 'fromYear' | 'toYear'>) {
   const latestCompletedYear = getLatestCompletedYear()
   const fromYear = Number.isFinite(options.fromYear) ? Math.trunc(options.fromYear as number) : 2020
@@ -537,6 +625,148 @@ async function fetchComtradePreviewChunk(periodType: MirrorImportPeriodType, per
 }
 
 export const COFFEE_MIRROR_IMPORTERS = IMPORTERS
+export const COFFEE_MIRROR_CORE_IMPORTERS = CORE_IMPORTERS
+export const COFFEE_MIRROR_EXTENDED_STATIC_IMPORTERS = EXTENDED_STATIC_IMPORTERS
+
+function dedupeImporters(importers: MirrorImporter[]) {
+  const byIso = new Map<string, MirrorImporter>()
+  for (const importer of importers) {
+    byIso.set(importer.iso, importer)
+  }
+  return [...byIso.values()].sort((left, right) => left.iso.localeCompare(right.iso))
+}
+
+function resolveKnownImporter(iso: string) {
+  return IMPORTER_BY_ISO.get(iso.toUpperCase()) ?? null
+}
+
+export function resolveDynamicTopExportImportersFromRows(
+  rows: DynamicExportMarketRow[],
+  options: { topN?: number; includeStaticCore?: boolean } = {},
+): MirrorImporterResolution {
+  const topN = Math.max(1, Math.min(Math.trunc(options.topN ?? 20), 50))
+  const includeStaticCore = options.includeStaticCore !== false
+  const scopedRows = rows
+    .filter(row => row.period_type === 'A')
+    .filter(row => row.partner_iso && !String(row.partner_country).toLowerCase().includes('world'))
+    .filter(row => row.flow === undefined || row.flow === 'Export')
+    .filter(row => row.commodity_group === undefined || row.commodity_group === COMMODITY_GROUP)
+    .filter(row => row.analysis_bucket === undefined || row.analysis_bucket === ANALYSIS_BUCKET)
+    .filter(row => normalizeHs6(row.hs6) === HS6_CODE)
+    .filter(row => (row.export_value_usd ?? 0) > 0 && (row.export_quantity_ton ?? 0) > 0)
+
+  const latestPeriod = scopedRows.map(row => row.period_label).sort().at(-1) ?? null
+  const latestTop = latestPeriod
+    ? scopedRows
+        .filter(row => row.period_label === latestPeriod)
+        .sort((left, right) => (right.export_value_usd ?? 0) - (left.export_value_usd ?? 0))
+        .slice(0, topN)
+    : []
+
+  const years = [...new Set(scopedRows.map(row => row.period_label).filter(label => /^\d{4}$/.test(label)))].sort()
+  const rollingYears = new Set(years.slice(-3))
+  const rollingValues = new Map<string, { row: DynamicExportMarketRow; value: number }>()
+  for (const row of scopedRows.filter(item => rollingYears.has(item.period_label))) {
+    const iso = row.partner_iso?.toUpperCase()
+    if (!iso) {
+      continue
+    }
+    const current = rollingValues.get(iso)
+    rollingValues.set(iso, {
+      row,
+      value: (current?.value ?? 0) + (row.export_value_usd ?? 0),
+    })
+  }
+  const rollingTop = [...rollingValues.values()]
+    .sort((left, right) => right.value - left.value)
+    .slice(0, topN)
+    .map(item => item.row)
+
+  const skippedUnverifiedImporters: string[] = []
+  const dynamicImporters: MirrorImporter[] = []
+  for (const row of [...latestTop, ...rollingTop]) {
+    const iso = row.partner_iso?.toUpperCase()
+    if (!iso) {
+      continue
+    }
+    const importer = resolveKnownImporter(iso)
+    if (!importer) {
+      if (!skippedUnverifiedImporters.includes(iso)) {
+        skippedUnverifiedImporters.push(iso)
+      }
+      continue
+    }
+    dynamicImporters.push(importer)
+  }
+
+  return {
+    importerTier: 'dynamic_top_export',
+    importers: dedupeImporters(includeStaticCore ? [...CORE_IMPORTERS, ...dynamicImporters] : dynamicImporters),
+    skippedUnverifiedImporters: skippedUnverifiedImporters.sort(),
+    includeStaticCore,
+    topExportImporters: topN,
+  }
+}
+
+export function resolveMirrorImporters(
+  options: {
+    importerTier?: MirrorImporterTier
+    importers?: string[]
+    periodType?: MirrorImportPeriodType
+    topExportImporters?: number
+    includeStaticCore?: boolean
+    dynamicExportRows?: DynamicExportMarketRow[]
+  } = {},
+): MirrorImporterResolution {
+  const importerTier = options.importerTier ?? 'core'
+  const topExportImporters = Math.max(1, Math.min(Math.trunc(options.topExportImporters ?? 20), 50))
+  const includeStaticCore = options.includeStaticCore !== false
+
+  if (options.importers && options.importers.length > 0) {
+    const skippedUnverifiedImporters: string[] = []
+    const customImporters: MirrorImporter[] = []
+    for (const rawIso of options.importers) {
+      const iso = rawIso.trim().toUpperCase()
+      const importer = resolveKnownImporter(iso)
+      if (importer) {
+        customImporters.push(importer)
+      } else if (iso) {
+        skippedUnverifiedImporters.push(iso)
+      }
+    }
+    return {
+      importerTier,
+      importers: dedupeImporters(customImporters),
+      skippedUnverifiedImporters: [...new Set(skippedUnverifiedImporters)].sort(),
+      includeStaticCore,
+      topExportImporters,
+    }
+  }
+
+  if (options.periodType === 'M') {
+    return {
+      importerTier,
+      importers: CORE_IMPORTERS.filter(importer => MONTHLY_PILOT_IMPORTER_ISOS.has(importer.iso)),
+      skippedUnverifiedImporters: [],
+      includeStaticCore,
+      topExportImporters,
+    }
+  }
+
+  if (importerTier === 'extended_static') {
+    return { importerTier, importers: EXTENDED_STATIC_IMPORTERS, skippedUnverifiedImporters: [], includeStaticCore, topExportImporters }
+  }
+  if (importerTier === 'all') {
+    return { importerTier, importers: dedupeImporters(IMPORTERS), skippedUnverifiedImporters: [], includeStaticCore, topExportImporters }
+  }
+  if (importerTier === 'dynamic_top_export') {
+    return resolveDynamicTopExportImportersFromRows(options.dynamicExportRows ?? [], {
+      topN: topExportImporters,
+      includeStaticCore,
+    })
+  }
+  return { importerTier, importers: CORE_IMPORTERS, skippedUnverifiedImporters: [], includeStaticCore, topExportImporters }
+}
 
 export function verifyCoffeeMirrorImporterCodes(importers: MirrorImporter[] = IMPORTERS) {
   const expected = new Map([
@@ -550,6 +780,16 @@ export function verifyCoffeeMirrorImporterCodes(importers: MirrorImporter[] = IM
     ['NLD', 528],
     ['FRA', 251],
     ['GBR', 826],
+    ['RUS', 643],
+    ['DZA', 12],
+    ['PHL', 608],
+    ['CHN', 156],
+    ['MYS', 458],
+    ['THA', 764],
+    ['AUS', 36],
+    ['TUR', 792],
+    ['UKR', 804],
+    ['CHE', 757],
   ])
 
   return importers.map(importer => ({
@@ -878,6 +1118,55 @@ async function getVietnamExportRows(periodType: MirrorImportPeriodType, periodLa
   return (data ?? []) as unknown as ExportUnitValueRow[]
 }
 
+async function getDynamicExportRows(periodWindow: PeriodWindow): Promise<DynamicExportMarketRow[]> {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return []
+  }
+
+  const { data, error } = await client
+    .from('fact_export_unit_value')
+    .select(
+      [
+        'period_type',
+        'period_start',
+        'period_label',
+        'partner_country',
+        'partner_iso',
+        'export_value_usd',
+        'export_quantity_ton',
+        'export_unit_value_usd_per_ton',
+        'unit_value_flag',
+        'confidence_score',
+        'hs6',
+        'flow',
+        'commodity_group',
+        'analysis_bucket',
+      ].join(', '),
+    )
+    .eq('period_type', 'A')
+    .eq('reporter_iso', ORIGIN_ISO)
+    .eq('flow', 'Export')
+    .eq('commodity_group', COMMODITY_GROUP)
+    .eq('analysis_bucket', ANALYSIS_BUCKET)
+    .eq('hs6', HS6_CODE)
+    .gte('period_start', `${periodWindow.fromYear}-01-01`)
+    .lte('period_start', `${periodWindow.toYear}-12-31`)
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []) as unknown as DynamicExportMarketRow[]
+}
+
+function buildPartnerPortalVerificationStatus(importers: MirrorImporter[]) {
+  const statuses: Record<string, PartnerPortalVerificationStatus> = {}
+  for (const importer of importers) {
+    statuses[importer.iso] = PARTNER_PORTAL_REFERENCES[importer.iso]?.status ?? 'not_configured'
+  }
+  return statuses
+}
+
 function buildMirrorGapFlag(row: {
   vietnamExportUnitValueUsdPerTon: number | null
   partnerImportUnitValueUsdPerTon: number | null
@@ -910,6 +1199,7 @@ function buildMirrorGapFlag(row: {
 export function buildCoffeeMirrorGapRows(
   exportRows: ExportUnitValueRow[],
   importRows: MirrorImportUnitValueRow[],
+  options: { includeImportOnlyRows?: boolean } = {},
 ): CoffeeMirrorGapRow[] {
   const importByKey = new Map<string, MirrorImportUnitValueRow>()
   for (const row of importRows) {
@@ -918,12 +1208,16 @@ export function buildCoffeeMirrorGapRows(
   }
 
   const rows: CoffeeMirrorGapRow[] = []
+  const matchedImportKeys = new Set<string>()
   for (const exportRow of exportRows) {
     if (String(exportRow.partner_country).toLowerCase().includes('world')) {
       continue
     }
     const key = `${exportRow.period_type}|${exportRow.period_label}|${exportRow.partner_iso ?? ''}|${ORIGIN_ISO}|${HS6_CODE}`
     const mirrorRow = importByKey.get(key)
+    if (mirrorRow) {
+      matchedImportKeys.add(key)
+    }
 
     const mirrorGapPct =
       mirrorRow?.import_unit_value_usd_per_ton !== null &&
@@ -996,6 +1290,36 @@ export function buildCoffeeMirrorGapRows(
     })
 
     rows.push(row)
+  }
+
+  if (options.includeImportOnlyRows) {
+    for (const [key, mirrorRow] of importByKey.entries()) {
+      if (matchedImportKeys.has(key)) {
+        continue
+      }
+      rows.push({
+        period_type: mirrorRow.period_type,
+        period_start: mirrorRow.period_start,
+        period_label: mirrorRow.period_label,
+        market_country: mirrorRow.importer_country,
+        market_iso: mirrorRow.importer_iso,
+        vietnam_export_value_usd: null,
+        vietnam_export_quantity_ton: null,
+        vietnam_export_unit_value_usd_per_ton: null,
+        vietnam_export_unit_value_flag: null,
+        partner_import_value_usd: mirrorRow.import_value_usd,
+        partner_import_quantity_ton: mirrorRow.import_quantity_ton,
+        partner_import_unit_value_usd_per_ton: mirrorRow.import_unit_value_usd_per_ton,
+        partner_import_unit_value_flag: mirrorRow.unit_value_flag,
+        value_gap_usd: null,
+        quantity_gap_ton: null,
+        unit_value_gap_usd_per_ton: null,
+        mirror_gap_pct: null,
+        mirror_gap_flag: 'missing_export_unit_value',
+        confidence_score: mirrorRow.confidence_score,
+        interpretation_note: INTERPRETATION_NOTE,
+      })
+    }
   }
 
   rows.sort((left, right) => {
@@ -1290,6 +1614,9 @@ export function prepareCoffeeMirrorImportRows(
 export function buildCoffeeMirrorImportQcReport(input: {
   prepared: MirrorImportPreparedRows
   mirrorGapRows: CoffeeMirrorGapRow[]
+  importerResolution?: MirrorImporterResolution
+  monthlyReviewMode?: boolean
+  partnerPortalVerificationStatus?: Record<string, PartnerPortalVerificationStatus>
 }): MirrorImportQcReport {
   const flagCounts: Record<MirrorImportUnitValueFlag, number> = {
     ok: 0,
@@ -1303,9 +1630,14 @@ export function buildCoffeeMirrorImportQcReport(input: {
     missing_or_unknown_quantity_unit: 0,
   }
   const importerCoverage: Record<string, number> = {}
+  const monthlyCoverage: Record<string, number> = {}
   for (const row of input.prepared.factRows) {
     flagCounts[row.unit_value_flag] += 1
     importerCoverage[row.importer_iso] = (importerCoverage[row.importer_iso] ?? 0) + 1
+    if (row.period_type === 'M') {
+      const key = `${row.period_label}|${row.importer_iso}`
+      monthlyCoverage[key] = (monthlyCoverage[key] ?? 0) + 1
+    }
   }
 
   const mirrorGapFlagCounts: Record<MirrorGapFlag, number> = {
@@ -1353,6 +1685,12 @@ export function buildCoffeeMirrorImportQcReport(input: {
     flagCounts,
     unitDistribution: input.prepared.unitDistribution,
     importerCoverage,
+    importerTier: input.importerResolution?.importerTier ?? 'core',
+    importerList: input.importerResolution?.importers.map(importer => importer.iso) ?? CORE_IMPORTERS.map(importer => importer.iso),
+    skippedUnverifiedImporters: input.importerResolution?.skippedUnverifiedImporters ?? [],
+    monthlyReviewMode: input.monthlyReviewMode ?? false,
+    monthlyCoverage,
+    partnerPortalVerificationStatus: input.partnerPortalVerificationStatus ?? {},
     mirrorGapFlagCounts,
     missingMirrorRows: mirrorGapFlagCounts.missing_import_unit_value,
     latestPeriodLabel: input.prepared.availablePeriodLabels.at(-1) ?? null,
@@ -1364,12 +1702,14 @@ export function buildCoffeeMirrorImportQcReport(input: {
 
 export function renderCoffeeMirrorImportQcMarkdown(report: MirrorImportQcReport, options: { generatedAt: string }) {
   const lines: string[] = [
-    '# QC Report - Coffee Mirror Import Unit Value',
+    report.monthlyReviewMode ? '# QC Report - Coffee Mirror Import Unit Value Monthly Review' : '# QC Report - Coffee Mirror Import Unit Value',
     '',
     `- Generated at: ${options.generatedAt}`,
     '- Source: UN Comtrade preview endpoint',
     '- Commodity scope: HS 090111 (coffee raw core)',
-    `- Importer markets: ${IMPORTERS.map(item => `${item.country} (${item.iso})`).join(', ')}`,
+    `- Importer tier: ${report.importerTier}`,
+    `- Importer markets: ${report.importerList.join(', ')}`,
+    `- Monthly review mode: ${report.monthlyReviewMode ? 'yes' : 'no'}`,
     '',
     '## Coverage',
     '',
@@ -1380,6 +1720,20 @@ export function renderCoffeeMirrorImportQcMarkdown(report: MirrorImportQcReport,
     `- Duplicate fact grain rows collapsed: ${report.duplicateFactRowsCollapsed}`,
     `- Aggregate reporter rows: ${report.aggregateReporterRows}`,
     `- Aggregate partner rows: ${report.aggregatePartnerRows}`,
+    '',
+    '## Skipped Unverified Importers',
+    '',
+  ]
+
+  if (report.skippedUnverifiedImporters.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const importerIso of report.skippedUnverifiedImporters) {
+      lines.push(`- ${importerIso}`)
+    }
+  }
+
+  lines.push(
     '',
     '## Quality Counters',
     '',
@@ -1402,7 +1756,7 @@ export function renderCoffeeMirrorImportQcMarkdown(report: MirrorImportQcReport,
     '',
     '## Importer Coverage',
     '',
-  ]
+  )
 
   const coverageItems = Object.entries(report.importerCoverage).sort(([left], [right]) => left.localeCompare(right))
   if (coverageItems.length === 0) {
@@ -1410,6 +1764,18 @@ export function renderCoffeeMirrorImportQcMarkdown(report: MirrorImportQcReport,
   } else {
     for (const [importerIso, rowCount] of coverageItems) {
       lines.push(`- ${importerIso}: ${rowCount} rows`)
+    }
+  }
+
+  if (report.monthlyReviewMode) {
+    lines.push('', '## Monthly Coverage', '')
+    const monthlyItems = Object.entries(report.monthlyCoverage).sort(([left], [right]) => left.localeCompare(right))
+    if (monthlyItems.length === 0) {
+      lines.push('- No monthly rows available')
+    } else {
+      for (const [periodImporter, rowCount] of monthlyItems) {
+        lines.push(`- ${periodImporter}: ${rowCount} rows`)
+      }
     }
   }
 
@@ -1458,9 +1824,25 @@ export function renderCoffeeMirrorImportQcMarkdown(report: MirrorImportQcReport,
 
   lines.push(
     '',
+    '## Partner Official Portal Verification Status',
+    '',
+  )
+
+  const portalEntries = Object.entries(report.partnerPortalVerificationStatus).sort(([left], [right]) => left.localeCompare(right))
+  if (portalEntries.length === 0) {
+    lines.push('- No partner portal probes configured for selected importers')
+  } else {
+    for (const [importerIso, status] of portalEntries) {
+      lines.push(`- ${importerIso}: ${status}`)
+    }
+  }
+
+  lines.push(
+    '',
     '## Interpretation Guardrails',
     '',
     '- Mirror gap is a benchmark signal, not transaction price, confirmed premium, margin, or profit.',
+    '- Monthly mirror gap is review-only and must not be mixed with annual export or import rows.',
     '- Positive gaps can reflect CIF/FOB basis, freight, insurance, timing, revisions, and classification differences.',
     '- Low-volume and large-gap rows should be reviewed before deriving business conclusions.',
     '',
@@ -1477,13 +1859,15 @@ export function renderCoffeeMirrorImportMethodology() {
     '',
     '- Commodity: coffee raw core (HS 090111).',
     '- Origin/exporter: Vietnam (VNM, code 704).',
-    '- Importers (P0+P1): DEU, USA, ITA, JPN, KOR, BEL, ESP, NLD, FRA, GBR.',
-    '- Frequency in v1: annual only (A), from 2020 to latest completed year.',
+    '- Default importers: core tier DEU, USA, ITA, JPN, KOR, BEL, ESP, NLD, FRA, GBR.',
+    '- Expanded annual importers can include RUS, DZA, PHL, CHN, MYS, THA, AUS, TUR, UKR, CHE, or verified dynamic top export markets.',
+    '- Frequency: annual benchmark by default; monthly runs are review-only and limited to pilot importers unless explicitly overridden.',
     '',
     '## Data Source',
     '',
     '- Primary source: UN Comtrade public preview endpoint.',
     '- Query pattern: reporter=importer, partner=Vietnam, flow=Import (M), cmdCode=090111.',
+    '- Partner official portals are tracked as reference/probe status only unless stable API/RSS/CSV endpoints are approved.',
     '- Full raw payload is preserved for traceability.',
     '',
     '## Transform Rules',
@@ -1510,20 +1894,40 @@ export function renderCoffeeMirrorImportMethodology() {
 
 export async function syncCoffeeMirrorImportUnitValue(options: MirrorImportSyncOptions = {}): Promise<MirrorImportSyncResult> {
   const periodType = options.periodType ?? 'A'
-  if (periodType !== 'A') {
-    throw new Error('Step 7 v1 supports annual period type A only. Monthly mirror-import sync is deferred until annual QC is stable.')
+  const monthlyReviewMode = periodType === 'M'
+  if (periodType === 'M' && options.monthlyMode !== 'review') {
+    throw new Error('Monthly mirror-import sync is review-only. Pass --monthly-mode=review to run period_type=M.')
   }
 
   const periodWindow = parsePeriodWindow(options)
-  const periods = buildAnnualPeriods(periodWindow.fromYear, periodWindow.toYear)
+  const dynamicExportRows =
+    options.dynamicExportRows ??
+    (options.importerTier === 'dynamic_top_export' ? await getDynamicExportRows(periodWindow) : [])
+  const importerResolution = resolveMirrorImporters({
+    importerTier: options.importerTier,
+    importers: options.importers,
+    periodType,
+    topExportImporters: options.topExportImporters,
+    includeStaticCore: options.includeStaticCore,
+    dynamicExportRows,
+  })
+  if (importerResolution.importers.length === 0) {
+    throw new Error('No verified mirror importers selected. Check --importer-tier or --importers.')
+  }
+
+  const periods = periodType === 'A' ? buildAnnualPeriods(periodWindow.fromYear, periodWindow.toYear) : buildMonthlyPeriods(options.months ?? 24)
   const periodChunks = getPeriodChunks(periods, options.requestChunkSize)
   const fetchedAt = options.fetchedAt ?? new Date().toISOString()
   const dryRun = options.dryRun ?? false
   const writeArtifacts = options.writeArtifacts ?? true
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd())
-  const sourceUrl = toComtradePreviewUrl(periodType, periods, IMPORTERS[0])
+  const sourceUrl = toComtradePreviewUrl(periodType, periods, importerResolution.importers[0])
   const queryParams = {
-    importers: IMPORTERS.map(importer => summarizePreviewQuery(periodType, periods, importer)),
+    importerTier: importerResolution.importerTier,
+    selectedImporters: importerResolution.importers.map(importer => importer.iso),
+    skippedUnverifiedImporters: importerResolution.skippedUnverifiedImporters,
+    monthlyReviewMode,
+    importers: importerResolution.importers.map(importer => summarizePreviewQuery(periodType, periods, importer)),
   }
 
   let requestCount = 0
@@ -1532,7 +1936,7 @@ export async function syncCoffeeMirrorImportUnitValue(options: MirrorImportSyncO
   if (options.sourceRows) {
     payloadRows.push(...options.sourceRows)
   } else {
-    for (const importer of IMPORTERS) {
+    for (const importer of importerResolution.importers) {
       for (const chunk of periodChunks) {
         const rows = await retryTransient(() => fetchComtradePreviewChunk(periodType, chunk, importer), {
           attempts: 5,
@@ -1554,16 +1958,62 @@ export async function syncCoffeeMirrorImportUnitValue(options: MirrorImportSyncO
   const exportRows =
     options.exportRows ??
     (await getVietnamExportRows(periodType, prepared.availablePeriodLabels))
-  const mirrorGapRows = buildCoffeeMirrorGapRows(exportRows, prepared.factRows)
+  const mirrorGapRows = buildCoffeeMirrorGapRows(exportRows, prepared.factRows, { includeImportOnlyRows: monthlyReviewMode })
+  const partnerPortalVerificationStatus = buildPartnerPortalVerificationStatus(importerResolution.importers)
   const qc = buildCoffeeMirrorImportQcReport({
     prepared,
     mirrorGapRows,
+    importerResolution,
+    monthlyReviewMode,
+    partnerPortalVerificationStatus,
   })
 
-  const rawCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'raw', 'un_comtrade', 'mirror_imports_090111_annual.csv') : null
-  const factCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'fact_mirror_import_unit_value.csv') : null
-  const mirrorGapCsvPath = writeArtifacts ? resolve(workspaceRoot, 'data', 'processed', 'vw_coffee_mirror_gap_by_market.csv') : null
-  const qcReportPath = writeArtifacts ? resolve(workspaceRoot, 'reports', 'data_quality', 'mirror_import_data_qc.md') : null
+  const isDefaultAnnualCore = periodType === 'A' && importerResolution.importerTier === 'core' && !options.importers
+  const rawCsvPath = writeArtifacts
+    ? resolve(
+        workspaceRoot,
+        'data',
+        'raw',
+        'un_comtrade',
+        periodType === 'M'
+          ? 'mirror_imports_090111_monthly_review.csv'
+          : isDefaultAnnualCore
+            ? 'mirror_imports_090111_annual.csv'
+            : 'mirror_imports_090111_annual_expanded.csv',
+      )
+    : null
+  const factCsvPath = writeArtifacts
+    ? resolve(
+        workspaceRoot,
+        'data',
+        'processed',
+        periodType === 'M'
+          ? 'fact_mirror_import_unit_value_monthly_review.csv'
+          : isDefaultAnnualCore
+            ? 'fact_mirror_import_unit_value.csv'
+            : 'fact_mirror_import_unit_value_expanded.csv',
+      )
+    : null
+  const mirrorGapCsvPath = writeArtifacts
+    ? resolve(
+        workspaceRoot,
+        'data',
+        'processed',
+        periodType === 'M'
+          ? 'vw_coffee_mirror_gap_monthly_review.csv'
+          : isDefaultAnnualCore
+            ? 'vw_coffee_mirror_gap_by_market.csv'
+            : 'vw_coffee_mirror_gap_by_market_expanded.csv',
+      )
+    : null
+  const qcReportPath = writeArtifacts
+    ? resolve(
+        workspaceRoot,
+        'reports',
+        'data_quality',
+        periodType === 'M' ? 'mirror_import_data_monthly_review_qc.md' : isDefaultAnnualCore ? 'mirror_import_data_qc.md' : 'mirror_import_data_expanded_qc.md',
+      )
+    : null
   const methodologyPath = writeArtifacts ? resolve(workspaceRoot, 'docs', 'methodology', 'coffee_mirror_import_methodology.md') : null
 
   if (rawCsvPath) {
@@ -1600,6 +2050,10 @@ export async function syncCoffeeMirrorImportUnitValue(options: MirrorImportSyncO
 
   return {
     periodType,
+    importerTier: importerResolution.importerTier,
+    importers: importerResolution.importers,
+    skippedUnverifiedImporters: importerResolution.skippedUnverifiedImporters,
+    monthlyReviewMode,
     requestedPeriods: periods,
     sourceName: SOURCE_NAME,
     sourceUrl,
