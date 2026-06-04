@@ -23,15 +23,15 @@ Required environment variables:
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY` (preferred backend admin key)
-- `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback only)
+- `SUPABASE_SERVICE_ROLE_KEY` should normally be unset. It is a legacy JWT fallback and `crawler:preflight` flags it when it looks like an old `eyJ...` service role token.
 - `REDIS_URL` for the queue/worker path
 - `INGESTION_INLINE_PROCESSING=true|false` to choose inline queue draining vs external worker
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for ingestion alerts
 - `CUSTOMS_REPORT_URL` to pin a known customs report file
 - `CUSTOMS_REPORT_DISCOVERY_MODE=pattern|manual` for customs report discovery
-- `CUSTOMS_PDF_PARSER=auto|pdftotext|js` to choose PDF text extraction backend. `pdftotext` is the preferred production path for current customs report layouts.
+- `CUSTOMS_PDF_PARSER=auto|pdftotext|js` to choose PDF text extraction backend. Set `CUSTOMS_PDF_PARSER=pdftotext` in production for current customs report layouts.
 - `CUSTOMS_ENABLED_SLUGS` comma-separated allowlist for production-safe customs coverage
-- `PDFTOTEXT_PATH` if `pdftotext` is not on the default path
+- `PDFTOTEXT_PATH` if `pdftotext` is not on the default path. On Linux, install it with `apt-get update && apt-get install -y poppler-utils`.
 - `SHOPEE_COOKIE` optional browser cookie string for Shopee live search requests
 - `SHOPEE_ENABLED_SLUGS`, `SHOPEE_MAX_PAGES`, `SHOPEE_MIN_SOLD`, `SHOPEE_MIN_RATING` for Shopee retail crawler tuning
 - `SHOPEE_STORAGE_STATE_PATH` to store the Playwright browser session state used by live Shopee crawls. With `npm --prefix server run ...`, the default should stay under `server/.runtime/`, so use `.runtime/shopee-storage-state.json`.
@@ -44,11 +44,12 @@ Required environment variables:
 - `SHOPEE_REFRESH_CRON`, `SHOPEE_CRAWL_CRON`, `SHOPEE_SCHEDULE_DRY_RUN`, `SHOPEE_BLOCK_COOLDOWN_MINUTES` to tune Shopee scheduler behavior
 - `BHX_CRAWL_ENABLED`, `BHX_CRAWL_CRON`, `BHX_SCHEDULE_DRY_RUN`, `BHX_ENABLED_REGIONS` to tune the BHX retail crawler
 - `BHX_API_BEARER_TOKEN` and `BHX_API_X_API_KEY` for the live BHX location/bootstrap requests
+- When BHX credentials are omitted, the crawler bootstraps headers with Playwright. Production Linux hosts must install Chromium and its shared libraries with `npm exec --prefix server playwright install chromium` and `npm exec --prefix server playwright install-deps chromium`.
 - `COOP_CRAWL_ENABLED`, `COOP_CRAWL_CRON`, `COOP_SCHEDULE_DRY_RUN`, `COOP_ENABLED_REGIONS`, `COOP_ENABLED_CATEGORIES`, `COOP_MAX_PAGES_PER_CATEGORY` to tune the Co.op retail crawler
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
 - `PRICE_CONTENT_API_BASE_URL` for the Vercel HTML functions that render `/gia-nong-san/...` and XML sitemaps from backend JSON
 - `PRICE_CONTENT_ENABLED=true|false`, `PRICE_CONTENT_CRON`, and `PRICE_CONTENT_STALE_HOURS` to control the generated price-page scheduler and stale/noindex behavior
-- `WEATHERAPI_KEY` for the third agricultural weather provider on `/thoi-tiet-nong-nghiep`
+- `WEATHERAPI_KEY` for the optional third agricultural weather provider on `/thoi-tiet-nong-nghiep`. Missing key appears as a warning in `/assmin` when another weather provider is usable.
 - `WEATHER_MET_USER_AGENT` for the MET.no weather adapter
 - `WEATHER_CACHE_TTL_MINUTES`, `WEATHER_PROVIDER_TIMEOUT_MS`, and `WEATHER_DEFAULT_LOCATION_CODE` to tune agricultural weather caching/defaults. The weather page falls back to `HCM` by default if neither the URL nor local storage specifies a location.
 - `WEATHER_OPEN_METEO_BASE_URL` and optional `WEATHER_OPEN_METEO_API_KEY` if production uses a customer/self-hosted Open-Meteo endpoint

@@ -1,5 +1,4 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { access, constants as fsConstants } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -10,7 +9,9 @@ import { retryTransient } from '../transientNetwork.js'
 const CUSTOMS_REPORT_ROOT = 'https://files.customs.gov.vn/CustomsCMS/TONG_CUC'
 const CUSTOMS_SITE_URL = 'https://www.customs.gov.vn/'
 const VIETCOMBANK_EXCHANGE_URL = 'https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10'
-const PDFTOTEXT_FALLBACK_PATH = 'C:\\Users\\84965\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdftotext.exe'
+const PDFTOTEXT_FALLBACK_PATH = process.platform === 'win32'
+  ? 'C:\\Users\\84965\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdftotext.exe'
+  : 'pdftotext'
 
 type CustomsCommodityTarget = {
   slug: string
@@ -113,7 +114,7 @@ const CUSTOMS_COMMODITY_TARGETS: CustomsRowTarget[] = [
   },
 ]
 
-function getPdftotextBinary() {
+export function getPdftotextBinary() {
   return process.env.PDFTOTEXT_PATH?.trim() || PDFTOTEXT_FALLBACK_PATH
 }
 
@@ -126,7 +127,7 @@ function getDiscoveryMode(options: CrawlCustomsOptions) {
   return value === 'manual' ? 'manual' : 'pattern'
 }
 
-function getParserPreference(options: CrawlCustomsOptions) {
+export function getCustomsParserPreference(options: CrawlCustomsOptions = {}) {
   const value = options.parserPreference ?? process.env.CUSTOMS_PDF_PARSER?.trim() ?? 'auto'
   if (value === 'pdftotext' || value === 'js') {
     return value
@@ -301,13 +302,16 @@ async function resolveCustomsReportUrl(options: CrawlCustomsOptions = {}) {
   throw new Error(`No customs export PDF was found after probing ${candidates.length} candidate URLs`)
 }
 
-async function canUsePdftotext(binaryPath: string) {
-  try {
-    await access(binaryPath, fsConstants.F_OK)
-    return true
-  } catch {
-    return false
-  }
+export async function canUsePdftotext(binaryPath: string) {
+  return new Promise<boolean>(resolve => {
+    const child = spawn(binaryPath, ['-v'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+
+    child.on('error', () => resolve(false))
+    child.on('exit', code => resolve(code === 0))
+  })
 }
 
 async function extractPdfTextWithPdftotext(buffer: Buffer, binaryPath: string) {
@@ -357,7 +361,7 @@ async function extractPdfTextWithJs(buffer: Buffer) {
 }
 
 async function extractPdfText(buffer: Buffer, options: CrawlCustomsOptions = {}) {
-  const parserPreference = getParserPreference(options)
+  const parserPreference = getCustomsParserPreference(options)
   const pdftotextBinary = getPdftotextBinary()
   const pdftotextAvailable = await canUsePdftotext(pdftotextBinary)
 
@@ -663,7 +667,7 @@ export async function crawlCustoms(options: CrawlCustomsOptions = {}): Promise<C
   const fetchedAt = new Date().toISOString()
   const enabledSlugs = getEnabledSlugs(options)
   const discoveryMode = getDiscoveryMode(options)
-  const parserPreference = getParserPreference(options)
+  const parserPreference = getCustomsParserPreference(options)
   const reportUrlOverride = options.reportUrl ?? getCustomsReportUrlOverride()
 
   try {

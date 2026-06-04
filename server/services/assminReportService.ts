@@ -368,12 +368,15 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
 }
 
 function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeather>>) {
+  const hasUsableWeatherProvider = weather.sourceStatus.some(source => source.success)
+
   return weather.sourceStatus.map<ReportSourceRow>(source => {
     const warnings: ReportWarning[] = []
     const meta = WEATHER_PROVIDER_META[source.provider]
 
     if (!source.success) {
-      warnings.push(makeWarning('provider_error', 'critical', `${meta.label} lỗi: ${source.error ?? 'không có dữ liệu trả về'}.`))
+      const severity = getWeatherProviderFailureSeverity(source, hasUsableWeatherProvider)
+      warnings.push(makeWarning('provider_error', severity, `${meta.label} lỗi: ${source.error ?? 'không có dữ liệu trả về'}.`))
     }
 
     if (source.success && source.horizonDays < MIN_WEATHER_HORIZON_DAYS) {
@@ -426,6 +429,25 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
       warnings,
     }
   })
+}
+
+export function getWeatherProviderFailureSeverity(
+  source: { provider: WeatherProviderId; error: string | null },
+  hasUsableWeatherProvider: boolean,
+): Exclude<ReportSeverity, 'ok'> {
+  if (!hasUsableWeatherProvider) {
+    return 'critical'
+  }
+
+  if (source.provider === 'weatherapi' && source.error === 'WEATHERAPI_KEY is not configured') {
+    return 'warning'
+  }
+
+  if (source.provider === 'open_meteo' && /\bHTTP 429\b/i.test(source.error ?? '')) {
+    return 'warning'
+  }
+
+  return 'warning'
 }
 
 function buildExportRegistrySourceRows(health: Awaited<ReturnType<typeof getExportRegistryHealth>>) {
