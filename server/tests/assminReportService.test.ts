@@ -11,13 +11,13 @@ test('weather provider failures are critical when no provider is usable', () => 
   assert.equal(severity, 'critical')
 })
 
-test('optional weather provider failures are warnings when another provider is usable', () => {
+test('optional weather provider failures are informational when another provider is usable', () => {
   assert.equal(
     getWeatherProviderFailureSeverity(
       { provider: 'weatherapi', error: 'WEATHERAPI_KEY is not configured' },
       true,
     ),
-    'warning',
+    null,
   )
 
   assert.equal(
@@ -25,6 +25,6 @@ test('optional weather provider failures are warnings when another provider is u
       { provider: 'open_meteo', error: 'HTTP 429 for https://api.open-meteo.com/v1/forecast' },
       true,
     ),
-    'warning',
+    null,
   )
 })

@@ -182,6 +182,18 @@ function isSchedulerJobStale(jobKey: string, lastUpdated: string | null) {
   return Date.now() - timestamp > staleWindowMs
 }
 
+function isFreshTimestamp(value: string | null | undefined) {
+  return toFreshnessLabel(value) !== 'stale'
+}
+
+function isSuccessfulRecentRun(run: { status: string; finishedAt?: string | null; startedAt?: string | null } | undefined) {
+  if (!run || run.status !== 'success') {
+    return false
+  }
+
+  return isFreshTimestamp(run.finishedAt ?? run.startedAt ?? null)
+}
+
 function schedulerStatus(enabled: boolean, lastUpdated: string | null, warnings: ReportWarning[]): ReportSeverity {
   if (warnings.some(warning => warning.severity === 'critical')) {
     return 'critical'
@@ -219,7 +231,8 @@ function buildNewsSourceRows(
   return newsSources.map<ReportSourceRow>(source => {
     const warnings: ReportWarning[] = []
     const latestRun = latestRunBySource.get(source.key)
-    const freshnessLabel = staleKeys.has(source.key)
+    const hasRecentSuccessfulRun = isSuccessfulRecentRun(latestRun)
+    const freshnessLabel = staleKeys.has(source.key) && !hasRecentSuccessfulRun
       ? 'stale'
       : toFreshnessLabel(source.latestDetectedAt)
 
@@ -243,7 +256,7 @@ function buildNewsSourceRows(
       warnings.push(makeWarning('browser_required', 'warning', `${source.label} cần browser automation.`))
     }
 
-    if (staleKeys.has(source.key)) {
+    if (staleKeys.has(source.key) && !hasRecentSuccessfulRun) {
       warnings.push(makeWarning('stale_source', 'warning', `${source.label} đã cũ, lần phát hiện mới nhất là ${formatTimestamp(source.latestDetectedAt)}.`))
     }
 
@@ -273,6 +286,9 @@ function buildNewsSourceRows(
       `Phase: ${source.phase}`,
       `Lần crawl gần nhất: ${latestRun ? `${latestRun.status} (${formatTimestamp(latestRun.finishedAt ?? latestRun.startedAt)})` : 'chưa có'}`,
     ]
+    if (staleKeys.has(source.key) && hasRecentSuccessfulRun) {
+      details.push(`Bài mới nhất: ${formatTimestamp(source.latestDetectedAt)}`)
+    }
 
     return {
       key: source.key,
@@ -302,7 +318,7 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
       warnings.push(makeWarning('source_failed', 'critical', `${source.label} crawl lỗi: ${source.error ?? 'không có item hợp lệ'}.`))
     }
 
-    if (failedComponents.length > 0) {
+    if (failedComponents.length > 0 && source.itemCount === 0) {
       warnings.push(
         makeWarning(
           'source_partial_failure',
@@ -350,6 +366,13 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
       `Priority: ${source.priority}`,
       `Dedup: ${source.dedupCount ?? 0}`,
     ]
+    if (failedComponents.length > 0 && source.itemCount > 0) {
+      details.push(
+        `Crawler phụ lỗi: ${failedComponents
+          .map(component => `${component.label}${component.error ? ` (${component.error})` : ''}`)
+          .join('; ')}`,
+      )
+    }
 
     return {
       key: source.id,
@@ -369,6 +392,9 @@ function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPri
 
 function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeather>>) {
   const hasUsableWeatherProvider = weather.sourceStatus.some(source => source.success)
+  const hasActionableWeatherFailure = weather.sourceStatus.some(source =>
+    !source.success && getWeatherProviderFailureSeverity(source, hasUsableWeatherProvider) !== null
+  )
 
   return weather.sourceStatus.map<ReportSourceRow>(source => {
     const warnings: ReportWarning[] = []
@@ -376,7 +402,9 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
 
     if (!source.success) {
       const severity = getWeatherProviderFailureSeverity(source, hasUsableWeatherProvider)
-      warnings.push(makeWarning('provider_error', severity, `${meta.label} lỗi: ${source.error ?? 'không có dữ liệu trả về'}.`))
+      if (severity) {
+        warnings.push(makeWarning('provider_error', severity, `${meta.label} lỗi: ${source.error ?? 'không có dữ liệu trả về'}.`))
+      }
     }
 
     if (source.success && source.horizonDays < MIN_WEATHER_HORIZON_DAYS) {
@@ -387,7 +415,7 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
       warnings.push(makeWarning('high_latency', 'warning', `${meta.label} phản hồi chậm (${source.latencyMs}ms).`))
     }
 
-    if (weather.status === 'partial') {
+    if (weather.status === 'partial' && hasActionableWeatherFailure) {
       warnings.push(makeWarning('weather_payload_partial', 'warning', `Weather payload hiện ở trạng thái partial cho ${weather.location.nameVi}.`))
     }
 
@@ -425,6 +453,7 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
         `Location: ${weather.location.nameVi}`,
         `Forecast horizon: ${source.horizonDays} ngày`,
         `Latency: ${source.latencyMs ?? '--'} ms`,
+        ...(source.error ? [`Provider note: ${source.error}`] : []),
       ],
       warnings,
     }
@@ -434,17 +463,17 @@ function buildWeatherSourceRows(weather: Awaited<ReturnType<typeof getAgriWeathe
 export function getWeatherProviderFailureSeverity(
   source: { provider: WeatherProviderId; error: string | null },
   hasUsableWeatherProvider: boolean,
-): Exclude<ReportSeverity, 'ok'> {
+): Exclude<ReportSeverity, 'ok'> | null {
   if (!hasUsableWeatherProvider) {
     return 'critical'
   }
 
   if (source.provider === 'weatherapi' && source.error === 'WEATHERAPI_KEY is not configured') {
-    return 'warning'
+    return null
   }
 
   if (source.provider === 'open_meteo' && /\bHTTP 429\b/i.test(source.error ?? '')) {
-    return 'warning'
+    return null
   }
 
   return 'warning'
