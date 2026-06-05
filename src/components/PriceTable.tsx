@@ -21,7 +21,10 @@ function normalizeLookupKey(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/g, 'd')
+    .replace(/\u0110/g, 'd')
     .toLowerCase()
+    .trim()
 }
 
 function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
@@ -137,7 +140,7 @@ export default function PriceTable({
   const commodityPageLookup = useMemo(() => buildCommodityPageLookup(commodityPages), [commodityPages])
 
   const rows = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = normalizeLookupKey(search)
 
     return [...data]
       .filter(item => (category === 'Tất cả' ? true : item.category === category))
@@ -146,7 +149,10 @@ export default function PriceTable({
           return true
         }
 
-        return item.commodityName.toLowerCase().includes(query) || item.regions.some(region => region.region.toLowerCase().includes(query))
+        return (
+          normalizeLookupKey(item.commodityName).includes(query) ||
+          item.regions.some(region => normalizeLookupKey(region.region).includes(query))
+        )
       })
       .sort((left, right) => {
         const leftValue = left[sortKey]

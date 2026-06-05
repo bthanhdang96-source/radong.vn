@@ -438,6 +438,8 @@ const EMPTY_FEATURE_COLLECTION: LookupMapFeatureCollection = {
   features: [],
 }
 
+type LookupMapStatus = 'loading' | 'ready' | 'error'
+
 function buildLookupMapFeatureCollection(items: LookupMapItem[]): LookupMapFeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -476,7 +478,8 @@ function RegistryMap({
   const maplibreRef = useRef<typeof import('maplibre-gl') | null>(null)
   const itemsRef = useRef(items)
   const onSelectRef = useRef(onSelect)
-  const [mapReady, setMapReady] = useState(false)
+  const [mapStatus, setMapStatus] = useState<LookupMapStatus>('loading')
+  const mapReady = mapStatus === 'ready'
   const selectedItem = items.find(item => item.id === selectedId)
   const showSelectedProductLabel = selectedItem ? shouldShowProductLabel(selectedItem.product) : false
   const selectedFirstPeriod = selectedItem?.approvalPeriods[0]
@@ -494,6 +497,7 @@ function RegistryMap({
 
     let disposed = false
     let resizeObserver: ResizeObserver | null = null
+    let hasLoaded = false
     const container = containerRef.current
 
     void import('maplibre-gl').then(maplibregl => {
@@ -501,15 +505,27 @@ function RegistryMap({
         return
       }
 
-      maplibreRef.current = maplibregl
-      const map = new maplibregl.Map({
-        container,
-        style: 'https://tiles.openfreemap.org/styles/positron',
-        center: [106.3, 16.2],
-        zoom: 4.7,
-        attributionControl: { compact: true },
-      })
+      let map: MapLibreMap
+      try {
+        maplibreRef.current = maplibregl
+        map = new maplibregl.Map({
+          container,
+          style: 'https://tiles.openfreemap.org/styles/positron',
+          center: [106.3, 16.2],
+          zoom: 4.7,
+          attributionControl: { compact: true },
+        })
+      } catch {
+        setMapStatus('error')
+        return
+      }
+
       mapRef.current = map
+      map.on('error', () => {
+        if (!disposed && !hasLoaded) {
+          setMapStatus('error')
+        }
+      })
       map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
       resizeObserver = new ResizeObserver(() => {
         mapRef.current?.resize()
@@ -521,6 +537,7 @@ function RegistryMap({
           return
         }
 
+        hasLoaded = true
         map.addSource(LOOKUP_MAP_SOURCE_ID, {
           type: 'geojson',
           data: EMPTY_FEATURE_COLLECTION as Parameters<GeoJSONSource['setData']>[0],
@@ -709,8 +726,12 @@ function RegistryMap({
           map.getCanvas().style.cursor = ''
         })
 
-        setMapReady(true)
+        setMapStatus('ready')
       })
+    }).catch(() => {
+      if (!disposed) {
+        setMapStatus('error')
+      }
     })
 
     return () => {
@@ -780,10 +801,22 @@ function RegistryMap({
         </div>
         {onCloseMobile ? <button type="button" onClick={onCloseMobile}>Danh sách</button> : null}
       </div>
-      <div className="lookup-map__canvas" data-map-type={activeType}>
+      <div className="lookup-map__canvas" data-map-type={activeType} data-map-status={mapStatus}>
         <div ref={containerRef} className="lookup-map__real-canvas" />
+        {mapStatus === 'loading' ? (
+          <div className="lookup-map__fallback" role="status">
+            <strong>Đang tải bản đồ...</strong>
+            <span>Danh sách kết quả vẫn sẵn sàng để tra cứu.</span>
+          </div>
+        ) : null}
+        {mapStatus === 'error' ? (
+          <div className="lookup-map__fallback lookup-map__fallback--error" role="status">
+            <strong>Bản đồ tạm thời chưa tải được</strong>
+            <span>Danh sách vẫn hoạt động.</span>
+          </div>
+        ) : null}
       </div>
-      {selectedItem ? (
+      {mapReady && selectedItem ? (
         <div className="lookup-map__popup">
           <div className="lookup-map__popup-topline">
             {showSelectedProductLabel ? <span>{selectedItem.product}</span> : null}

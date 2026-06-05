@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
 import { getAiArticleAsNewsDetail } from '../services/aiArticles/service.js'
 import {
@@ -14,6 +14,27 @@ import { NEWS_SOURCE_KEYS, isNewsSourceVisible } from '../services/news/sourceRe
 import type { NewsSourceKey } from '../services/news/types.js'
 
 const router = Router()
+
+async function loadNewsArticle(slug: string) {
+  return (await getNewsArticle(slug)) ?? (await getAiArticleAsNewsDetail(slug))
+}
+
+async function sendNewsArticleResponse(slug: string, res: Response) {
+  try {
+    const payload = await loadNewsArticle(slug)
+    if (!payload) {
+      res.status(404).json({ success: false, error: 'Article not found' })
+      return
+    }
+
+    res.json({ success: true, ...payload })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load article',
+    })
+  }
+}
 
 router.get('/news/articles', async (req, res) => {
   try {
@@ -39,21 +60,18 @@ router.get('/news/articles', async (req, res) => {
   }
 })
 
-router.get('/news/articles/:slug', async (req, res) => {
-  try {
-    const payload = await getNewsArticle(req.params.slug) ?? await getAiArticleAsNewsDetail(req.params.slug)
-    if (!payload) {
-      res.status(404).json({ success: false, error: 'Article not found' })
-      return
-    }
-
-    res.json({ success: true, ...payload })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to load article',
-    })
+router.get('/news/article', async (req, res) => {
+  const slug = typeof req.query.slug === 'string' ? req.query.slug.trim() : ''
+  if (!slug) {
+    res.status(400).json({ success: false, error: 'Query "slug" is required' })
+    return
   }
+
+  await sendNewsArticleResponse(slug, res)
+})
+
+router.get('/news/articles/:slug', async (req, res) => {
+  await sendNewsArticleResponse(req.params.slug, res)
 })
 
 router.get('/news/sources', async (_req, res) => {

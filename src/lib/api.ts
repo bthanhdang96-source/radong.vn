@@ -9,5 +9,5 @@ export function buildApiUrl(path: string) {
 }
 
 export function buildNewsArticleApiUrl(slug: string) {
-  return `/api/news/article?slug=${encodeURIComponent(slug)}`
+  return buildApiUrl(`/api/news/articles/${encodeURIComponent(slug)}`)
 }

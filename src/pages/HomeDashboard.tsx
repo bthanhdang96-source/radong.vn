@@ -30,6 +30,10 @@ export default function HomeDashboard() {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  const isLiveData = payload.status === 'live';
+  const dataSourceLabel = isLiveData ? 'Dữ liệu API đang hoạt động' : 'Dữ liệu dự phòng';
+  const lastUpdatedLabel = payload.lastUpdated ? new Date(payload.lastUpdated).toLocaleString('vi-VN') : '--';
+
   useEffect(() => {
     let active = true;
 
@@ -84,6 +88,19 @@ export default function HomeDashboard() {
 
   return (
     <div className="home-dashboard">
+      <header className="home-dashboard__intro" aria-labelledby="home-dashboard-title">
+        <div className="home-dashboard__intro-copy">
+          <span className="home-dashboard__eyebrow">Theo dõi thị trường nội địa</span>
+          <h1 id="home-dashboard-title">Bảng giá nông sản Việt Nam</h1>
+          <p>Giá tham khảo theo mặt hàng, vùng thu mua và tín hiệu biến động để hỗ trợ theo dõi thị trường ngắn hạn.</p>
+        </div>
+        <div className="home-dashboard__intro-status" aria-label="Trạng thái dữ liệu bảng giá">
+          <span className={`home-dashboard__status-badge home-dashboard__status-badge--${isLiveData ? 'live' : 'fallback'}`}>
+            {dataSourceLabel}
+          </span>
+          <span>Cập nhật: {loading ? 'Đang tải...' : lastUpdatedLabel}</span>
+        </div>
+      </header>
       <TickerBar items={payload.data} />
       <SummaryCards
         data={payload.data}

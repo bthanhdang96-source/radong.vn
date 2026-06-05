@@ -583,6 +583,11 @@
   inset: 0;
 }
 
+.lookup-map__canvas[data-map-status="error"] .lookup-map__real-canvas,
+.lookup-map__canvas[data-map-status="loading"] .lookup-map__real-canvas {
+  opacity: 0.2;
+}
+
 .lookup-map__real-canvas .maplibregl-canvas {
   outline: none;
 }
@@ -590,6 +595,35 @@
 .lookup-map__real-canvas .maplibregl-ctrl-attrib {
   color: var(--color-text-muted);
   font-size: 10px;
+}
+
+.lookup-map__fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 86%, transparent), color-mix(in srgb, var(--color-surface) 96%, transparent));
+  color: var(--color-text-muted);
+}
+
+.lookup-map__fallback strong {
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.lookup-map__fallback span {
+  max-width: 280px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lookup-map__fallback--error strong {
+  color: var(--color-primary);
 }
 
 .lookup-map__popup {
