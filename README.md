@@ -47,7 +47,9 @@ Required environment variables:
 - When BHX credentials are omitted, the crawler bootstraps headers with Playwright. Production Linux hosts must install Chromium and its shared libraries with `npm exec --prefix server playwright install chromium` and `npm exec --prefix server playwright install-deps chromium`.
 - `COOP_CRAWL_ENABLED`, `COOP_CRAWL_CRON`, `COOP_SCHEDULE_DRY_RUN`, `COOP_ENABLED_REGIONS`, `COOP_ENABLED_CATEGORIES`, `COOP_MAX_PAGES_PER_CATEGORY` to tune the Co.op retail crawler
 - `CUSTOMS_SCHEDULER_ENABLED=true|false`, `CUSTOMS_CRAWL_CRON`, `CUSTOMS_SCHEDULE_DRY_RUN` to enable and tune the weekly customs scheduler
-- `PRICE_CONTENT_API_BASE_URL` for the Vercel HTML functions that render `/gia-nong-san/...` and XML sitemaps from backend JSON
+- `PRICE_CONTENT_API_BASE_URL` for Vercel sitemap and legacy price-content functions that fetch backend JSON
+- `BACKEND_API_BASE_URL` for Vercel serverless functions that need to fetch Railway JSON
+- `PUBLIC_SITE_URL` for canonical URLs in Railway-rendered SEO HTML pages
 - `PRICE_CONTENT_ENABLED=true|false`, `PRICE_CONTENT_CRON`, and `PRICE_CONTENT_STALE_HOURS` to control the generated price-page scheduler and stale/noindex behavior
 - `WEATHERAPI_KEY` for the optional third agricultural weather provider on `/thoi-tiet-nong-nghiep`. Missing key appears as a warning in `/assmin` when another weather provider is usable.
 - `WEATHER_MET_USER_AGENT` for the MET.no weather adapter
@@ -64,7 +66,7 @@ Runtime behavior:
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 - Customs crawler is intentionally separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:customs`.
 - BHX crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:bhx`.
-- The server now generates evergreen commodity-by-location price pages into `generated_price_pages` after curated VN price refreshes, exposes them through `/api/price-pages`, and mixes them into the homepage feed through `/api/content/feed`.
+- The server now generates evergreen commodity-by-location price pages into `generated_price_pages`, exposes JSON through `/api/price-pages`, renders public SEO HTML on `/gia-nong-san/...`, and mixes pages into the homepage feed through `/api/content/feed`.
 - Co.op crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:coop`.
 - Shopee crawler is also separate from the legacy homepage refresh. Refresh the browser session with `npm --prefix server run crawler:shopee:refresh-session`, then run the live crawl with `npm --prefix server run crawler:shopee`.
 - The API server now registers the dedicated Shopee/customs schedules on startup, but the new jobs are disabled by default until the `*_SCHEDULER_ENABLED` env flags are turned on.

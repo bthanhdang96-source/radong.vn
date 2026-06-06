@@ -92,55 +92,6 @@ router.get('/admin/ai-articles', requireAdminApiKey, async (req, res) => {
   }
 })
 
-router.get('/admin/ai-articles/:slug', requireAdminApiKey, async (req, res) => {
-  try {
-    const slug = getRouteParam(req.params.slug)
-    if (!slug) {
-      res.status(400).json({ success: false, error: 'Invalid AI article slug' })
-      return
-    }
-
-    const article = await getAiArticle(slug, { includeDrafts: true })
-    if (!article) {
-      res.status(404).json({ success: false, error: 'AI article not found' })
-      return
-    }
-
-    res.json({ success: true, article })
-  } catch (error) {
-    console.error('[API] Failed to load admin AI article:', error)
-    res.status(500).json({ success: false, error: 'Failed to load admin AI article' })
-  }
-})
-
-router.patch('/admin/ai-articles/:slug', requireAdminApiKey, async (req, res) => {
-  try {
-    const slug = getRouteParam(req.params.slug)
-    if (!slug) {
-      res.status(400).json({ success: false, error: 'Invalid AI article slug' })
-      return
-    }
-
-    const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}
-    const status = parseReviewableArticleStatus(body.status)
-    if (!status) {
-      res.status(400).json({ success: false, error: 'Invalid AI article status' })
-      return
-    }
-
-    const article = await updateAiArticleStatus(slug, status)
-    if (!article) {
-      res.status(404).json({ success: false, error: 'AI article not found' })
-      return
-    }
-
-    res.json({ success: true, article })
-  } catch (error) {
-    console.error('[API] Failed to update admin AI article:', error)
-    res.status(500).json({ success: false, error: 'Failed to update admin AI article' })
-  }
-})
-
 router.get('/admin/ai-articles/context', requireAdminApiKey, async (req, res) => {
   try {
     const articleType = parseArticleType(req.query.articleType)
@@ -188,6 +139,55 @@ router.post('/admin/ai-articles/generate', requireAdminApiKey, async (req, res) 
       success: false,
       error: error instanceof Error ? error.message : 'Failed to generate AI articles',
     })
+  }
+})
+
+router.get('/admin/ai-articles/:slug', requireAdminApiKey, async (req, res) => {
+  try {
+    const slug = getRouteParam(req.params.slug)
+    if (!slug) {
+      res.status(400).json({ success: false, error: 'Invalid AI article slug' })
+      return
+    }
+
+    const article = await getAiArticle(slug, { includeDrafts: true })
+    if (!article) {
+      res.status(404).json({ success: false, error: 'AI article not found' })
+      return
+    }
+
+    res.json({ success: true, article })
+  } catch (error) {
+    console.error('[API] Failed to load admin AI article:', error)
+    res.status(500).json({ success: false, error: 'Failed to load admin AI article' })
+  }
+})
+
+router.patch('/admin/ai-articles/:slug', requireAdminApiKey, async (req, res) => {
+  try {
+    const slug = getRouteParam(req.params.slug)
+    if (!slug) {
+      res.status(400).json({ success: false, error: 'Invalid AI article slug' })
+      return
+    }
+
+    const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}
+    const status = parseReviewableArticleStatus(body.status)
+    if (!status) {
+      res.status(400).json({ success: false, error: 'Invalid AI article status' })
+      return
+    }
+
+    const article = await updateAiArticleStatus(slug, status)
+    if (!article) {
+      res.status(404).json({ success: false, error: 'AI article not found' })
+      return
+    }
+
+    res.json({ success: true, article })
+  } catch (error) {
+    console.error('[API] Failed to update admin AI article:', error)
+    res.status(500).json({ success: false, error: 'Failed to update admin AI article' })
   }
 })
 

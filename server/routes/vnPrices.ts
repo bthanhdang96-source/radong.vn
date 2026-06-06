@@ -71,14 +71,14 @@ router.post('/admin/vn-prices/refresh', requireAdminApiKey, async (_req, res) =>
   }
 })
 
-router.get('/vn-prices/history', (_req, res) => {
+router.get('/vn-prices/history', async (_req, res) => {
   const date = parseHistoryDateKey(_req.query.date)
   if (!date) {
     res.status(400).json({ success: false, error: 'Query "date" must use YYYY-MM-DD format' })
     return
   }
 
-  const snapshot = getVnPricesHistory(date)
+  const snapshot = await getVnPricesHistory(date)
   if (!snapshot) {
     res.status(404).json({ success: false, error: 'No history found for the requested date' })
     return

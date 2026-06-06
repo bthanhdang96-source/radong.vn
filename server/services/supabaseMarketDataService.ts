@@ -7,7 +7,7 @@ import {
   getVnPricesHistory as getLegacyVnPricesHistory,
 } from './priceAggregator.js'
 import { DURIAN_COMMODITY_SLUG, isDurianHeadlineQualityGrade } from './durianPricing.js'
-import type { CrawledPriceItem, SourceId, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
+import type { CrawledDayData, CrawledPriceItem, SourceId, SourceSnapshot, VnPricesResponse } from './crawlers/types.js'
 import { enqueueDayData, isRedisQueueConfigured, shouldProcessInline } from './ingestion/queue.js'
 import { loadCommodityLookup, processIngestionMessage, recordIngestionError, type IngestionQueueMessage } from './ingestion/pipeline.js'
 import { processQueuedBatch } from './ingestion/worker.js'
@@ -539,6 +539,7 @@ export type CoffeeMirrorGapSummaryResponse = {
 }
 
 const DEFAULT_VN_PRICE_TYPES: PriceType[] = ['farm_gate', 'wholesale']
+const DAY_MS = 24 * 60 * 60 * 1000
 const EXPORT_OBSERVATION_LOOKBACK_DAYS = 45
 const SUMMARY_PRICE_TYPE_PREFERENCE: Partial<Record<string, PriceType>> = {
   cassava: 'farm_gate',
@@ -919,6 +920,100 @@ async function getRecentObservationRows(priceTypes: PriceType[], lookbackDays = 
       price_type: string | null
       unit?: string | null
       price_vnd: number
+    price_usd?: number | null
+    source_name: string
+    raw_payload: LatestObservationRow['raw_payload']
+  }>).map(row => ({
+    recorded_at: row.recorded_at,
+    commodity_slug: row.commodity_slug,
+    province_code: row.province_code,
+    variety: row.variety,
+    quality_grade: row.quality_grade,
+    price_type: row.price_type,
+    unit: row.unit ?? null,
+    price_vnd: row.price_vnd,
+    price_usd: row.price_usd ?? null,
+    source: row.source_name,
+    raw_payload: row.raw_payload ?? {},
+  }))
+}
+
+async function getObservationRowsForDate(date: string, priceTypes: PriceType[]) {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return null
+  }
+
+  const start = new Date(`${date}T00:00:00.000Z`)
+  const end = new Date(start.getTime() + DAY_MS)
+  const startIso = start.toISOString()
+  const endIso = end.toISOString()
+
+  const modern = await client
+    .from('price_observations')
+    .select(
+      'recorded_at, commodity_slug, province_code, variety, quality_grade, price_type, unit, price_vnd, price_usd, source_name, raw_payload',
+    )
+    .gte('recorded_at', startIso)
+    .lt('recorded_at', endIso)
+    .in('price_type', priceTypes)
+    .order('recorded_at', { ascending: false })
+    .limit(5000)
+
+  if (modern.error && isColumnMissing(modern.error, 'price_type')) {
+    const legacy = await client
+      .from('price_observations')
+      .select('recorded_at, commodity_slug, province_code, variety, quality_grade, market_type, unit, price_vnd, price_usd, source, raw_payload')
+      .gte('recorded_at', startIso)
+      .lt('recorded_at', endIso)
+      .in('market_type', priceTypes)
+      .order('recorded_at', { ascending: false })
+      .limit(5000)
+
+    if (legacy.error) {
+      throw legacy.error
+    }
+
+    return ((legacy.data ?? []) as Array<{
+      recorded_at: string
+      commodity_slug: string
+      province_code: string | null
+      variety: string | null
+      quality_grade: string | null
+      market_type: string | null
+      unit?: string | null
+      price_vnd: number
+      price_usd?: number | null
+      source: string
+      raw_payload: LatestObservationRow['raw_payload']
+    }>).map(row => ({
+      recorded_at: row.recorded_at,
+      commodity_slug: row.commodity_slug,
+      province_code: row.province_code,
+      variety: row.variety,
+      quality_grade: row.quality_grade,
+      market_type: row.market_type,
+      unit: row.unit ?? null,
+      price_vnd: row.price_vnd,
+      price_usd: row.price_usd ?? null,
+      source: row.source,
+      raw_payload: row.raw_payload ?? {},
+    }))
+  }
+
+  if (modern.error) {
+    throw modern.error
+  }
+
+  return ((modern.data ?? []) as Array<{
+    recorded_at: string
+    commodity_slug: string
+    province_code: string | null
+    variety: string | null
+    quality_grade: string | null
+    price_type: string | null
+    unit?: string | null
+    price_vnd: number
     price_usd?: number | null
     source_name: string
     raw_payload: LatestObservationRow['raw_payload']
@@ -2215,8 +2310,128 @@ export async function getVnPriceSourceStatus() {
   return getLegacyVnPriceSourceStatus()
 }
 
-export function getVnPricesHistory(date: string) {
-  return getLegacyVnPricesHistory(date)
+function getRawString(value: unknown) {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function getRawNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function toHistoryPriceItem(row: LatestObservationRow): CrawledPriceItem {
+  const raw = row.raw_payload ?? {}
+  const change = getRawNumber(raw.change)
+  const previousPrice = getRawNumber(raw.previousPrice) ?? (change === null ? null : row.price_vnd - change)
+  const changePct =
+    getRawNumber(raw.changePct) ??
+    (previousPrice && previousPrice > 0 && change !== null ? roundNumber((change / previousPrice) * 100) : null)
+  const displayUnit = getObservationDisplayUnit(row)
+  const meta = VN_COMMODITY_META[row.commodity_slug] ?? {
+    commodityName: getRawString(raw.commodityName) ?? row.commodity_slug,
+    category: getRawString(raw.category) ?? 'Khác',
+    unit: displayUnit,
+  }
+
+  return {
+    commodity: row.commodity_slug,
+    commodityName: meta.commodityName,
+    category: meta.category,
+    region: getRegionLabelFromObservation(row.province_code, row.variety, getRawString(raw.region)),
+    price: row.price_vnd,
+    unit: displayUnit,
+    unitRaw: getRawString(raw.unitRaw),
+    normalizedUnitKey: getObservationNormalizedUnitKey(row),
+    unitQuantity: getRawNumber(raw.unitQuantity),
+    change,
+    changePct,
+    timestamp: row.recorded_at,
+    source: toSourceId(getObservationSource(row)),
+    priceType: getObservationPriceType(row),
+    variety: row.variety,
+    qualityGrade: row.quality_grade,
+    marketName: getRawString(raw.marketName),
+    articleTitle: getRawString(raw.articleTitle),
+    priceUsd: row.price_usd ?? null,
+    dedupeKey: getRawString(raw.dedupeKey),
+    extra: raw.extra && typeof raw.extra === 'object' ? raw.extra as Record<string, unknown> : undefined,
+    previousPrice,
+  }
+}
+
+function buildSyntheticHistorySourceSnapshot(sourceId: SourceId, rows: LatestObservationRow[]): SourceSnapshot {
+  const latest = rows.reduce(
+    (current, row) => (row.recorded_at > current ? row.recorded_at : current),
+    rows[0]?.recorded_at ?? new Date().toISOString(),
+  )
+
+  return {
+    id: sourceId,
+    label: sourceId,
+    url: 'supabase:price_observations',
+    fetchedAt: latest,
+    success: true,
+    itemCount: rows.length,
+    priority: Math.round((SOURCE_BASE_CONFIDENCE[sourceId] ?? SOURCE_BASE_CONFIDENCE.fallback) * 100),
+    coverage: [...new Set(rows.map(row => row.commodity_slug))],
+  }
+}
+
+async function buildHistorySourceSnapshots(rows: LatestObservationRow[]) {
+  const bySource = new Map<SourceId, LatestObservationRow[]>()
+  for (const row of rows) {
+    const sourceId = toSourceId(getObservationSource(row))
+    const entries = bySource.get(sourceId) ?? []
+    entries.push(row)
+    bySource.set(sourceId, entries)
+  }
+
+  const sourceIds = [...bySource.keys()]
+  const snapshots = await getLatestSourceSnapshots(sourceIds)
+  const snapshotBySource = new Map(snapshots.map(snapshot => [snapshot.id, snapshot]))
+  return sourceIds.map(sourceId => snapshotBySource.get(sourceId) ?? buildSyntheticHistorySourceSnapshot(sourceId, bySource.get(sourceId) ?? []))
+}
+
+export async function buildVnPricesHistoryFromSupabaseRows(
+  date: string,
+  rows: LatestObservationRow[],
+  sourceSnapshots: SourceSnapshot[],
+): Promise<CrawledDayData | null> {
+  const selectedRows = dedupeObservationRows(rows)
+  if (selectedRows.length === 0) {
+    return null
+  }
+
+  return {
+    date,
+    items: selectedRows.map(toHistoryPriceItem),
+    sources: sourceSnapshots.length > 0 ? sourceSnapshots : await buildHistorySourceSnapshots(selectedRows),
+  }
+}
+
+async function buildVnPricesHistoryFromSupabase(date: string) {
+  const rows = await getObservationRowsForDate(date, DEFAULT_VN_PRICE_TYPES)
+  if (!rows || rows.length === 0) {
+    return null
+  }
+
+  return buildVnPricesHistoryFromSupabaseRows(date, rows, [])
+}
+
+export async function getVnPricesHistory(date: string) {
+  const legacy = getLegacyVnPricesHistory(date)
+  const runtime = getSupabaseRuntimeStatus()
+  if (!runtime.hasReadConfig) {
+    return legacy
+  }
+
+  try {
+    return (await buildVnPricesHistoryFromSupabase(date)) ?? legacy
+  } catch (error) {
+    if (!(error instanceof Error) || !isRelationMissing(error.message)) {
+      console.error('[Supabase VN] Falling back to legacy VN price history:', error)
+    }
+    return legacy
+  }
 }
 
 export async function getVnPriceChainResponse(): Promise<VnPriceChainResponse> {

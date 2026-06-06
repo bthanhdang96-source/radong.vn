@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import express from 'express';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
+import publicPricePagesRouter from './routes/publicPricePages.js';
 import { generateAiArticles } from './services/aiArticles/service.js';
 import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
 import { getCrawlerScheduleConfig, registerCrawlerSchedules } from './services/crawlerScheduler.js';
@@ -101,6 +102,7 @@ app.use((req, _res, next) => {
 });
 
 app.use('/api', apiRouter);
+app.use(publicPricePagesRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json(toHealthResponse());

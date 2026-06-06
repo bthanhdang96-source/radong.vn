@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/gia-nong-san/:commoditySlug/:locationSlug",
-      "destination": "/api/gia-nong-san/:commoditySlug/:locationSlug"
+      "destination": "https://radongvn-production.up.railway.app/gia-nong-san/:commoditySlug/:locationSlug"
     },
     {
       "source": "/gia-nong-san/:commoditySlug",
-      "destination": "/api/gia-nong-san/:commoditySlug"
+      "destination": "https://radongvn-production.up.railway.app/gia-nong-san/:commoditySlug"
     },
     {
       "source": "/sitemap.xml",

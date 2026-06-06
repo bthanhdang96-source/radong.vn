@@ -9,6 +9,7 @@ This runbook covers production rollout and routine operations for the supported 
 - `coop-crawl`: retail crawl for Co.op Online
 - `export-registry-crawl`: export registry crawler
 - `durian-export-crawl`: optional durian export crawler
+- `world-coffee-benchmark-refresh`: optional world coffee benchmark sync
 
 The legacy domestic homepage refresh is intentionally separate and is not part of this runbook.
 
@@ -73,6 +74,15 @@ DURIAN_EXPORT_CRON=0 9 * * 3
 DURIAN_EXPORT_SCHEDULE_DRY_RUN=false
 ```
 
+World coffee benchmark-specific:
+
+```env
+WORLD_COFFEE_BENCHMARK_SYNC_ENABLED=false
+WORLD_COFFEE_BENCHMARK_SYNC_CRON=55 7 * * *
+WORLD_COFFEE_FUTURES_PROVIDER=
+WORLD_COFFEE_FUTURES_API_KEY=
+```
+
 ## One-Time Setup
 
 1. Install server dependencies:
@@ -101,10 +111,10 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" http://localhost:3001/api/health/
 
 ## Recommended Rollout Order
 
-1. Enable customs scheduler first.
-2. Enable export registry after customs status is stable.
-3. Enable domestic retail crawlers with dry-run off only after manual crawls return valid items.
-4. Keep optional crawlers disabled until their data is required by a production view.
+1. Keep customs, export registry, Co.op, news, exchange rates, and generated price content enabled if `/api/assmin/report` is already healthy.
+2. Enable BHX in dry-run first, then switch `BHX_SCHEDULE_DRY_RUN=false` after a manual crawl returns valid items.
+3. Enable `WORLD_COFFEE_BENCHMARK_SYNC_ENABLED=true` only after `/api/coffee/world-benchmark` has a successful manual sync/source status.
+4. Keep `DURIAN_EXPORT_ENABLED=false` until the durian export view is required publicly; then dry-run manually before enabling the schedule.
 
 ## Manual Operations
 
@@ -134,6 +144,12 @@ npm --prefix server run crawler:export-registry
 npm --prefix server run crawler:durian-export
 ```
 
+Run world coffee benchmark sync:
+
+```bash
+npm --prefix server run coffee:world-benchmark
+```
+
 ## Normal Operating Model
 
 - Customs runs automatically on its weekly schedule.
@@ -155,6 +171,8 @@ BHX_CRAWL_ENABLED=true
 COOP_CRAWL_ENABLED=true
 BHX_SCHEDULE_DRY_RUN=true
 COOP_SCHEDULE_DRY_RUN=true
+WORLD_COFFEE_BENCHMARK_SYNC_ENABLED=false
+DURIAN_EXPORT_ENABLED=false
 ```
 
 After validating manual and scheduled dry-runs:
@@ -162,6 +180,7 @@ After validating manual and scheduled dry-runs:
 ```env
 BHX_SCHEDULE_DRY_RUN=false
 COOP_SCHEDULE_DRY_RUN=false
+WORLD_COFFEE_BENCHMARK_SYNC_ENABLED=true
 ```
 
 ## Health Checks
@@ -177,6 +196,9 @@ Key fields:
 - `services.news`
 - `services.vnPrices`
 - `services.exportRegistry`
+- `crawlers.schedule.bhxCrawlEnabled`
+- `crawlers.schedule.durianExportEnabled`
+- `crawlers.appSchedule.worldCoffeeBenchmarkSyncEnabled`
 
 ## Residual Risks
 
