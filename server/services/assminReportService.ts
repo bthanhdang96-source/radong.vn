@@ -31,6 +31,9 @@ const SCHEDULER_STALE_WINDOW_BY_JOB_KEY: Partial<Record<string, number>> = {
   // Customs runs weekly, so 36h would create false warnings between normal runs.
   'customs-crawl': 9 * DAY_MS,
 }
+const VN_PRICE_SOURCE_STALE_WINDOW_BY_ID: Partial<Record<string, number>> = {
+  customs: SCHEDULER_STALE_WINDOW_BY_JOB_KEY['customs-crawl'] ?? 9 * DAY_MS,
+}
 
 const WEATHER_PROVIDER_META: Record<WeatherProviderId, { label: string; url: string }> = {
   open_meteo: {
@@ -71,7 +74,7 @@ function maxSeverity(values: ReportSeverity[]): ReportSeverity {
   ), 'ok')
 }
 
-function toFreshnessLabel(value: string | null | undefined): ReportFreshnessLabel {
+function toFreshnessLabel(value: string | null | undefined, staleWindowMs = AGING_SOURCE_WINDOW_MS): ReportFreshnessLabel {
   if (!value) {
     return 'unknown'
   }
@@ -86,11 +89,15 @@ function toFreshnessLabel(value: string | null | undefined): ReportFreshnessLabe
     return 'fresh'
   }
 
-  if (ageMs <= AGING_SOURCE_WINDOW_MS) {
+  if (ageMs <= staleWindowMs) {
     return 'aging'
   }
 
   return 'stale'
+}
+
+export function getVnPriceSourceFreshnessLabel(sourceId: string, fetchedAt: string | null | undefined) {
+  return toFreshnessLabel(fetchedAt, VN_PRICE_SOURCE_STALE_WINDOW_BY_ID[sourceId] ?? AGING_SOURCE_WINDOW_MS)
 }
 
 function formatTimestamp(value: string | null | undefined) {
@@ -309,7 +316,7 @@ function buildNewsSourceRows(
 function buildVnPriceSourceRows(priceSources: Awaited<ReturnType<typeof getVnPriceSourceStatus>>) {
   return priceSources.map<ReportSourceRow>(source => {
     const warnings: ReportWarning[] = []
-    const freshnessLabel = toFreshnessLabel(source.fetchedAt)
+    const freshnessLabel = getVnPriceSourceFreshnessLabel(source.id, source.fetchedAt)
     const validationErrorCount = source.validationErrors?.length ?? 0
     const droppedCount = source.droppedCount ?? 0
     const failedComponents = getFailedSourceComponents(source)

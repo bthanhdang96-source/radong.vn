@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getWeatherProviderFailureSeverity } from '../services/assminReportService.js'
+import {
+  getVnPriceSourceFreshnessLabel,
+  getWeatherProviderFailureSeverity,
+} from '../services/assminReportService.js'
+
+function isoDaysAgo(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+}
 
 test('weather provider failures are critical when no provider is usable', () => {
   const severity = getWeatherProviderFailureSeverity(
@@ -27,4 +34,10 @@ test('optional weather provider failures are informational when another provider
     ),
     null,
   )
+})
+
+test('customs source freshness follows its weekly crawl cadence', () => {
+  assert.equal(getVnPriceSourceFreshnessLabel('customs', isoDaysAgo(4)), 'aging')
+  assert.equal(getVnPriceSourceFreshnessLabel('customs', isoDaysAgo(10)), 'stale')
+  assert.equal(getVnPriceSourceFreshnessLabel('bhx', isoDaysAgo(4)), 'stale')
 })
