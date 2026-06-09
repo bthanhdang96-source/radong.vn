@@ -76,11 +76,13 @@ export type ExportRegistryQueryOptions = {
   page?: number
   limit?: number
   now?: Date
+  mapMode?: ExportRegistryMapMode
 }
 
 export type ExportRegistrySortKey = 'updated_desc' | 'name_asc' | 'province_asc'
+export type ExportRegistryMapMode = 'all' | 'page' | 'none'
 
-type ExportRegistryLookupItem = {
+export type ExportRegistryLookupItem = {
   id: string
   registryType: ExportRegistryType
   sourceUrl: string
@@ -346,6 +348,18 @@ function toMapItem(item: ExportRegistryLookupItem): ExportRegistryMapItem {
     capacity: item.capacity,
     certifications: item.certifications,
   }
+}
+
+export function selectExportRegistryMapSourceItems(
+  filteredItems: ExportRegistryLookupItem[],
+  pageItems: ExportRegistryLookupItem[],
+  mapMode: ExportRegistryMapMode = 'all',
+) {
+  if (mapMode === 'none') {
+    return []
+  }
+
+  return mapMode === 'page' ? pageItems : filteredItems
 }
 
 function matchesSearch(item: ExportRegistryLookupItem, query: string) {
@@ -762,10 +776,12 @@ export async function getExportRegistryEntries(
   const filteredItems = sortExportRegistryItems(filterExportRegistryItems(allItems, options), options.sort)
   const start = (page - 1) * limit
   const items = filteredItems.slice(start, start + limit)
+  const mapMode = options.mapMode ?? 'all'
+  const mapSourceItems = selectExportRegistryMapSourceItems(filteredItems, items, mapMode)
 
   return {
     items,
-    mapItems: filteredItems.map(toMapItem),
+    mapItems: mapSourceItems.map(toMapItem),
     total: filteredItems.length,
     page,
     limit,

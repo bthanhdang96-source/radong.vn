@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
+import { sendCachedJson } from '../middleware/publicResponseCache.js'
 import { getVnPriceSourceStatus, getVnPrices, getVnPricesHistory } from '../services/supabaseMarketDataService.js'
 import type { PriceType } from '../services/marketDataMappings.js'
 
@@ -38,10 +39,16 @@ function parseHistoryDateKey(value: unknown) {
 
 router.get('/vn-prices', async (_req, res) => {
   try {
-    const payload = await getVnPrices(false, {
-      priceTypes: parsePriceTypes(_req.query.priceType),
+    await sendCachedJson(_req, res, {
+      label: 'vn-prices',
+      ttlSeconds: 180,
+      warnAfterMs: 2000,
+    }, async () => {
+      const payload = await getVnPrices(false, {
+        priceTypes: parsePriceTypes(_req.query.priceType),
+      })
+      return { success: true, ...payload }
     })
-    res.json({ success: true, ...payload })
   } catch (error) {
     console.error('[API] Failed to load VN prices:', error)
     res.status(500).json({ success: false, error: 'Failed to load VN prices' })

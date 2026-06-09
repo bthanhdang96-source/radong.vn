@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
+import { sendCachedJson } from '../middleware/publicResponseCache.js'
 import { crawlExportRegistry } from '../services/exportRegistry/crawler.js'
 import { getExportRegistryCategories, getExportRegistryEntries, syncExportRegistryResultsToSupabase } from '../services/exportRegistry/service.js'
+import type { ExportRegistryMapMode } from '../services/exportRegistry/service.js'
 import type { ExportRegistryType } from '../services/exportRegistry/types.js'
 
 const router = Router()
 const REGISTRY_TYPES: ExportRegistryType[] = ['production_area', 'packing_facility']
 const REGISTRY_SORTS = ['updated_desc', 'name_asc', 'province_asc'] as const
+const REGISTRY_MAP_MODES: ExportRegistryMapMode[] = ['all', 'page', 'none']
 
 function parseRegistryTypes(value: unknown): ExportRegistryType[] | undefined {
   if (value === 'all' || value === undefined || value === null || value === '') {
@@ -30,6 +33,12 @@ function parsePositiveInteger(value: unknown) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
 }
 
+function parseMapMode(value: unknown): ExportRegistryMapMode | undefined {
+  return typeof value === 'string' && REGISTRY_MAP_MODES.includes(value as ExportRegistryMapMode)
+    ? value as ExportRegistryMapMode
+    : undefined
+}
+
 router.get('/export-registry/categories', async (_req, res) => {
   try {
     const items = await getExportRegistryCategories()
@@ -48,21 +57,28 @@ router.get('/export-registry/entries', async (req, res) => {
     : undefined
 
   try {
-    const payload = await getExportRegistryEntries({
-      type,
-      q: typeof req.query.q === 'string' ? req.query.q : undefined,
-      province: typeof req.query.province === 'string' ? req.query.province : undefined,
-      market: typeof req.query.market === 'string' ? req.query.market : undefined,
-      product: typeof req.query.product === 'string' ? req.query.product : undefined,
-      status: req.query.status === 'harvesting' ? 'harvesting' : 'all',
-      sort: typeof req.query.sort === 'string' && REGISTRY_SORTS.includes(req.query.sort as typeof REGISTRY_SORTS[number])
-        ? req.query.sort as typeof REGISTRY_SORTS[number]
-        : undefined,
-      page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
-      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
-    })
+    await sendCachedJson(req, res, {
+      label: 'export-registry-entries',
+      ttlSeconds: 180,
+      warnAfterMs: 2000,
+    }, async () => {
+      const payload = await getExportRegistryEntries({
+        type,
+        q: typeof req.query.q === 'string' ? req.query.q : undefined,
+        province: typeof req.query.province === 'string' ? req.query.province : undefined,
+        market: typeof req.query.market === 'string' ? req.query.market : undefined,
+        product: typeof req.query.product === 'string' ? req.query.product : undefined,
+        status: req.query.status === 'harvesting' ? 'harvesting' : 'all',
+        sort: typeof req.query.sort === 'string' && REGISTRY_SORTS.includes(req.query.sort as typeof REGISTRY_SORTS[number])
+          ? req.query.sort as typeof REGISTRY_SORTS[number]
+          : undefined,
+        page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
+        limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+        mapMode: parseMapMode(req.query.mapMode),
+      })
 
-    res.json({ success: true, ...payload })
+      return { success: true, ...payload }
+    })
   } catch (error) {
     res.status(500).json({
       success: false,

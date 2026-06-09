@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
+import { sendCachedJson } from '../middleware/publicResponseCache.js'
 import {
   generateCommodityPricePages,
   getGeneratedCommodityPricePageDetail,
@@ -10,12 +11,17 @@ const router = Router()
 
 router.get('/commodity-price-pages', async (req, res) => {
   try {
-    const items = await listGeneratedCommodityPricePages({
-      commoditySlug: typeof req.query.commoditySlug === 'string' ? req.query.commoditySlug : undefined,
-      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
-    })
+    await sendCachedJson(req, res, {
+      label: 'commodity-price-pages',
+      ttlSeconds: 600,
+    }, async () => {
+      const items = await listGeneratedCommodityPricePages({
+        commoditySlug: typeof req.query.commoditySlug === 'string' ? req.query.commoditySlug : undefined,
+        limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+      })
 
-    res.json({ success: true, items })
+      return { success: true, items }
+    })
   } catch (error) {
     console.error('[API] Failed to list generated commodity price pages:', error)
     res.status(500).json({ success: false, error: 'Failed to list generated commodity price pages' })

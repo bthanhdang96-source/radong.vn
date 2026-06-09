@@ -211,6 +211,7 @@ function buildQuery(params: {
     page: String(params.page),
     limit: '24',
     sort: params.sort,
+    mapMode: 'page',
   })
 
   if (params.search.trim()) {

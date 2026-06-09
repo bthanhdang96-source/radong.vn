@@ -1,7 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { getCustomsReportPeriod } from '../services/crawlers/customsCrawler.js'
-import { resolveSourceSnapshotIds, selectLatestObservationRows } from '../services/supabaseMarketDataService.js'
+import {
+  aggregateLatestSourceSnapshotsFromRows,
+  resolveSourceSnapshotIds,
+  selectLatestObservationRows,
+  type RawCrawlLogRow,
+} from '../services/supabaseMarketDataService.js'
+import type { SourceSnapshot } from '../services/crawlers/types.js'
 
 test('resolveSourceSnapshotIds includes customs in the default source snapshot query set', () => {
   const sourceIds = resolveSourceSnapshotIds()
@@ -57,4 +63,54 @@ test('customs report period metadata identifies semimonthly aggregate coverage',
   assert.equal(period.label, 'Ky 2 thang 4 nam 2026')
   assert.equal(period.startsOn, '2026-04-16')
   assert.equal(period.endsOn, '2026-04-30')
+})
+
+test('aggregateLatestSourceSnapshotsFromRows batches latest rows by source', () => {
+  function snapshot(id: SourceSnapshot['id'], label: string, itemCount: number): SourceSnapshot {
+    return {
+      id,
+      label,
+      url: `https://example.test/${id}`,
+      fetchedAt: '2026-06-01T01:00:00.000Z',
+      success: true,
+      itemCount,
+      priority: 80,
+      coverage: [label],
+    }
+  }
+
+  const rows: RawCrawlLogRow[] = [
+    {
+      source_name: 'bhx',
+      source_url: 'https://example.test/bhx-old',
+      crawled_at: '2026-05-31T00:00:00.000Z',
+      raw_json: { snapshot: snapshot('bhx', 'old', 1) },
+    },
+    {
+      source_name: 'bhx',
+      source_url: 'https://example.test/bhx-1',
+      crawled_at: '2026-06-01T00:00:00.000Z',
+      raw_json: { snapshot: snapshot('bhx', 'fruit', 2) },
+    },
+    {
+      source_name: 'bhx',
+      source_url: 'https://example.test/bhx-2',
+      crawled_at: '2026-06-01T00:00:00.000Z',
+      raw_json: { snapshot: snapshot('bhx', 'vegetable', 3) },
+    },
+    {
+      source_name: 'coop',
+      source_url: 'https://example.test/coop',
+      crawled_at: '2026-06-01T00:00:00.000Z',
+      raw_json: { snapshot: snapshot('coop', 'coop', 4) },
+    },
+  ]
+
+  const aggregated = aggregateLatestSourceSnapshotsFromRows(['bhx', 'coop'], rows, 'source_name')
+  const bySource = new Map(aggregated.map(item => [item.id, item]))
+
+  assert.equal(aggregated.length, 2)
+  assert.equal(bySource.get('bhx')?.itemCount, 5)
+  assert.deepEqual(bySource.get('bhx')?.coverage.sort(), ['fruit', 'vegetable'])
+  assert.equal(bySource.get('coop')?.itemCount, 4)
 })

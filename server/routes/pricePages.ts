@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { requireAdminApiKey } from '../middleware/adminAuth.js'
+import { sendCachedJson } from '../middleware/publicResponseCache.js'
 import {
   generatePricePages,
   getGeneratedPricePageDetail,
@@ -15,14 +16,19 @@ function parseScopeType(value: unknown): PricePageScopeType | undefined {
 
 router.get('/price-pages', async (req, res) => {
   try {
-    const items = await listGeneratedPricePages({
-      commoditySlug: typeof req.query.commoditySlug === 'string' ? req.query.commoditySlug : undefined,
-      provinceCode: typeof req.query.provinceCode === 'string' ? req.query.provinceCode : undefined,
-      scopeType: parseScopeType(req.query.scopeType),
-      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
-    })
+    await sendCachedJson(req, res, {
+      label: 'price-pages',
+      ttlSeconds: 600,
+    }, async () => {
+      const items = await listGeneratedPricePages({
+        commoditySlug: typeof req.query.commoditySlug === 'string' ? req.query.commoditySlug : undefined,
+        provinceCode: typeof req.query.provinceCode === 'string' ? req.query.provinceCode : undefined,
+        scopeType: parseScopeType(req.query.scopeType),
+        limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+      })
 
-    res.json({ success: true, items })
+      return { success: true, items }
+    })
   } catch (error) {
     console.error('[API] Failed to list generated price pages:', error)
     res.status(500).json({ success: false, error: 'Failed to list generated price pages' })

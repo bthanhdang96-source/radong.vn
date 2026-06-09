@@ -99,7 +99,7 @@ type CommodityTrendRow = {
   updated_at: string
 }
 
-type RawCrawlLogRow = {
+export type RawCrawlLogRow = {
   source_name?: string
   source?: string
   source_url: string | null
@@ -1154,44 +1154,38 @@ async function getAllCommodityTrendRows() {
   return data as CommodityTrendRow[]
 }
 
-async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
-  const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
-  const requestedSourceIds = resolveSourceSnapshotIds(sourceIds)
-  if (!client || requestedSourceIds.length === 0) {
-    return []
-  }
+const RAW_CRAWL_LOG_LIMIT_PER_SOURCE = 200
+const RAW_CRAWL_LOG_MAX_BATCH_LIMIT = 5000
 
-  const runQuery = async (sourceId: SourceSnapshot['id'], column: 'source' | 'source_name') => {
-    const { data, error } = await client
-      .from('raw_crawl_logs')
-      .select('*')
-      .eq(column, sourceId)
-      .order('crawled_at', { ascending: false })
-      .limit(50)
+export function aggregateLatestSourceSnapshotsFromRows(
+  sourceIds: SourceSnapshot['id'][],
+  rows: RawCrawlLogRow[],
+  column: 'source' | 'source_name',
+) {
+  const requestedSourceIds = [...new Set(sourceIds.filter(Boolean))]
+  const requested = new Set(requestedSourceIds)
+  const rowsBySource = new Map<string, RawCrawlLogRow[]>()
 
-    return { data, error }
+  for (const row of rows) {
+    const sourceId = row[column]
+    if (!sourceId || !requested.has(sourceId as SourceSnapshot['id'])) {
+      continue
+    }
+
+    const entries = rowsBySource.get(sourceId) ?? []
+    entries.push(row)
+    rowsBySource.set(sourceId, entries)
   }
 
   const bySource = new Map<string, SourceSnapshot>()
   for (const sourceId of requestedSourceIds) {
-    let { data, error } = await runQuery(sourceId, 'source_name')
-    if (error) {
-      const retry = await runQuery(sourceId, 'source')
-      data = retry.data
-      error = retry.error
-    }
-
-    if (error) {
-      throw error
-    }
-
-    const rows = (data as RawCrawlLogRow[] | null | undefined) ?? []
-    if (rows.length === 0) {
+    const sourceRows = [...(rowsBySource.get(sourceId) ?? [])].sort((left, right) => right.crawled_at.localeCompare(left.crawled_at))
+    if (sourceRows.length === 0) {
       continue
     }
 
-    const latestCrawledAt = rows[0].crawled_at
-    const snapshots = rows
+    const latestCrawledAt = sourceRows[0].crawled_at
+    const snapshots = sourceRows
       .filter(row => row.crawled_at === latestCrawledAt)
       .map(row => row.raw_json?.snapshot)
       .filter((snapshot): snapshot is SourceSnapshot => Boolean(snapshot))
@@ -1204,6 +1198,62 @@ async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
   }
 
   return [...bySource.values()]
+}
+
+async function getLatestSourceSnapshots(sourceIds?: SourceSnapshot['id'][]) {
+  const client = getSupabaseAdminClient() ?? getSupabaseReadClient()
+  const requestedSourceIds = resolveSourceSnapshotIds(sourceIds)
+  if (!client || requestedSourceIds.length === 0) {
+    return []
+  }
+
+  const batchLimit = Math.min(
+    RAW_CRAWL_LOG_MAX_BATCH_LIMIT,
+    Math.max(50, requestedSourceIds.length * RAW_CRAWL_LOG_LIMIT_PER_SOURCE),
+  )
+  const runBatchQuery = async (ids: SourceSnapshot['id'][], column: 'source' | 'source_name') => {
+    const { data, error } = await client
+      .from('raw_crawl_logs')
+      .select('*')
+      .in(column, ids)
+      .order('crawled_at', { ascending: false })
+      .limit(batchLimit)
+
+    return {
+      data: (data as RawCrawlLogRow[] | null | undefined) ?? [],
+      error,
+    }
+  }
+
+  const modern = await runBatchQuery(requestedSourceIds, 'source_name')
+  if (modern.error) {
+    const legacy = await runBatchQuery(requestedSourceIds, 'source')
+    if (legacy.error) {
+      throw legacy.error
+    }
+
+    return aggregateLatestSourceSnapshotsFromRows(requestedSourceIds, legacy.data, 'source')
+  }
+
+  const bySource = new Map(
+    aggregateLatestSourceSnapshotsFromRows(requestedSourceIds, modern.data, 'source_name')
+      .map(snapshot => [snapshot.id, snapshot] as const),
+  )
+  const missingSourceIds = requestedSourceIds.filter(sourceId => !bySource.has(sourceId))
+  if (missingSourceIds.length > 0) {
+    const legacy = await runBatchQuery(missingSourceIds, 'source')
+    if (!legacy.error) {
+      for (const snapshot of aggregateLatestSourceSnapshotsFromRows(missingSourceIds, legacy.data, 'source')) {
+        if (!bySource.has(snapshot.id)) {
+          bySource.set(snapshot.id, snapshot)
+        }
+      }
+    }
+  }
+
+  return requestedSourceIds
+    .map(sourceId => bySource.get(sourceId))
+    .filter((snapshot): snapshot is SourceSnapshot => Boolean(snapshot))
 }
 
 export function selectLatestObservationRows(rows: LatestObservationRow[]) {

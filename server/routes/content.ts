@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { sendCachedJson } from '../middleware/publicResponseCache.js'
 import { isContentFamilySlug, isPublicPriceCommodityGroupSlug } from '../services/contentTaxonomy.js'
 import { InvalidContentFeedCursorError, getContentFeed } from '../services/contentFeed.js'
 
@@ -44,16 +45,22 @@ router.get('/content/feed', async (req, res) => {
       return
     }
 
-    const payload = await getContentFeed({
-      family,
-      priceGroup,
-      q,
-      limit: Number.isFinite(limit) ? limit : undefined,
-      cursor,
-      includeModules,
-    })
+    await sendCachedJson(req, res, {
+      label: 'content-feed',
+      ttlSeconds: 120,
+      warnAfterMs: 1500,
+    }, async () => {
+      const payload = await getContentFeed({
+        family,
+        priceGroup,
+        q,
+        limit: Number.isFinite(limit) ? limit : undefined,
+        cursor,
+        includeModules,
+      })
 
-    res.json({ success: true, ...payload })
+      return { success: true, ...payload }
+    })
   } catch (error) {
     if (error instanceof InvalidContentFeedCursorError) {
       res.status(400).json({ success: false, error: 'Invalid cursor' })

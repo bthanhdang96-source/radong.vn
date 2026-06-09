@@ -1,4 +1,5 @@
 import './env.js';
+import compression from 'compression';
 import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';
@@ -94,6 +95,7 @@ app.use(
     credentials: true,
   }),
 );
+app.use(compression({ threshold: 1024 }));
 app.use(express.json());
 
 app.use((req, _res, next) => {
