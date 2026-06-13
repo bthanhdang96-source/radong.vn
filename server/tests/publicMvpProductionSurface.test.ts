@@ -12,10 +12,12 @@ import freightLogisticsProxyRouter from '../routes/freightLogisticsProxy.js'
 import {
   renderCommodityPricePageHtml,
 } from '../services/generatedPricePages/htmlRenderer.js'
+import { renderNewsArticleHtml } from '../services/news/htmlRenderer.js'
 import { getPublicOrigin, toAbsolutePublicUrl } from '../services/publicOrigin.js'
 import { buildVnPricesHistoryFromSupabaseRows } from '../services/supabaseMarketDataService.js'
 import type { SourceSnapshot } from '../services/crawlers/types.js'
 import type { GeneratedCommodityPricePageDetail } from '../services/generatedPricePages/types.js'
+import type { NewsDetailResponse } from '../services/news/types.js'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -76,13 +78,18 @@ async function withAdminApiKey<T>(callback: () => Promise<T>) {
 test('admin AI static routes are registered before slug route', () => {
   const contextIndex = routeIndex('/admin/ai-articles/context', 'get')
   const generateIndex = routeIndex('/admin/ai-articles/generate', 'post')
+  const generateBlogIndex = routeIndex('/admin/ai-articles/generate-blog', 'post')
+  const topicSeedsIndex = routeIndex('/admin/ai-blog-topic-seeds', 'get')
   const slugIndex = routeIndex('/admin/ai-articles/:slug', 'get')
 
   assert.notEqual(contextIndex, -1)
   assert.notEqual(generateIndex, -1)
+  assert.notEqual(generateBlogIndex, -1)
+  assert.notEqual(topicSeedsIndex, -1)
   assert.notEqual(slugIndex, -1)
   assert.ok(contextIndex < slugIndex)
   assert.ok(generateIndex < slugIndex)
+  assert.ok(generateBlogIndex < slugIndex)
 })
 
 test('public origin helper ignores untrusted host headers outside local development', () => {
@@ -228,6 +235,46 @@ test('commodity price HTML renderer emits SEO metadata instead of SPA shell', ()
   assert.match(html, /<link rel="canonical" href="https:\/\/radongvn\.vercel\.app\/gia-nong-san\/thanh-long" \/>/)
   assert.match(html, /<script type="application\/ld\+json">/)
   assert.match(html, /<h1>Gia thanh long hom nay<\/h1>/)
+  assert.doesNotMatch(html, /<div id="root"><\/div>/)
+})
+
+test('news article HTML renderer emits SEO metadata, canonical, OG, and Article schema', () => {
+  const payload: NewsDetailResponse = {
+    article: {
+      id: 'blog-1',
+      sourceKey: 'nongsanvn_ai',
+      canonicalUrl: '/tin-tuc/blog-nong-nghiep-farmer-lua-he-thu',
+      slug: 'blog-nong-nghiep-farmer-lua-he-thu',
+      title: 'Lich xuong giong lua he thu can luu y gi',
+      excerpt: 'Checklist ngan cho nha nong truoc vu lua he thu.',
+      contentHtml: '<h2>Viec can lam</h2><p>Can kiem tra lich xuong giong.</p>',
+      contentText: 'Can kiem tra lich xuong giong.',
+      thumbnailUrl: '/images/commodities/gao-noi-dia/rice-01.jpg',
+      author: 'NongSanVN AI',
+      category: 'Blog nha nong',
+      topicTags: ['blog-nong-nghiep', 'lua'],
+      publishedAt: '2026-06-10T02:00:00.000Z',
+      fetchedAt: '2026-06-10T02:30:00.000Z',
+      contentMode: 'full_html',
+      fingerprint: 'hash',
+      status: 'published',
+      sourceLabel: 'NongSanVN AI',
+      contentFamilySlug: 'blog-nong-nghiep',
+      contentFamilyLabel: 'Blog nong nghiep',
+      familyPath: '/tin-tuc/nhom/blog-nong-nghiep',
+    },
+    related: [],
+    latestFromSource: [],
+  }
+
+  const html = renderNewsArticleHtml(payload, 'https://radongvn.vercel.app')
+
+  assert.match(html, /<title>Lich xuong giong lua he thu can luu y gi<\/title>/)
+  assert.match(html, /<meta name="description" content="Checklist ngan cho nha nong truoc vu lua he thu\."/)
+  assert.match(html, /<link rel="canonical" href="https:\/\/radongvn\.vercel\.app\/tin-tuc\/blog-nong-nghiep-farmer-lua-he-thu">/)
+  assert.match(html, /<meta property="og:title" content="Lich xuong giong lua he thu can luu y gi">/)
+  assert.match(html, /"@type":"Article"/)
+  assert.match(html, /<h1>Lich xuong giong lua he thu can luu y gi<\/h1>/)
   assert.doesNotMatch(html, /<div id="root"><\/div>/)
 })
 

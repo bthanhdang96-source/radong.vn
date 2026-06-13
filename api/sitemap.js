@@ -10,6 +10,9 @@ export default async function handler(req, res) {
   <sitemap>
     <loc>${baseUrl}/sitemap-commodity-price-pages.xml</loc>
   </sitemap>
+  <sitemap>
+    <loc>${baseUrl}/sitemap-ai-articles.xml</loc>
+  </sitemap>
 </sitemapindex>`
 
   sendXml(res, xml)

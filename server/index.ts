@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { createAntiScrapeMiddleware } from './middleware/antiScrape.js';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
+import publicNewsArticlesRouter from './routes/publicNewsArticles.js';
 import publicPricePagesRouter from './routes/publicPricePages.js';
 import { generateAiArticles } from './services/aiArticles/service.js';
 import { getAppScheduleConfig } from './services/appRuntimeConfig.js';
@@ -32,6 +33,7 @@ let exchangeRateRefreshRunning = false;
 let priceContentRefreshRunning = false;
 let aiArticleExportRunning = false;
 let aiArticleWorldRunning = false;
+let aiBlogRunning = false;
 const appScheduleConfig = getAppScheduleConfig();
 const {
   timezone: TZ,
@@ -49,6 +51,9 @@ const {
   aiArticleEnabled: AI_ARTICLE_ENABLED,
   aiArticleExportCron: AI_ARTICLE_EXPORT_CRON,
   aiArticleWorldDailyCron: AI_ARTICLE_WORLD_DAILY_CRON,
+  aiBlogEnabled: AI_BLOG_ENABLED,
+  aiBlogCron: AI_BLOG_CRON,
+  aiBlogDailyLimit: AI_BLOG_DAILY_LIMIT,
 } =
   appScheduleConfig;
 
@@ -176,6 +181,7 @@ app.get('/robots.txt', (_req, res) => {
 app.use(createAntiScrapeMiddleware());
 
 app.use('/api', apiRouter);
+app.use(publicNewsArticlesRouter);
 app.use(publicPricePagesRouter);
 
 app.get('/api/health', (_req, res) => {
@@ -358,4 +364,26 @@ if (AI_ARTICLE_ENABLED) {
   });
 } else {
   console.log('[App Scheduler] AI article generation schedule is disabled');
+}
+
+if (AI_BLOG_ENABLED) {
+  registerAppCron('ai-agri-blog-generate', AI_BLOG_CRON, async () => {
+    if (aiBlogRunning) {
+      console.log('[AI Blog] Scheduled generation skipped: previous run still in progress');
+      return;
+    }
+
+    aiBlogRunning = true;
+    try {
+      console.log(`[AI Blog] Scheduled generation started (${AI_BLOG_CRON})`);
+      await generateAiArticles({ articleType: 'agri_blog', dailyLimit: AI_BLOG_DAILY_LIMIT });
+      console.log('[AI Blog] Scheduled generation completed');
+    } catch (error) {
+      console.error('[AI Blog] Scheduled generation failed:', error);
+    } finally {
+      aiBlogRunning = false;
+    }
+  });
+} else {
+  console.log('[App Scheduler] AI blog generation schedule is disabled');
 }

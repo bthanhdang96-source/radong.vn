@@ -71,6 +71,13 @@ const CONTENT_FAMILY_DEFINITIONS: ContentFamilyDefinition[] = [
     order: 5,
     badgeLabel: 'Chuyên môn',
   },
+  {
+    slug: 'blog-nong-nghiep',
+    label: 'Blog nÃ´ng nghiá»‡p',
+    path: '/tin-tuc/nhom/blog-nong-nghiep',
+    order: 6,
+    badgeLabel: 'Blog',
+  },
 ]
 
 const PRICE_COMMODITY_GROUP_DEFINITIONS: PriceCommodityGroupDefinition[] = [

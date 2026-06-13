@@ -38,6 +38,11 @@ export const CONTENT_FAMILY_DEFINITIONS: FamilyDefinition[] = [
     label: 'Chuyên môn & chính sách',
     path: '/tin-tuc/nhom/chuyen-mon-va-chinh-sach',
   },
+  {
+    slug: 'blog-nong-nghiep',
+    label: 'Blog nÃ´ng nghiá»‡p',
+    path: '/tin-tuc/nhom/blog-nong-nghiep',
+  },
 ]
 
 export const PRICE_GROUP_DEFINITIONS: PriceGroupDefinition[] = [

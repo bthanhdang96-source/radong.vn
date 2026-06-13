@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  __aiArticleTestUtils,
+  buildAgriBlogArticleContextsFromInputs,
+  buildAgriBlogArticleContextFromNews,
+  buildAgriBlogArticleContextFromSeed,
   buildExportMonthlyArticleContextsFromRows,
   buildExportMonthlyArticleContextFromRows,
   buildExportPeriodArticleContextsFromRows,
@@ -14,6 +18,8 @@ import {
 
 type CustomsRows = Parameters<typeof buildExportPeriodArticleContextFromRows>[0]
 type WorldRows = Parameters<typeof buildWorldDailyArticleContextFromRows>[0]
+type BlogSeedRow = Parameters<typeof buildAgriBlogArticleContextFromSeed>[0]
+type BlogNewsRow = Parameters<typeof buildAgriBlogArticleContextFromNews>[1]
 
 function customsRow(overrides: Partial<CustomsRows[number]> = {}): CustomsRows[number] {
   return {
@@ -69,6 +75,42 @@ function worldRow(overrides: Partial<WorldRows[number]> = {}): WorldRows[number]
     source_observation_label: 'ICO Robustas indicator 2026-05-22',
     source_url: 'https://ico.org/resources/public-market-information/',
     raw_payload: { name: 'Ca phe Robusta', category: 'Ca phe' },
+    ...overrides,
+  }
+}
+
+function blogSeed(overrides: Partial<BlogSeedRow> = {}): BlogSeedRow {
+  return {
+    id: 'seed-farmer-1',
+    topic_key: 'lich-xuong-giong-lua-he-thu',
+    audience: 'farmer',
+    headline_hint: 'Lich xuong giong lua he thu can luu y gi',
+    keyword_main: 'lich xuong giong lua',
+    keywords_sub: ['lua he thu', 'quan ly nuoc'],
+    style: 'guide',
+    priority: 80,
+    status: 'pending',
+    source_ref: {},
+    last_used_at: null,
+    created_at: '2026-06-01T00:00:00.000Z',
+    updated_at: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function blogNewsRow(overrides: Partial<BlogNewsRow> = {}): BlogNewsRow {
+  return {
+    id: 'news-1',
+    source_key: 'congthuong',
+    canonical_url: 'https://example.com/news-1',
+    slug: 'xuat-khau-gao-sang-eu',
+    title: 'Doanh nghiep xuat khau gao chuan bi tieu chuan moi',
+    excerpt: 'Doanh nghiep can theo doi tieu chuan va logistics trong thang 6.',
+    content_text: 'Theo co quan chuc nang, doanh nghiep xuat khau gao can cap nhat tieu chuan va ho so truy xuat nguon goc trong nam 2026.',
+    category: 'Xuat khau',
+    topic_tags: ['gao', 'xuat-khau', 'tieu-chuan'],
+    published_at: '2026-06-10T00:00:00.000Z',
+    fetched_at: '2026-06-10T01:00:00.000Z',
     ...overrides,
   }
 }
@@ -234,6 +276,91 @@ test('world daily contexts cover each observed day with daily signals and exclud
   assert.deepEqual(contexts[1]?.referenceBenchmarks.map(item => item.commoditySlug), ['rice-25pct'])
 })
 
+test('agri blog contexts choose pending seed before news fallback and rotate audiences', () => {
+  const contexts = buildAgriBlogArticleContextsFromInputs({
+    seeds: [blogSeed()],
+    newsRows: [
+      blogNewsRow({
+        id: 'news-farmer',
+        slug: 'khuyen-nong-lua-he-thu',
+        title: 'Khuyen nong lua he thu can quan ly nuoc',
+        category: 'Khuyen nong',
+        topic_tags: ['lua', 'ky-thuat'],
+      }),
+      blogNewsRow({
+        id: 'news-trader',
+        slug: 'thi-truong-thu-mua-ca-phe',
+        title: 'Thi truong thu mua ca phe co tin hieu moi',
+        category: 'Thi truong',
+        topic_tags: ['ca-phe', 'thu-mua'],
+      }),
+      blogNewsRow(),
+    ],
+    dailyLimit: 3,
+  })
+
+  assert.deepEqual(contexts.map(context => context.audience), ['farmer', 'trader', 'exporter'])
+  assert.equal(contexts[0]?.sourceMode, 'seed')
+  assert.equal(contexts[0]?.seedId, 'seed-farmer-1')
+  assert.equal(contexts[1]?.sourceMode, 'news_fallback')
+  assert.equal(contexts[2]?.sourceMode, 'news_fallback')
+  assert.equal(new Set(contexts.map(context => context.audience)).size, 3)
+})
+
+test('agri blog contexts avoid existing article_scope_key duplicates', () => {
+  const seed = blogSeed()
+  const seedContext = buildAgriBlogArticleContextFromSeed(seed, [blogNewsRow()])
+  const contexts = buildAgriBlogArticleContextsFromInputs({
+    seeds: [seed],
+    newsRows: [blogNewsRow()],
+    existingScopeKeys: new Set([seedContext.articleScopeKey]),
+    audience: 'farmer',
+  })
+
+  assert.equal(contexts.length, 1)
+  assert.notEqual(contexts[0]?.articleScopeKey, seedContext.articleScopeKey)
+  assert.equal(contexts[0]?.sourceMode, 'news_fallback')
+})
+
+test('agri blog prompt stays on blog article type instead of daily price context', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const prompt = __aiArticleTestUtils.buildArticlePrompt(context)
+
+  assert.equal(context.articleType, 'agri_blog')
+  assert.equal(context.contentFamilySlug, 'blog-nong-nghiep')
+  assert.equal('dailySignals' in context, false)
+  assert.match(prompt, /blog SEO hang ngay/)
+  assert.match(prompt, /khong phai "gia hom nay"/)
+})
+
+test('agri blog draft validation warns on raw HTML, short body, and missing attribution', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const quality = __aiArticleTestUtils.validateDraft(context, {
+    title: 'Cach chuan bi vu lua he thu',
+    excerpt: 'Checklist ngan cho nha nong.',
+    answerSummary: 'Can kiem tra lich xuong giong, nuoc va sau benh.',
+    bodyMarkdown: [
+      'Mo bai co so lieu 12% nhung khong co chu thich.',
+      '## Viec can lam dau tien',
+      '<div>Quan sat dong ruong</div>',
+      '## Quan ly nuoc',
+      'Giu muc nuoc phu hop.',
+      '## Ket luan',
+      'Lap checklist truoc khi xuong giong.',
+    ].join('\n\n'),
+    seo: { title: 'Cach chuan bi vu lua he thu', description: 'Checklist ngan.' },
+    topicTags: ['lua'],
+    audience: 'farmer',
+    style: 'guide',
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.warnings.some(warning => warning.includes('raw HTML')))
+  assert.ok(quality.warnings.some(warning => warning.includes('shorter')))
+  assert.ok(quality.warnings.some(warning => warning.includes('lacks visible attribution')))
+  assert.throws(() => __aiArticleTestUtils.parseAiDraft('{"title":"Thieu body"}'), /missing title, excerpt, or bodyMarkdown/)
+})
+
 test('AI article feed item keeps news path and taxonomy metadata', () => {
   const item = toAiArticleContentFeedItem({
     id: 'article-1',
@@ -265,6 +392,38 @@ test('AI article feed item keeps news path and taxonomy metadata', () => {
   assert.equal(item.contentFamilySlug, 'gia-nong-san-the-gioi')
   assert.equal(item.familyPath, '/tin-tuc/nhom/gia-nong-san-the-gioi')
   assert.equal(item.sortAt, '2026-05-22T00:00:00.000Z')
+})
+
+test('agri blog feed item maps into blog content family', () => {
+  const item = toAiArticleContentFeedItem({
+    id: 'blog-1',
+    slug: 'blog-nong-nghiep-farmer-lich-xuong-giong-lua',
+    path: '/tin-tuc/blog-nong-nghiep-farmer-lich-xuong-giong-lua',
+    articleType: 'agri_blog',
+    title: 'Lich xuong giong lua he thu can luu y gi',
+    excerpt: 'Checklist ngan cho nha nong.',
+    thumbnailUrl: null,
+    sourceKey: 'nongsanvn_ai',
+    sourceLabel: 'NongSanVN AI',
+    publishedAt: '2026-06-10T02:00:00.000Z',
+    updatedAt: '2026-06-10T02:00:00.000Z',
+    sortAt: '2026-06-10T00:00:00.000Z',
+    category: 'Blog nha nong',
+    topicTags: ['blog-nong-nghiep', 'nha-nong'],
+    contentFamilySlug: 'blog-nong-nghiep',
+    contentFamilyLabel: 'Blog nong nghiep',
+    familyPath: '/tin-tuc/nhom/blog-nong-nghiep',
+    badgeLabel: 'Blog',
+    dataGranularity: 'mixed',
+    primaryPeriodCode: null,
+    primaryObservedOn: '2026-06-10',
+    status: 'published',
+  } satisfies AiArticleSummary)
+
+  assert.equal(item.kind, 'ai_article')
+  assert.equal(item.articleType, 'agri_blog')
+  assert.equal(item.contentFamilySlug, 'blog-nong-nghiep')
+  assert.equal(item.familyPath, '/tin-tuc/nhom/blog-nong-nghiep')
 })
 
 test('AI article slug is stable ASCII', () => {

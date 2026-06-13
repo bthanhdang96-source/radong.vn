@@ -4,6 +4,7 @@ export type ContentFamilySlug =
   | 'tin-thi-truong-hang-ngay'
   | 'xuat-khau-va-doanh-nghiep'
   | 'chuyen-mon-va-chinh-sach'
+  | 'blog-nong-nghiep'
 
 export type PriceCommodityGroupSlug =
   | 'cay-cong-nghiep'
@@ -105,7 +106,7 @@ export type ContentFeedItem =
       priceGroupLabel: string | null
       sourceLabel: string
       sourceKey: string
-      articleType: 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update'
+      articleType: 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update' | 'agri_blog'
       dataGranularity: 'daily' | 'period' | 'monthly' | 'as_published' | 'mixed' | 'unknown'
       sortAt: string
     }

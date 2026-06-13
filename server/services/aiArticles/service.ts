@@ -5,9 +5,12 @@ import { getCommodityCategory, getCommodityDisplayName } from '../generatedPrice
 import type { ContentFamilySlug, ContentFeedItem, PriceCommodityGroupSlug } from '../generatedPricePages/types.js'
 import { getSupabaseAdminClient, getSupabaseReadClient, getSupabaseRuntimeStatus } from '../supabaseClient.js'
 
-export type AiArticleType = 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update'
+export type AiArticleType = 'export_period_report' | 'export_monthly_report' | 'world_daily_price_update' | 'agri_blog'
 export type AiArticleStatus = 'draft' | 'published' | 'archived' | 'failed'
 export type AiArticleGranularity = 'daily' | 'period' | 'monthly' | 'as_published' | 'mixed' | 'unknown'
+export type AiBlogAudience = 'farmer' | 'trader' | 'exporter'
+export type AiBlogStyle = 'guide' | 'analysis' | 'market_note'
+export type AiBlogTopicSeedStatus = 'pending' | 'used' | 'archived'
 
 type CustomsExportObservationRow = {
   crawled_at: string
@@ -59,6 +62,36 @@ type WorldPriceRow = {
   source_observation_label: string | null
   source_url: string | null
   raw_payload: Record<string, unknown> | null
+}
+
+type NewsArticleBlogRow = {
+  id: string
+  source_key: string
+  canonical_url: string
+  slug: string
+  title: string
+  excerpt: string | null
+  content_text: string | null
+  category: string | null
+  topic_tags: string[] | null
+  published_at: string
+  fetched_at: string
+}
+
+type AiBlogTopicSeedRow = {
+  id: string
+  topic_key: string
+  audience: AiBlogAudience
+  headline_hint: string
+  keyword_main: string
+  keywords_sub: string[] | null
+  style: AiBlogStyle
+  priority: number
+  status: AiBlogTopicSeedStatus
+  source_ref: Record<string, unknown>
+  last_used_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 type AiArticleRow = {
@@ -120,6 +153,20 @@ type WorldCommodityFact = {
   sourceUrl: string | null
   observedOn: string | null
   sourceObservationLabel: string | null
+}
+
+type AiBlogSourceArticleFact = {
+  id: string
+  sourceKey: string
+  canonicalUrl: string
+  slug: string
+  title: string
+  excerpt: string | null
+  category: string | null
+  topicTags: string[]
+  publishedAt: string
+  fetchedAt: string
+  factSnippets: string[]
 }
 
 export type AiArticleContext =
@@ -192,6 +239,30 @@ export type AiArticleContext =
       referenceBenchmarks: WorldCommodityFact[]
       sourceNotes: string[]
     }
+  | {
+      articleType: 'agri_blog'
+      articleScopeKey: string
+      titleHint: string
+      contentFamilySlug: ContentFamilySlug
+      category: string
+      topicTags: string[]
+      dataGranularity: AiArticleGranularity
+      primaryPeriodCode: null
+      primaryObservedOn: string
+      dataCutoff: string
+      audience: AiBlogAudience
+      audienceLabel: string
+      style: AiBlogStyle
+      styleLabel: string
+      seedId: string | null
+      sourceMode: 'seed' | 'news_fallback'
+      topicKey: string
+      keywordMain: string
+      keywordsSub: string[]
+      sourceArticles: AiBlogSourceArticleFact[]
+      sourceNotes: string[]
+      requiresDisclaimer: boolean
+    }
 
 type AiDraft = {
   title: string
@@ -205,6 +276,36 @@ type AiDraft = {
     faq?: Array<{ question: string; answer: string }>
   }
   topicTags?: string[]
+  audience?: AiBlogAudience
+  style?: AiBlogStyle
+}
+
+export type AiBlogTopicSeedSummary = {
+  id: string
+  topicKey: string
+  audience: AiBlogAudience
+  headlineHint: string
+  keywordMain: string
+  keywordsSub: string[]
+  style: AiBlogStyle
+  priority: number
+  status: AiBlogTopicSeedStatus
+  sourceRef: Record<string, unknown>
+  lastUsedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AiBlogTopicSeedInput = {
+  topicKey?: string
+  audience: AiBlogAudience
+  headlineHint: string
+  keywordMain: string
+  keywordsSub?: string[]
+  style?: AiBlogStyle
+  priority?: number
+  status?: AiBlogTopicSeedStatus
+  sourceRef?: Record<string, unknown>
 }
 
 export type AiArticleSummary = {
@@ -240,6 +341,7 @@ export type AiArticleDetail = AiArticleSummary & {
   fetchedAt: string
   sourceFacts: Record<string, unknown>
   seo: Record<string, unknown>
+  quality: Record<string, unknown>
 }
 
 export type GenerateAiArticlesOptions = {
@@ -248,6 +350,9 @@ export type GenerateAiArticlesOptions = {
   year?: number
   month?: number
   observedOn?: string
+  audience?: AiBlogAudience
+  seedId?: string
+  dailyLimit?: number
   force?: boolean
 }
 
@@ -267,6 +372,50 @@ const AI_ARTICLE_SOURCE_KEY = 'nongsanvn_ai'
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite'
 const DEFAULT_THUMBNAIL_URL =
   'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
+const AI_BLOG_AUDIENCES: AiBlogAudience[] = ['farmer', 'trader', 'exporter']
+const DEFAULT_AI_BLOG_DAILY_LIMIT = 3
+const AI_BLOG_AUDIENCE_META: Record<
+  AiBlogAudience,
+  {
+    label: string
+    category: string
+    defaultStyle: AiBlogStyle
+    tags: string[]
+    signals: string[]
+    intent: string
+  }
+> = {
+  farmer: {
+    label: 'Nong dan',
+    category: 'Blog nha nong',
+    defaultStyle: 'guide',
+    tags: ['blog-nong-nghiep', 'nha-nong', 'ky-thuat'],
+    signals: ['khuyen nong', 'ky thuat', 'mua vu', 'sau benh', 'phan bon', 'trong trot', 'chan nuoi', 'nong dan', 'lua', 'ca phe', 'sau rieng'],
+    intent: 'uu tien bai huong dan de ap dung tren dong ruong, trang trai hoac vuon cay.',
+  },
+  trader: {
+    label: 'Tieu thuong',
+    category: 'Blog thuong mai nong san',
+    defaultStyle: 'market_note',
+    tags: ['blog-nong-nghiep', 'tieu-thuong', 'thi-truong'],
+    signals: ['thi truong', 'gia', 'thu mua', 'tieu thu', 'ban buon', 'nguon cung', 'luu thong', 'cho dau moi'],
+    intent: 'uu tien bai giai thich nguon cung, nhu cau, cach doc tin thi truong va quan tri rui ro mua ban.',
+  },
+  exporter: {
+    label: 'Doanh nghiep xuat khau',
+    category: 'Blog xuat khau nong san',
+    defaultStyle: 'analysis',
+    tags: ['blog-nong-nghiep', 'xuat-khau', 'doanh-nghiep'],
+    signals: ['xuat khau', 'doanh nghiep', 'kim ngach', 'thi truong', 'tieu chuan', 'logistics', 'vietrade', 'cong thuong'],
+    intent: 'uu tien bai phan tich co hoi, tieu chuan, thi truong dich va viec chuan bi don hang.',
+  },
+}
+const AI_BLOG_STYLE_LABELS: Record<AiBlogStyle, string> = {
+  guide: 'Huong dan thuc hanh',
+  analysis: 'Phan tich',
+  market_note: 'Ghi chu thi truong',
+}
+const AI_BLOG_SENSITIVE_SIGNALS = ['dich benh', 'sau benh', 'canh bao', 'nghi dinh', 'thong tu', 'quy dinh', 'xu phat', 'thu hoi', 'cam']
 const AI_ARTICLE_COMMODITY_LABELS: Record<string, string> = {
   'rice-5pct': 'Gạo 5% tấm',
   'rice-25pct': 'Gạo 25% tấm',
@@ -338,8 +487,7 @@ function articlePath(slug: string) {
   return `/tin-tuc/${slug}`
 }
 
-function getModelName() {
-  const configuredModel = process.env.GEMINI_MODEL?.trim() || process.env.AI_ARTICLE_MODEL?.trim() || DEFAULT_MODEL
+function normalizeConfiguredModel(configuredModel: string) {
   if (configuredModel === 'gemini-3.1-flash') {
     return DEFAULT_MODEL
   }
@@ -347,11 +495,24 @@ function getModelName() {
   return configuredModel
 }
 
+function getModelName(articleType?: AiArticleType) {
+  const configuredModel =
+    (articleType === 'agri_blog' ? process.env.AI_BLOG_MODEL?.trim() : '') ||
+    process.env.AI_ARTICLE_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    DEFAULT_MODEL
+  return normalizeConfiguredModel(configuredModel)
+}
+
 function getPublishStatus(): AiArticleStatus {
   return process.env.AI_ARTICLE_PUBLISH_MODE?.trim() === 'publish' ? 'published' : 'draft'
 }
 
-function getAiArticlesEnabled() {
+function getAiArticlesEnabled(articleType?: AiArticleType) {
+  if (articleType === 'agri_blog') {
+    return parseBoolean(process.env.AI_BLOG_ENABLED, false) || parseBoolean(process.env.AI_ARTICLE_ENABLED, false)
+  }
+
   return parseBoolean(process.env.AI_ARTICLE_ENABLED, false)
 }
 
@@ -377,6 +538,128 @@ function getCommodityName(slug: string) {
 
 function getCommodityGroup(slug: string, fallbackCategory: string | null) {
   return getCommodityCategory(slug, fallbackCategory)
+}
+
+function getAiBlogAudienceMeta(audience: AiBlogAudience) {
+  return AI_BLOG_AUDIENCE_META[audience]
+}
+
+function normalizeTopicKey(value: string) {
+  return slugifyAiArticle(value).slice(0, 96)
+}
+
+function getBlogTopicKeyForNews(audience: AiBlogAudience, row: NewsArticleBlogRow) {
+  return normalizeTopicKey(`${audience}-${row.slug || row.title}`)
+}
+
+function getBlogScopeKey(audience: AiBlogAudience, topicKey: string) {
+  return `agri_blog:${audience}:${topicKey}`
+}
+
+function toTextHaystack(...values: Array<string | null | undefined>) {
+  return foldText(values.filter(Boolean).join(' '))
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(value => value.trim()))]
+}
+
+function clampPriority(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, Math.trunc(value))) : 50
+}
+
+export function isAiBlogAudience(value: unknown): value is AiBlogAudience {
+  return typeof value === 'string' && AI_BLOG_AUDIENCES.includes(value as AiBlogAudience)
+}
+
+export function isAiBlogStyle(value: unknown): value is AiBlogStyle {
+  return value === 'guide' || value === 'analysis' || value === 'market_note'
+}
+
+export function isAiBlogTopicSeedStatus(value: unknown): value is AiBlogTopicSeedStatus {
+  return value === 'pending' || value === 'used' || value === 'archived'
+}
+
+function sanitizeBlogKeywords(values: string[] | null | undefined) {
+  return uniqueStrings(values ?? []).slice(0, 6)
+}
+
+function toBlogSeedSummary(row: AiBlogTopicSeedRow): AiBlogTopicSeedSummary {
+  return {
+    id: row.id,
+    topicKey: row.topic_key,
+    audience: row.audience,
+    headlineHint: row.headline_hint,
+    keywordMain: row.keyword_main,
+    keywordsSub: row.keywords_sub ?? [],
+    style: row.style,
+    priority: row.priority,
+    status: row.status,
+    sourceRef: row.source_ref ?? {},
+    lastUsedAt: row.last_used_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function getBlogSensitiveFlag(input: { titleHint: string; keywordMain: string; sourceArticles: AiBlogSourceArticleFact[] }) {
+  const folded = toTextHaystack(
+    input.titleHint,
+    input.keywordMain,
+    ...input.sourceArticles.flatMap(article => [article.title, article.excerpt, article.category, article.topicTags.join(' ')]),
+  )
+  return AI_BLOG_SENSITIVE_SIGNALS.some(signal => folded.includes(signal))
+}
+
+function getBlogFactSnippets(text: string | null | undefined) {
+  const normalized = (text ?? '').replace(/\s+/g, ' ').trim()
+  if (!normalized) {
+    return []
+  }
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map(sentence => sentence.trim())
+    .filter(sentence => sentence.length >= 40)
+  const withNumbers = sentences.filter(sentence => /\d|%|ha|kg|tan|táº¥n|usd|vnd|Ä‘á»“ng/i.test(sentence))
+  return (withNumbers.length > 0 ? withNumbers : sentences).slice(0, 4).map(sentence => sentence.slice(0, 320))
+}
+
+function toBlogSourceArticleFact(row: NewsArticleBlogRow): AiBlogSourceArticleFact {
+  return {
+    id: row.id,
+    sourceKey: row.source_key,
+    canonicalUrl: row.canonical_url,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    category: row.category,
+    topicTags: row.topic_tags ?? [],
+    publishedAt: row.published_at,
+    fetchedAt: row.fetched_at,
+    factSnippets: getBlogFactSnippets(row.content_text ?? row.excerpt ?? row.title),
+  }
+}
+
+function scoreNewsForBlogAudience(row: NewsArticleBlogRow, audience: AiBlogAudience, seed?: AiBlogTopicSeedRow | null) {
+  const meta = getAiBlogAudienceMeta(audience)
+  const folded = toTextHaystack(row.title, row.excerpt, row.content_text, row.category, (row.topic_tags ?? []).join(' '))
+  const signalScore = meta.signals.reduce((score, signal) => score + (folded.includes(signal) ? 5 : 0), 0)
+  const seedKeywords = seed ? [seed.keyword_main, ...(seed.keywords_sub ?? [])].map(foldText) : []
+  const keywordScore = seedKeywords.reduce((score, keyword) => score + (keyword && folded.includes(keyword) ? 8 : 0), 0)
+  const ageHours = Math.max(0, (Date.now() - new Date(row.published_at).getTime()) / 36e5)
+  const freshnessScore = Number.isFinite(ageHours) ? Math.max(0, 12 - Math.floor(ageHours / 24)) : 0
+  return signalScore + keywordScore + freshnessScore
+}
+
+function sortBlogSourceNews(rows: NewsArticleBlogRow[], audience: AiBlogAudience, seed?: AiBlogTopicSeedRow | null) {
+  return [...rows].sort((left, right) => {
+    const scoreDelta = scoreNewsForBlogAudience(right, audience, seed) - scoreNewsForBlogAudience(left, audience, seed)
+    if (scoreDelta !== 0) {
+      return scoreDelta
+    }
+    return right.published_at.localeCompare(left.published_at)
+  })
 }
 
 function toExportCommodityFact(row: CustomsExportObservationRow): ExportCommodityFact {
@@ -666,6 +949,125 @@ export function buildWorldDailyArticleContextsFromRows(rows: WorldPriceRow[]) {
     .filter((context): context is Extract<AiArticleContext, { articleType: 'world_daily_price_update' }> => context !== null)
 }
 
+export function buildAgriBlogArticleContextFromSeed(
+  seed: AiBlogTopicSeedRow,
+  sourceRows: NewsArticleBlogRow[] = [],
+): Extract<AiArticleContext, { articleType: 'agri_blog' }> {
+  const meta = getAiBlogAudienceMeta(seed.audience)
+  const sourceArticles = sortBlogSourceNews(sourceRows, seed.audience, seed).slice(0, 5).map(toBlogSourceArticleFact)
+  const topicKey = normalizeTopicKey(seed.topic_key || seed.keyword_main || seed.headline_hint)
+  const observedOn = (sourceArticles[0]?.publishedAt ?? seed.created_at).slice(0, 10)
+  const dataCutoff = [seed.updated_at, ...sourceArticles.map(article => article.fetchedAt)].sort().at(-1) ?? seed.updated_at
+  const keywordsSub = sanitizeBlogKeywords(seed.keywords_sub)
+  const titleHint = seed.headline_hint.trim()
+  return {
+    articleType: 'agri_blog',
+    articleScopeKey: getBlogScopeKey(seed.audience, topicKey),
+    titleHint,
+    contentFamilySlug: 'blog-nong-nghiep',
+    category: meta.category,
+    topicTags: [...new Set([...meta.tags, topicKey, seed.keyword_main, ...keywordsSub].map(normalizeTopicKey).filter(Boolean))].slice(0, 12),
+    dataGranularity: 'mixed',
+    primaryPeriodCode: null,
+    primaryObservedOn: observedOn,
+    dataCutoff,
+    audience: seed.audience,
+    audienceLabel: meta.label,
+    style: seed.style,
+    styleLabel: AI_BLOG_STYLE_LABELS[seed.style],
+    seedId: seed.id,
+    sourceMode: 'seed',
+    topicKey,
+    keywordMain: seed.keyword_main,
+    keywordsSub,
+    sourceArticles,
+    sourceNotes: [
+      'Bai blog phai tong hop va dien giai lai bang loi rieng, khong copy cau van tu nguon crawl.',
+      'Moi so lieu cu the can ghi ro nguon trong bai.',
+    ],
+    requiresDisclaimer: getBlogSensitiveFlag({ titleHint, keywordMain: seed.keyword_main, sourceArticles }),
+  }
+}
+
+export function buildAgriBlogArticleContextFromNews(
+  audience: AiBlogAudience,
+  sourceRow: NewsArticleBlogRow,
+  sourceRows: NewsArticleBlogRow[] = [],
+): Extract<AiArticleContext, { articleType: 'agri_blog' }> {
+  const meta = getAiBlogAudienceMeta(audience)
+  const relatedRows = [sourceRow, ...sortBlogSourceNews(sourceRows.filter(row => row.id !== sourceRow.id), audience)].slice(0, 5)
+  const sourceArticles = relatedRows.map(toBlogSourceArticleFact)
+  const topicKey = getBlogTopicKeyForNews(audience, sourceRow)
+  const keywordMain = sourceRow.category?.trim() || sourceRow.topic_tags?.[0] || meta.tags[1] || 'nong san'
+  const titleHint = sourceRow.title
+  return {
+    articleType: 'agri_blog',
+    articleScopeKey: getBlogScopeKey(audience, topicKey),
+    titleHint,
+    contentFamilySlug: 'blog-nong-nghiep',
+    category: meta.category,
+    topicTags: [...new Set([...meta.tags, topicKey, keywordMain, ...(sourceRow.topic_tags ?? [])].map(normalizeTopicKey).filter(Boolean))].slice(0, 12),
+    dataGranularity: 'mixed',
+    primaryPeriodCode: null,
+    primaryObservedOn: sourceRow.published_at.slice(0, 10),
+    dataCutoff: [sourceRow.fetched_at, ...sourceArticles.map(article => article.fetchedAt)].sort().at(-1) ?? sourceRow.fetched_at,
+    audience,
+    audienceLabel: meta.label,
+    style: meta.defaultStyle,
+    styleLabel: AI_BLOG_STYLE_LABELS[meta.defaultStyle],
+    seedId: null,
+    sourceMode: 'news_fallback',
+    topicKey,
+    keywordMain,
+    keywordsSub: sanitizeBlogKeywords(sourceRow.topic_tags ?? []),
+    sourceArticles,
+    sourceNotes: [
+      'Fallback tu news_articles gan day; viet thanh blog giai thich/co van theo audience, khong viet lai tin.',
+      'Khong goi day la bai gia hom nay neu SOURCE_FACTS khong yeu cau price_update.',
+    ],
+    requiresDisclaimer: getBlogSensitiveFlag({ titleHint, keywordMain, sourceArticles }),
+  }
+}
+
+export function buildAgriBlogArticleContextsFromInputs(input: {
+  seeds?: AiBlogTopicSeedRow[]
+  newsRows?: NewsArticleBlogRow[]
+  existingScopeKeys?: Set<string>
+  audience?: AiBlogAudience
+  dailyLimit?: number
+}) {
+  const existingScopeKeys = input.existingScopeKeys ?? new Set<string>()
+  const targetAudiences = input.audience ? [input.audience] : AI_BLOG_AUDIENCES
+  const limit = Math.max(1, Math.min(input.dailyLimit ?? DEFAULT_AI_BLOG_DAILY_LIMIT, targetAudiences.length))
+  const contexts: Array<Extract<AiArticleContext, { articleType: 'agri_blog' }>> = []
+  const seeds = input.seeds ?? []
+  const newsRows = input.newsRows ?? []
+
+  for (const audience of targetAudiences) {
+    if (contexts.length >= limit) {
+      break
+    }
+
+    const seed = seeds
+      .filter(item => item.audience === audience && item.status === 'pending')
+      .sort((left, right) => right.priority - left.priority || left.created_at.localeCompare(right.created_at))[0]
+    if (seed) {
+      const context = buildAgriBlogArticleContextFromSeed(seed, newsRows)
+      if (!existingScopeKeys.has(context.articleScopeKey)) {
+        contexts.push(context)
+        continue
+      }
+    }
+
+    const fallback = sortBlogSourceNews(newsRows, audience).find(row => !existingScopeKeys.has(getBlogScopeKey(audience, getBlogTopicKeyForNews(audience, row))))
+    if (fallback) {
+      contexts.push(buildAgriBlogArticleContextFromNews(audience, fallback, newsRows))
+    }
+  }
+
+  return contexts
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -809,10 +1211,111 @@ function parseAiDraft(value: string): AiDraft {
     bodyMarkdown: parsed.bodyMarkdown.trim(),
     seo: parsed.seo,
     topicTags: Array.isArray(parsed.topicTags) ? parsed.topicTags.filter((tag): tag is string => typeof tag === 'string') : undefined,
+    audience: isAiBlogAudience(parsed.audience) ? parsed.audience : undefined,
+    style: isAiBlogStyle(parsed.style) ? parsed.style : undefined,
   }
 }
 
+function buildAgriBlogArticlePrompt(context: Extract<AiArticleContext, { articleType: 'agri_blog' }>): string {
+  const sourceFacts = context.sourceArticles.length
+    ? context.sourceArticles
+        .map((article, index) => {
+          const snippets = article.factSnippets.length ? article.factSnippets.join('; ') : article.excerpt
+          return `${index + 1}. ${article.title} (${article.publishedAt || article.fetchedAt}, ${article.sourceKey}) - ${article.canonicalUrl}\n   Facts: ${snippets}`
+        })
+        .join('\n')
+    : 'Khong co nguon tin crawl kem theo; chi viet noi dung evergreen dua tren seed va kinh nghiem chung, tranh dua so lieu cu the.'
+
+  const seedFacts = context.sourceNotes.length ? context.sourceNotes.join('\n- ') : 'Khong co ghi chu seed bo sung.'
+  const sensitiveRule = context.requiresDisclaimer
+    ? '- Neu nhac chinh sach, dich benh, thoi tiet cuc doan hoac khuyen nghi co rui ro, them disclaimer ngan gon: nguoi doc can kiem tra voi co quan chuyen mon/dia phuong truoc khi hanh dong.'
+    : '- Neu phat sinh noi dung chinh sach, dich benh hoac khuyen nghi co rui ro, them disclaimer ngan gon.'
+
+  return `Ban la bien tap vien blog nong nghiep cho Nongsan.vn. Hay viet mot bai blog SEO hang ngay, khong phai ban tin gia xuat khau va khong phai "gia hom nay".
+
+Yeu cau doc gia:
+- Nhom doc gia: ${context.audienceLabel} (${context.audience})
+- Phong cach: ${context.styleLabel} (${context.style})
+- Chu de: ${context.titleHint}
+- Tu khoa chinh: ${context.keywordMain}
+- Tu khoa phu: ${context.keywordsSub.join(', ') || 'khong co'}
+
+Quy tac quan trong:
+- Tuyet doi khong dung luong viet bai gia hang ngay/world_daily_price_update.
+- Khong dat tieu de kieu "Gia ... hom nay" neu chu de khong thuc su la gia.
+- Moi so lieu, moc thoi gian, chinh sach, dich benh, xuat nhap khau phai ghi nguon ngay trong bai.
+- Khong tu tao so lieu. Neu nguon khong co so lieu, viet theo huong kinh nghiem/huong dan va noi ro can kiem tra nguon dia phuong.
+${sensitiveRule}
+- Khong dung HTML; chi dung Markdown.
+- Bai can co mo bai ngan, it nhat 3 heading H2, bullet/checklist thuc hanh, va ket luan hanh dong.
+- Giong van huu ich, thuc te, khong quang cao qua da.
+
+Nguon/du lieu:
+Seed notes:
+- ${seedFacts}
+
+Tin crawl tham khao:
+${sourceFacts}
+
+Hay tra ve DUY NHAT JSON hop le, khong markdown fence, schema:
+{
+  "title": "string",
+  "excerpt": "string",
+  "answerSummary": "string",
+  "bodyMarkdown": "string",
+  "topicTags": ["string"],
+  "audience": "${context.audience}",
+  "style": "${context.style}",
+  "seo": {
+    "title": "string",
+    "description": "string",
+    "faq": [
+      { "question": "string", "answer": "string" }
+    ]
+  }
+}`
+}
+
+function buildAiBlogSeoReviewPrompt(context: Extract<AiArticleContext, { articleType: 'agri_blog' }>, draft: AiDraft): string {
+  return `Ban la SEO editor kiem tra nhanh bai blog nong nghiep. Hay tra ve DUY NHAT JSON hop le.
+
+Thong tin:
+- Audience: ${context.audience}
+- Style: ${context.style}
+- Topic key: ${context.topicKey}
+- Keyword main: ${context.keywordMain}
+- Keywords sub: ${context.keywordsSub.join(', ')}
+- Co nguon tham khao: ${context.sourceArticles.length > 0 ? 'co' : 'khong'}
+
+Bai viet:
+Title: ${draft.title}
+Excerpt: ${draft.excerpt}
+SEO title: ${draft.seo?.title ?? draft.title}
+SEO description: ${draft.seo?.description ?? draft.excerpt}
+Body:
+${draft.bodyMarkdown}
+
+Kiem tra:
+- Tieu de/meta co hop SEO nhung khong clickbait.
+- Bai khong bi nham sang ban tin gia hom nay.
+- Co attribution cho so lieu/claims can nguon.
+- FAQ phu hop search intent.
+- Co canh bao neu nhac chinh sach/dich benh/khuyen nghi rui ro.
+
+Schema JSON:
+{
+  "score": 0,
+  "warnings": ["string"],
+  "recommendations": ["string"],
+  "searchIntent": "string"
+}`
+}
+
 function buildArticlePrompt(context: AiArticleContext) {
+  if (context.articleType === 'agri_blog') {
+    return buildAgriBlogArticlePrompt(context)
+  }
+
   const rules = [
     'Ban la bien tap vien NongSanVN viet tieng Viet cho nha xuat khau, thuong lai va doanh nghiep nong san.',
     'Chi su dung so lieu trong SOURCE_FACTS. Khong bia so, khong copy noi dung tu bao chi, khong dua loi khuyen dau tu.',
@@ -827,13 +1330,13 @@ function buildArticlePrompt(context: AiArticleContext) {
   return `${rules.join('\n')}\n\nSOURCE_FACTS:\n${JSON.stringify(context, null, 2)}`
 }
 
-async function callGemini(prompt: string) {
+async function callGemini(prompt: string, articleType?: AiArticleType) {
   const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is required to generate AI articles')
   }
 
-  const model = getModelName()
+  const model = getModelName(articleType)
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -862,6 +1365,35 @@ async function callGemini(prompt: string) {
   }
 
   return { model, text }
+}
+
+async function reviewAiBlogSeo(context: Extract<AiArticleContext, { articleType: 'agri_blog' }>, draft: AiDraft) {
+  try {
+    const { model, text } = await callGemini(buildAiBlogSeoReviewPrompt(context, draft), context.articleType)
+    const parsed = JSON.parse(extractJsonFromText(text)) as {
+      score?: unknown
+      warnings?: unknown
+      recommendations?: unknown
+      searchIntent?: unknown
+    }
+    return {
+      model,
+      score: typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : null,
+      warnings: Array.isArray(parsed.warnings) ? parsed.warnings.filter((item): item is string => typeof item === 'string').slice(0, 12) : [],
+      recommendations: Array.isArray(parsed.recommendations)
+        ? parsed.recommendations.filter((item): item is string => typeof item === 'string').slice(0, 12)
+        : [],
+      searchIntent: typeof parsed.searchIntent === 'string' ? parsed.searchIntent : null,
+    }
+  } catch (error) {
+    return {
+      model: getModelName(context.articleType),
+      score: null,
+      warnings: [`SEO review failed: ${error instanceof Error ? error.message : String(error)}`],
+      recommendations: [],
+      searchIntent: null,
+    }
+  }
 }
 
 function validateDraft(context: AiArticleContext, draft: AiDraft) {
@@ -893,6 +1425,40 @@ function validateDraft(context: AiArticleContext, draft: AiDraft) {
     }
   }
 
+  if (context.articleType === 'agri_blog') {
+    const wordCount = draft.bodyMarkdown.split(/\s+/).filter(Boolean).length
+    if (wordCount < 650) {
+      warnings.push('Blog draft is shorter than the MVP target length')
+    }
+
+    const h2Count = (draft.bodyMarkdown.match(/^##\s+/gm) ?? []).length
+    if (h2Count < 3) {
+      warnings.push('Blog draft should include at least three H2 headings')
+    }
+
+    if (/<[a-z][\s\S]*>/i.test(draft.bodyMarkdown)) {
+      warnings.push('Blog draft contains raw HTML')
+    }
+
+    if (folded.includes('gia hom nay') || folded.includes('world daily price update')) {
+      warnings.push('Blog draft may be confused with the daily price article flow')
+    }
+
+    const hasNumbersOrPolicyClaims = /\d|%|usd|vnd|dong|ha|kg|tan|chinh sach|dich benh|kiem dich|xuat khau/i.test(folded)
+    const hasAttribution = /\b(theo|nguon|du lieu|bao cao|cong bo|co quan|bo nong nghiep|hai quan)\b/i.test(folded)
+    if (context.sourceArticles.length > 0 && hasNumbersOrPolicyClaims && !hasAttribution) {
+      warnings.push('Blog draft has factual claims but lacks visible attribution')
+    }
+
+    if (draft.audience && draft.audience !== context.audience) {
+      warnings.push('Blog draft audience does not match context')
+    }
+
+    if (draft.style && draft.style !== context.style) {
+      warnings.push('Blog draft style does not match context')
+    }
+  }
+
   return {
     valid: warnings.length === 0,
     warnings,
@@ -912,6 +1478,10 @@ function buildSlugForContext(context: AiArticleContext, title: string) {
 
   if (context.articleType === 'world_daily_price_update') {
     return slugifyAiArticle(`gia-nong-san-the-gioi-${context.primaryObservedOn}`)
+  }
+
+  if (context.articleType === 'agri_blog') {
+    return slugifyAiArticle(`blog-nong-nghiep-${context.audience}-${context.topicKey}`)
   }
 
   return slugifyAiArticle(title)
@@ -955,6 +1525,7 @@ function toArticleDetail(row: AiArticleRow): AiArticleDetail {
     fetchedAt: row.updated_at,
     sourceFacts: row.source_facts_json,
     seo: row.seo_json,
+    quality: row.quality_json,
   }
 }
 
@@ -1012,7 +1583,7 @@ async function insertRun(context: AiArticleContext, status: 'started' | 'skipped
       article_scope_key: context.articleScopeKey,
       status,
       source_facts_hash: hashJson(context),
-      model_name: getModelName(),
+      model_name: getModelName(context.articleType),
       prompt_version: PROMPT_VERSION,
       finished_at: status === 'started' ? null : new Date().toISOString(),
       error: error ?? null,
@@ -1056,7 +1627,7 @@ async function persistGeneratedArticle(context: AiArticleContext, draft: AiDraft
     throw new Error('Supabase admin client is required to persist AI articles')
   }
 
-  const status = getPublishStatus()
+  const status = context.articleType === 'agri_blog' ? 'draft' : getPublishStatus()
   const slug = buildSlugForContext(context, draft.title)
   const topicTags = [...new Set([...(draft.topicTags ?? []), ...context.topicTags])].slice(0, 12)
   const bodyHtml = markdownToHtml(draft.bodyMarkdown)
@@ -1117,6 +1688,27 @@ async function persistGeneratedArticle(context: AiArticleContext, draft: AiDraft
   }
 }
 
+async function markBlogSeedUsed(seedId: string | null) {
+  if (!seedId) {
+    return
+  }
+
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return
+  }
+
+  const { error } = await client
+    .from('ai_blog_topic_seeds')
+    .update({ status: 'used', last_used_at: new Date().toISOString() })
+    .eq('id', seedId)
+    .eq('status', 'pending')
+
+  if (error && !isRelationMissing(error)) {
+    console.warn('[AI Articles] Failed to mark blog seed used:', error)
+  }
+}
+
 async function generateOne(context: AiArticleContext, force = false) {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -1141,10 +1733,19 @@ async function generateOne(context: AiArticleContext, force = false) {
 
   const runId = await insertRun(context, 'started')
   try {
-    const { model, text } = await callGemini(buildArticlePrompt(context))
+    const { model, text } = await callGemini(buildArticlePrompt(context), context.articleType)
     const draft = parseAiDraft(text)
-    const quality = validateDraft(context, draft)
+    const localQuality = validateDraft(context, draft)
+    const seoReview = context.articleType === 'agri_blog' ? await reviewAiBlogSeo(context, draft) : null
+    const quality = {
+      ...localQuality,
+      seoReview,
+      warnings: [...localQuality.warnings, ...(seoReview?.warnings ?? [])],
+    }
     const persisted = await persistGeneratedArticle(context, draft, model, quality)
+    if (context.articleType === 'agri_blog') {
+      await markBlogSeedUsed(context.seedId)
+    }
     await updateRun(runId, 'success', persisted.article.id)
     return { status: 'success' as const, article: persisted.article, created: persisted.created }
   } catch (error) {
@@ -1319,6 +1920,257 @@ async function loadWorldRows() {
   return (data ?? []) as unknown as WorldPriceRow[]
 }
 
+function parseAiBlogDailyLimit(value: unknown) {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : Number.NaN
+  return Number.isFinite(numeric) ? Math.max(1, Math.min(DEFAULT_AI_BLOG_DAILY_LIMIT, numeric)) : DEFAULT_AI_BLOG_DAILY_LIMIT
+}
+
+function sanitizeBlogSeedInput(input: AiBlogTopicSeedInput, mode: 'create' | 'update') {
+  const audience = input.audience
+  if (input.audience !== undefined && !isAiBlogAudience(audience)) {
+    throw new Error('Invalid blog seed audience')
+  }
+
+  const headlineHint = input.headlineHint?.trim()
+  const keywordMain = input.keywordMain?.trim()
+  if (mode === 'create' && (!headlineHint || !keywordMain || !audience)) {
+    throw new Error('Blog seed requires audience, headlineHint, and keywordMain')
+  }
+
+  const topicKey = normalizeTopicKey(input.topicKey || keywordMain || headlineHint || '')
+  if (mode === 'create' && !topicKey) {
+    throw new Error('Blog seed requires a topic key')
+  }
+
+  if (input.style !== undefined && !isAiBlogStyle(input.style)) {
+    throw new Error('Invalid blog seed style')
+  }
+
+  if (input.status !== undefined && !isAiBlogTopicSeedStatus(input.status)) {
+    throw new Error('Invalid blog seed status')
+  }
+
+  return {
+    topic_key: topicKey || undefined,
+    audience,
+    headline_hint: headlineHint || undefined,
+    keyword_main: keywordMain || undefined,
+    keywords_sub: input.keywordsSub === undefined ? undefined : sanitizeBlogKeywords(input.keywordsSub),
+    style: input.style ?? undefined,
+    priority: input.priority === undefined ? undefined : clampPriority(input.priority),
+    status: input.status ?? undefined,
+    source_ref: input.sourceRef ?? undefined,
+  }
+}
+
+export async function listAiBlogTopicSeeds(options: {
+  audience?: AiBlogAudience
+  status?: AiBlogTopicSeedStatus | 'all'
+  limit?: number
+} = {}): Promise<AiBlogTopicSeedSummary[]> {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return []
+  }
+
+  const query = client
+    .from('ai_blog_topic_seeds')
+    .select('*')
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(Math.min(Math.max(options.limit ?? 50, 1), 200))
+
+  if (options.audience) {
+    query.eq('audience', options.audience)
+  }
+
+  if (options.status && options.status !== 'all') {
+    query.eq('status', options.status)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    if (isRelationMissing(error)) {
+      return []
+    }
+    throw error
+  }
+
+  return ((data ?? []) as AiBlogTopicSeedRow[]).map(toBlogSeedSummary)
+}
+
+async function getAiBlogTopicSeedById(id: string) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return null
+  }
+
+  const { data, error } = await client.from('ai_blog_topic_seeds').select('*').eq('id', id).maybeSingle()
+  if (error) {
+    if (isRelationMissing(error)) {
+      return null
+    }
+    throw error
+  }
+
+  return data as AiBlogTopicSeedRow | null
+}
+
+export async function createAiBlogTopicSeed(input: AiBlogTopicSeedInput): Promise<AiBlogTopicSeedSummary> {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    throw new Error('Supabase admin client is required to create blog topic seeds')
+  }
+
+  const defaultStyle = isAiBlogAudience(input.audience) ? AI_BLOG_AUDIENCE_META[input.audience].defaultStyle : 'guide'
+  const row = sanitizeBlogSeedInput({
+    ...input,
+    status: input.status ?? 'pending',
+    style: input.style ?? defaultStyle,
+    priority: input.priority ?? 50,
+    keywordsSub: input.keywordsSub ?? [],
+    sourceRef: input.sourceRef ?? {},
+  }, 'create')
+  const { data, error } = await client.from('ai_blog_topic_seeds').insert(row).select('*').single()
+  if (error) {
+    throw error
+  }
+
+  return toBlogSeedSummary(data as AiBlogTopicSeedRow)
+}
+
+export async function updateAiBlogTopicSeed(id: string, input: Partial<AiBlogTopicSeedInput>): Promise<AiBlogTopicSeedSummary> {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    throw new Error('Supabase admin client is required to update blog topic seeds')
+  }
+
+  const row = sanitizeBlogSeedInput(input as AiBlogTopicSeedInput, 'update')
+  const patch = Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined))
+  const { data, error } = await client.from('ai_blog_topic_seeds').update(patch).eq('id', id).select('*').single()
+  if (error) {
+    throw error
+  }
+
+  return toBlogSeedSummary(data as AiBlogTopicSeedRow)
+}
+
+export async function deleteAiBlogTopicSeed(id: string) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    throw new Error('Supabase admin client is required to delete blog topic seeds')
+  }
+
+  const { error } = await client.from('ai_blog_topic_seeds').delete().eq('id', id)
+  if (error) {
+    throw error
+  }
+
+  return { id, deleted: true }
+}
+
+async function loadPendingBlogSeeds(audience?: AiBlogAudience) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return []
+  }
+
+  const query = client
+    .from('ai_blog_topic_seeds')
+    .select('*')
+    .eq('status', 'pending')
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(60)
+
+  if (audience) {
+    query.eq('audience', audience)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    if (isRelationMissing(error)) {
+      return []
+    }
+    throw error
+  }
+
+  return (data ?? []) as AiBlogTopicSeedRow[]
+}
+
+async function loadBlogNewsRows() {
+  const client = getSupabaseReadClient()
+  if (!client) {
+    return []
+  }
+
+  const { data, error } = await client
+    .from('news_articles')
+    .select('id, source_key, canonical_url, slug, title, excerpt, content_text, category, topic_tags, published_at, fetched_at')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(120)
+
+  if (error) {
+    if (isRelationMissing(error)) {
+      return []
+    }
+    throw error
+  }
+
+  return (data ?? []) as NewsArticleBlogRow[]
+}
+
+async function loadExistingAiArticleScopeKeys(articleType: AiArticleType) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return new Set<string>()
+  }
+
+  const { data, error } = await client
+    .from('ai_generated_articles')
+    .select('article_scope_key')
+    .eq('article_type', articleType)
+    .limit(1000)
+
+  if (error) {
+    if (isRelationMissing(error)) {
+      return new Set<string>()
+    }
+    throw error
+  }
+
+  return new Set((data ?? []).map(row => String((row as { article_scope_key?: string }).article_scope_key)).filter(Boolean))
+}
+
+async function buildAgriBlogContexts(options: GenerateAiArticlesOptions) {
+  const audience = options.audience
+  const dailyLimit = parseAiBlogDailyLimit(options.dailyLimit ?? process.env.AI_BLOG_DAILY_LIMIT)
+  const newsRows = await loadBlogNewsRows()
+  const existingScopeKeys = options.force ? new Set<string>() : await loadExistingAiArticleScopeKeys('agri_blog')
+
+  if (options.seedId) {
+    const seed = await getAiBlogTopicSeedById(options.seedId)
+    if (!seed || seed.status !== 'pending') {
+      return []
+    }
+    if (audience && seed.audience !== audience) {
+      return []
+    }
+    const context = buildAgriBlogArticleContextFromSeed(seed, newsRows)
+    return existingScopeKeys.has(context.articleScopeKey) ? [] : [context]
+  }
+
+  const seeds = await loadPendingBlogSeeds(audience)
+  return buildAgriBlogArticleContextsFromInputs({
+    seeds,
+    newsRows,
+    existingScopeKeys,
+    audience,
+    dailyLimit,
+  })
+}
+
 export async function buildAiArticleContext(options: GenerateAiArticlesOptions): Promise<AiArticleContext | null> {
   const runtime = getSupabaseRuntimeStatus()
   if (!runtime.hasReadConfig) {
@@ -1350,11 +2202,21 @@ export async function buildAiArticleContext(options: GenerateAiArticlesOptions):
     return rows ? buildWorldDailyArticleContextFromRows(rows, options.observedOn) : null
   }
 
+  if (options.articleType === 'agri_blog') {
+    return (await buildAgriBlogContexts(options))[0] ?? null
+  }
+
   return null
 }
 
 function hasSpecificContextSelector(options: GenerateAiArticlesOptions) {
-  return Boolean(options.periodCode || options.observedOn || (typeof options.year === 'number' && typeof options.month === 'number'))
+  return Boolean(
+    options.periodCode ||
+      options.observedOn ||
+      options.seedId ||
+      options.audience ||
+      (typeof options.year === 'number' && typeof options.month === 'number'),
+  )
 }
 
 export async function buildAiArticleContexts(options: GenerateAiArticlesOptions = {}): Promise<AiArticleContext[]> {
@@ -1383,6 +2245,10 @@ export async function buildAiArticleContexts(options: GenerateAiArticlesOptions 
     return rows ? buildWorldDailyArticleContextsFromRows(rows) : []
   }
 
+  if (options.articleType === 'agri_blog') {
+    return buildAgriBlogContexts(options)
+  }
+
   const [customsRows, worldRows] = await Promise.all([loadAllCustomsRows(), loadWorldRows()])
   return [
     ...(customsRows ? buildExportPeriodArticleContextsFromRows(customsRows) : []),
@@ -1396,14 +2262,14 @@ async function buildDefaultContexts() {
 }
 
 export async function generateAiArticles(options: GenerateAiArticlesOptions = {}): Promise<GenerateAiArticlesResult> {
-  if (!getAiArticlesEnabled()) {
+  if (!getAiArticlesEnabled(options.articleType)) {
     return {
       status: 'skipped',
       createdCount: 0,
       updatedCount: 0,
       skippedCount: 1,
       errorCount: 0,
-      errors: ['AI_ARTICLE_ENABLED is not true'],
+      errors: [options.articleType === 'agri_blog' ? 'AI_BLOG_ENABLED or AI_ARTICLE_ENABLED is not true' : 'AI_ARTICLE_ENABLED is not true'],
       articles: [],
     }
   }
@@ -1456,7 +2322,9 @@ export async function generateAiArticles(options: GenerateAiArticlesOptions = {}
   }
 }
 
-export async function listAiArticles(options: { limit?: number; includeDrafts?: boolean; status?: AiArticleStatus | 'all' } = {}) {
+export async function listAiArticles(
+  options: { limit?: number; includeDrafts?: boolean; status?: AiArticleStatus | 'all'; articleType?: AiArticleType } = {},
+) {
   const client = options.includeDrafts ? getSupabaseAdminClient() : getSupabaseReadClient()
   if (!client) {
     return []
@@ -1474,6 +2342,10 @@ export async function listAiArticles(options: { limit?: number; includeDrafts?: 
     query.eq('status', 'published')
   } else if (options.status && options.status !== 'all') {
     query.eq('status', options.status)
+  }
+
+  if (options.articleType) {
+    query.eq('article_type', options.articleType)
   }
 
   const { data, error } = await query
@@ -1609,4 +2481,10 @@ export async function getAiArticleAsNewsDetail(slug: string) {
     related,
     latestFromSource: related,
   }
+}
+
+export const __aiArticleTestUtils = {
+  buildArticlePrompt,
+  validateDraft,
+  parseAiDraft,
 }

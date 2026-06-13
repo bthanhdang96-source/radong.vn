@@ -105,6 +105,34 @@ function makeNewsItem(): ContentFeedItem {
   }
 }
 
+function makeBlogItem(): ContentFeedItem {
+  return {
+    kind: 'ai_article',
+    path: '/tin-tuc/blog-nong-nghiep-farmer-lua-he-thu',
+    title: 'Lich xuong giong lua he thu can luu y gi',
+    excerpt: 'Checklist ngan cho nha nong.',
+    thumbnailUrl: null,
+    thumbnailAlt: 'Lich xuong giong lua he thu can luu y gi',
+    publishedAt: '2026-05-18T10:00:00.000Z',
+    updatedAt: '2026-05-18T10:00:00.000Z',
+    category: 'Blog nha nong',
+    topicTags: ['blog-nong-nghiep', 'lua'],
+    badgeLabel: 'Blog',
+    contentFamilySlug: 'blog-nong-nghiep',
+    contentFamilyLabel: 'Blog nong nghiep',
+    contentFamilyOrder: 6,
+    familyPath: '/tin-tuc/nhom/blog-nong-nghiep',
+    subcategoryPath: null,
+    priceGroupSlug: null,
+    priceGroupLabel: null,
+    sourceLabel: 'NongSanVN AI',
+    sourceKey: 'nongsanvn_ai',
+    articleType: 'agri_blog',
+    dataGranularity: 'mixed',
+    sortAt: '2026-05-18T10:00:00.000Z',
+  }
+}
+
 test('price page maps into Tin giá nông sản and subgroup from category', () => {
   const item = toContentFeedItem(makePricePageSummary('Lương thực'))
 
@@ -149,9 +177,10 @@ test('news classifier maps export signals into export family', () => {
   assert.equal(family, 'xuat-khau-va-doanh-nghiep')
 })
 
-test('taxonomy and modules keep five families and six public price groups', () => {
+test('taxonomy and modules keep six families and six public price groups', () => {
   const items: ContentFeedItem[] = [
     makeNewsItem(),
+    makeBlogItem(),
     toContentFeedItem(makePricePageSummary('Lương thực')),
     toCommodityContentFeedItem(makeCommodityPageSummary('Chăn nuôi')),
   ]
@@ -162,16 +191,30 @@ test('taxonomy and modules keep five families and six public price groups', () =
     priceGroup: 'chan-nuoi',
   })
 
-  assert.equal(taxonomy.families.length, 5)
+  assert.equal(taxonomy.families.length, 6)
   assert.equal(taxonomy.priceGroups.length, 6)
+  assert.equal(taxonomy.families.find(family => family.slug === 'blog-nong-nghiep')?.itemCount, 1)
   assert.equal(taxonomy.priceGroups.find(group => group.slug === 'luong-thuc')?.itemCount, 1)
   assert.equal(taxonomy.priceGroups.find(group => group.slug === 'chan-nuoi')?.itemCount, 1)
-  assert.equal(modules.length, 5)
+  assert.equal(modules.length, 6)
   assert.equal(modules[0]?.familySlug, 'tin-gia-nong-san')
   assert.equal(modules[0]?.subgroups?.length, 6)
   assert.equal(modules[1]?.familySlug, 'gia-nong-san-the-gioi')
   assert.equal(modules[1]?.subgroups, undefined)
+  assert.equal(modules.find(module => module.familySlug === 'blog-nong-nghiep')?.leadItem?.kind, 'ai_article')
   assert.equal(modules[0]?.subgroups?.find(group => group.slug === 'chan-nuoi')?.isCurrent, true)
+})
+
+test('content item filters accept blog-nong-nghiep family', () => {
+  const filtered = filterContentItems([makeNewsItem(), makeBlogItem()], {
+    family: 'blog-nong-nghiep',
+    priceGroup: null,
+    q: 'lua',
+  })
+
+  assert.equal(filtered.length, 1)
+  assert.equal(filtered[0]?.kind, 'ai_article')
+  assert.equal(filtered[0]?.contentFamilySlug, 'blog-nong-nghiep')
 })
 
 test('content item filters keep price family and subgroup constraints', () => {

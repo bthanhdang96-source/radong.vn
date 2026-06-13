@@ -10,6 +10,10 @@
       "destination": "https://radongvn-production.up.railway.app/gia-nong-san/:commoditySlug"
     },
     {
+      "source": "/tin-tuc/:slug",
+      "destination": "https://radongvn-production.up.railway.app/tin-tuc/:slug"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },
@@ -20,6 +24,10 @@
     {
       "source": "/sitemap-commodity-price-pages.xml",
       "destination": "/api/sitemap-commodity-price-pages"
+    },
+    {
+      "source": "/sitemap-ai-articles.xml",
+      "destination": "/api/sitemap-ai-articles"
     },
     {
       "source": "/(.*)",

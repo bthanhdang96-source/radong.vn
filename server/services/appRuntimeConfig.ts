@@ -36,6 +36,9 @@ export function getAppScheduleConfig() {
     aiArticleEnabled: parseBoolean(process.env.AI_ARTICLE_ENABLED, false),
     aiArticleExportCron: process.env.AI_ARTICLE_EXPORT_CRON ?? '45 8 * * *',
     aiArticleWorldDailyCron: process.env.AI_ARTICLE_WORLD_DAILY_CRON ?? '45 7,13 * * *',
+    aiBlogEnabled: parseBoolean(process.env.AI_BLOG_ENABLED, false),
+    aiBlogCron: process.env.AI_BLOG_CRON ?? '30 9 * * *',
+    aiBlogDailyLimit: parsePositiveInteger(process.env.AI_BLOG_DAILY_LIMIT, 3),
     timezone: process.env.TZ ?? 'UTC',
   }
 }
