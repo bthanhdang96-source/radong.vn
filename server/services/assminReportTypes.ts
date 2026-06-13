@@ -33,9 +33,23 @@ export interface ReportJobRow {
   warnings: ReportWarning[]
 }
 
-export interface AssminReportResponse {
+export interface ReportSummary {
+  ok: number
+  warning: number
+  critical: number
+  unknown: number
+  sources: number
+  jobs: number
+  warnings: number
+}
+
+export interface AssminPublicReportResponse {
   generatedAt: string
   overallStatus: ReportSeverity
+  summary: ReportSummary
+}
+
+export interface AssminReportResponse extends AssminPublicReportResponse {
   runtime: {
     hasSupabaseReadConfig: boolean
     hasSupabaseAdminConfig: boolean

@@ -3,6 +3,7 @@ import compression from 'compression';
 import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';
+import helmet from 'helmet';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
 import publicPricePagesRouter from './routes/publicPricePages.js';
@@ -19,6 +20,7 @@ import { getVnPrices, getWorldPricesResponse } from './services/supabaseMarketDa
 import { syncWorldCoffeeBenchmark } from './services/worldCoffeeBenchmark.js';
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3001;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
@@ -82,6 +84,17 @@ function toHealthResponse() {
   };
 }
 
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    strictTransportSecurity: process.env.NODE_ENV === 'production'
+      ? { maxAge: 15_552_000, includeSubDomains: true }
+      : false,
+    xFrameOptions: { action: 'deny' },
+  }),
+);
 app.use(
   cors({
     origin(origin, callback) {

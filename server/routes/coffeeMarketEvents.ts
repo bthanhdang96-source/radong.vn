@@ -77,7 +77,7 @@ router.get('/coffee/market-events/supply-risk', async (req, res) => {
   }
 })
 
-router.get('/coffee/market-events/brief-candidates', async (req, res) => {
+router.get('/coffee/market-events/brief-candidates', requireAdminApiKey, async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit, 50, 200)
     const payload = await getCoffeeMarketEventBriefCandidatesResponse(limit)
@@ -91,7 +91,7 @@ router.get('/coffee/market-events/brief-candidates', async (req, res) => {
   }
 })
 
-router.get('/coffee/market-events/review-queue', async (req, res) => {
+router.get('/coffee/market-events/review-queue', requireAdminApiKey, async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit, 100, 500)
     const payload = await getCoffeeMarketEventReviewQueueResponse(limit)

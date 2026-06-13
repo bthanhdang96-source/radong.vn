@@ -1,12 +1,23 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import type { Server } from 'node:http'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import express, { type Router } from 'express'
 import aiArticlesRouter from '../routes/aiArticles.js'
+import assminReportRouter from '../routes/assminReport.js'
+import coffeeMarketEventsRouter from '../routes/coffeeMarketEvents.js'
+import freightLogisticsProxyRouter from '../routes/freightLogisticsProxy.js'
 import {
   renderCommodityPricePageHtml,
 } from '../services/generatedPricePages/htmlRenderer.js'
+import { getPublicOrigin, toAbsolutePublicUrl } from '../services/publicOrigin.js'
 import { buildVnPricesHistoryFromSupabaseRows } from '../services/supabaseMarketDataService.js'
 import type { SourceSnapshot } from '../services/crawlers/types.js'
 import type { GeneratedCommodityPricePageDetail } from '../services/generatedPricePages/types.js'
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 function routeIndex(path: string, method: string) {
   const stack = (aiArticlesRouter as unknown as {
@@ -14,6 +25,52 @@ function routeIndex(path: string, method: string) {
   }).stack
 
   return stack.findIndex(layer => layer.route?.path === path && layer.route.methods[method] === true)
+}
+
+async function requestRouter(router: Router, path: string) {
+  const app = express()
+  app.use('/api', router)
+
+  const server: Server = app.listen(0, '127.0.0.1')
+  await new Promise<void>(resolve => server.once('listening', resolve))
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Test server did not bind to a TCP port')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}${path}`)
+    return {
+      status: response.status,
+      body: await response.text(),
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        resolve()
+      })
+    })
+  }
+}
+
+async function withAdminApiKey<T>(callback: () => Promise<T>) {
+  const previous = process.env.ADMIN_API_KEY
+  process.env.ADMIN_API_KEY = 'test-admin-key'
+  try {
+    return await callback()
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ADMIN_API_KEY
+    } else {
+      process.env.ADMIN_API_KEY = previous
+    }
+  }
 }
 
 test('admin AI static routes are registered before slug route', () => {
@@ -26,6 +83,94 @@ test('admin AI static routes are registered before slug route', () => {
   assert.notEqual(slugIndex, -1)
   assert.ok(contextIndex < slugIndex)
   assert.ok(generateIndex < slugIndex)
+})
+
+test('public origin helper ignores untrusted host headers outside local development', () => {
+  const previous = process.env.PUBLIC_SITE_URL
+  delete process.env.PUBLIC_SITE_URL
+
+  try {
+    assert.equal(
+      getPublicOrigin({
+        get(name: string) {
+          if (name === 'x-forwarded-host') {
+            return 'attacker.example'
+          }
+          if (name === 'host') {
+            return 'attacker.example'
+          }
+          return undefined
+        },
+        protocol: 'https',
+      }),
+      'https://radongvn.vercel.app',
+    )
+
+    assert.equal(
+      getPublicOrigin({
+        get(name: string) {
+          if (name === 'host') {
+            return 'localhost:5173'
+          }
+          if (name === 'x-forwarded-proto') {
+            return 'http'
+          }
+          return undefined
+        },
+        protocol: 'http',
+      }),
+      'http://localhost:5173',
+    )
+
+    process.env.PUBLIC_SITE_URL = 'https://www.nongsanvn.example/path'
+    assert.equal(
+      toAbsolutePublicUrl('/gia-nong-san/thanh-long', {
+        get(name: string) {
+          return name === 'host' ? 'attacker.example' : undefined
+        },
+        protocol: 'https',
+      }),
+      'https://www.nongsanvn.example/gia-nong-san/thanh-long',
+    )
+    assert.equal(toAbsolutePublicUrl('https://attacker.example/landing'), 'https://www.nongsanvn.example')
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PUBLIC_SITE_URL
+    } else {
+      process.env.PUBLIC_SITE_URL = previous
+    }
+  }
+})
+
+test('operational diagnostics and review queues require admin API key', async () => {
+  await withAdminApiKey(async () => {
+    const protectedRoutes: Array<[Router, string]> = [
+      [assminReportRouter, '/api/admin/assmin/report'],
+      [coffeeMarketEventsRouter, '/api/coffee/market-events/brief-candidates'],
+      [coffeeMarketEventsRouter, '/api/coffee/market-events/review-queue'],
+      [freightLogisticsProxyRouter, '/api/coffee/freight-logistics/review-queue'],
+    ]
+
+    for (const [router, path] of protectedRoutes) {
+      const response = await requestRouter(router, path)
+      assert.equal(response.status, 401, path)
+      assert.match(response.body, /Admin API key is required/, path)
+    }
+  })
+})
+
+test('review queue views are revoked from public Supabase roles', () => {
+  const sql = readFileSync(join(repoRoot, 'supabase', 'migrations', '20260613055444_restrict_public_diagnostics.sql'), 'utf8')
+  const views = [
+    'vw_coffee_market_event_brief_candidates',
+    'vw_coffee_market_event_review_queue',
+    'vw_coffee_freight_logistics_review_queue',
+  ]
+
+  for (const view of views) {
+    assert.match(sql, new RegExp(`revoke select on public\\.${view} from anon, authenticated;`, 'i'))
+    assert.match(sql, new RegExp(`grant select on public\\.${view} to service_role;`, 'i'))
+  }
 })
 
 test('commodity price HTML renderer emits SEO metadata instead of SPA shell', () => {

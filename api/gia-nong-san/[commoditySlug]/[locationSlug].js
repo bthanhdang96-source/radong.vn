@@ -1,4 +1,4 @@
-import { escapeHtml, fetchBackendJson, toAbsoluteUrl } from '../../_shared.js'
+import { escapeHtml, fetchBackendJson, setSeoHtmlHeaders, toAbsoluteUrl } from '../../_shared.js'
 
 function formatDateTime(value) {
   return new Date(value).toLocaleString('vi-VN')
@@ -234,7 +234,7 @@ export default async function handler(req, res) {
   </body>
 </html>`
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    setSeoHtmlHeaders(res)
     res.status(200).send(html)
   } catch (error) {
     res.status(500).send(error instanceof Error ? error.message : 'Failed to render generated price page')

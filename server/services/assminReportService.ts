@@ -1,9 +1,11 @@
 import { getAppScheduleConfig } from './appRuntimeConfig.js'
 import type {
+  AssminPublicReportResponse,
   AssminReportResponse,
   ReportFreshnessLabel,
   ReportJobRow,
   ReportSeverity,
+  ReportSummary,
   ReportSourceRow,
   ReportWarning,
 } from './assminReportTypes.js'
@@ -484,6 +486,28 @@ export function getWeatherProviderFailureSeverity(
   }
 
   return 'warning'
+}
+
+export function summarizeAssminReport(report: Pick<AssminReportResponse, 'sources' | 'jobs' | 'warnings'>): ReportSummary {
+  const rows = [...report.sources, ...report.jobs]
+
+  return {
+    ok: rows.filter(row => row.status === 'ok').length,
+    warning: rows.filter(row => row.status === 'warning').length,
+    critical: rows.filter(row => row.status === 'critical').length,
+    unknown: rows.filter(row => row.status === 'unknown').length,
+    sources: report.sources.length,
+    jobs: report.jobs.length,
+    warnings: report.warnings.length,
+  }
+}
+
+export function toPublicAssminReport(report: AssminReportResponse): AssminPublicReportResponse {
+  return {
+    generatedAt: report.generatedAt,
+    overallStatus: report.overallStatus,
+    summary: report.summary,
+  }
 }
 
 function buildExportRegistrySourceRows(health: Awaited<ReturnType<typeof getExportRegistryHealth>>) {
@@ -1016,12 +1040,29 @@ export async function getAssminReport(): Promise<AssminReportResponse> {
     ...warnings.map(warning => warning.severity),
   ])
 
-  return {
+  const report = {
     generatedAt,
     overallStatus,
+    summary: {
+      ok: 0,
+      warning: 0,
+      critical: 0,
+      unknown: 0,
+      sources: 0,
+      jobs: 0,
+      warnings: 0,
+    },
     runtime,
     sources,
     jobs,
     warnings,
   }
+
+  report.summary = summarizeAssminReport(report)
+
+  return report
+}
+
+export async function getPublicAssminReport() {
+  return toPublicAssminReport(await getAssminReport())
 }

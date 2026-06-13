@@ -71,7 +71,7 @@ router.get('/coffee/freight-logistics/monthly', async (req, res) => {
   }
 })
 
-router.get('/coffee/freight-logistics/review-queue', async (req, res) => {
+router.get('/coffee/freight-logistics/review-queue', requireAdminApiKey, async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit, 100, 500)
     const payload = await getFreightLogisticsReviewQueueResponse(limit)

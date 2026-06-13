@@ -1,5 +1,6 @@
-import type { Request } from 'express'
 import { Router } from 'express'
+import { setSeoHtmlHeaders } from '../services/httpSecurity.js'
+import { getPublicOrigin } from '../services/publicOrigin.js'
 import { getGeneratedCommodityPricePageDetail } from '../services/generatedCommodityPricePages/service.js'
 import { getGeneratedPricePageDetail } from '../services/generatedPricePages/service.js'
 import {
@@ -8,25 +9,6 @@ import {
 } from '../services/generatedPricePages/htmlRenderer.js'
 
 const router = Router()
-
-function firstForwardedHeader(value: string | undefined) {
-  return value?.split(',')[0]?.trim()
-}
-
-function getPublicOrigin(req: Request) {
-  const configuredOrigin = process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, '')
-  if (configuredOrigin) {
-    return configuredOrigin
-  }
-
-  const host = firstForwardedHeader(req.get('x-forwarded-host')) ?? req.get('host')
-  const proto = firstForwardedHeader(req.get('x-forwarded-proto')) ?? req.protocol ?? 'https'
-  if (host?.endsWith('.up.railway.app')) {
-    return 'https://radongvn.vercel.app'
-  }
-
-  return host ? `${proto}://${host}` : 'https://radongvn.vercel.app'
-}
 
 router.get('/gia-nong-san/:commoditySlug/:locationSlug', async (req, res) => {
   try {
@@ -44,7 +26,7 @@ router.get('/gia-nong-san/:commoditySlug/:locationSlug', async (req, res) => {
       return
     }
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    setSeoHtmlHeaders(res)
     res.status(200).send(renderLocationPricePageHtml(page, getPublicOrigin(req)))
   } catch (error) {
     console.error('[Public Price Pages] Failed to render location price page:', error)
@@ -62,7 +44,7 @@ router.get('/gia-nong-san/:commoditySlug', async (req, res) => {
       return
     }
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    setSeoHtmlHeaders(res)
     res.status(200).send(renderCommodityPricePageHtml(page, getPublicOrigin(req)))
   } catch (error) {
     console.error('[Public Price Pages] Failed to render commodity price page:', error)
