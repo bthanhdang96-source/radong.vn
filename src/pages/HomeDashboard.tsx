@@ -4,10 +4,10 @@ import SummaryCards from '../components/SummaryCards';
 import TopMovers from '../components/TopMovers';
 import PriceTable from '../components/PriceTable';
 import type {
-  GeneratedCommodityPricePageListResponse,
-  GeneratedCommodityPricePageSummary,
-  GeneratedPricePageListResponse,
-  GeneratedPricePageSummary,
+  GeneratedCommodityPricePageLink,
+  GeneratedCommodityPricePageLinkListResponse,
+  GeneratedPricePageLink,
+  GeneratedPricePageLinkListResponse,
 } from '../data/generatedPricePageTypes';
 import { FALLBACK_VN_PRICES, type VnPricesResponse } from '../data/vnPriceTypes';
 import { buildApiUrl } from '../lib/api';
@@ -15,8 +15,8 @@ import './HomeDashboard.css';
 
 export default function HomeDashboard() {
   const [payload, setPayload] = useState<VnPricesResponse>(FALLBACK_VN_PRICES);
-  const [pricePages, setPricePages] = useState<GeneratedPricePageSummary[]>([]);
-  const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageSummary[]>([]);
+  const [pricePages, setPricePages] = useState<GeneratedPricePageLink[]>([]);
+  const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -42,12 +42,12 @@ export default function HomeDashboard() {
       try {
         const [priceResponse, pageResponse, commodityPageResponse] = await Promise.all([
           fetch(buildApiUrl('/api/vn-prices')),
-          fetch(buildApiUrl('/api/price-pages?limit=400')),
-          fetch(buildApiUrl('/api/commodity-price-pages?limit=400')),
+          fetch(buildApiUrl('/api/price-page-links?limit=400')),
+          fetch(buildApiUrl('/api/commodity-price-page-links?limit=400')),
         ]);
         const json = await priceResponse.json();
-        const pageJson: GeneratedPricePageListResponse = await pageResponse.json();
-        const commodityPageJson: GeneratedCommodityPricePageListResponse = await commodityPageResponse.json();
+        const pageJson: GeneratedPricePageLinkListResponse = await pageResponse.json();
+        const commodityPageJson: GeneratedCommodityPricePageLinkListResponse = await commodityPageResponse.json();
         if (!priceResponse.ok || !json.success) {
           throw new Error(json.error ?? 'Failed to fetch VN prices');
         }

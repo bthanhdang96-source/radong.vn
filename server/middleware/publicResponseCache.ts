@@ -165,7 +165,8 @@ function isCacheEligibleRequest(req: Request) {
     req.method === 'GET' &&
     !req.headers.authorization &&
     !req.headers['x-admin-key'] &&
-    !req.headers['x-admin-api-key']
+    !req.headers['x-admin-api-key'] &&
+    !req.headers['x-anti-scrape-internal-key']
   )
 }
 

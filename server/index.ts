@@ -4,6 +4,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import express from 'express';
 import helmet from 'helmet';
+import { createAntiScrapeMiddleware } from './middleware/antiScrape.js';
 import { requireAdminApiKey } from './middleware/adminAuth.js';
 import apiRouter from './routes/index.js';
 import publicPricePagesRouter from './routes/publicPricePages.js';
@@ -21,6 +22,7 @@ import { syncWorldCoffeeBenchmark } from './services/worldCoffeeBenchmark.js';
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 const CORS_ALLOWED_ORIGINS = parseCsv(process.env.CORS_ALLOWED_ORIGINS, DEFAULT_CORS_ORIGINS);
@@ -49,6 +51,57 @@ const {
   aiArticleWorldDailyCron: AI_ARTICLE_WORLD_DAILY_CRON,
 } =
   appScheduleConfig;
+
+const ROBOTS_TXT = `User-agent: Googlebot
+Disallow: /api/
+Disallow: /assmin
+Allow: /
+
+User-agent: Bingbot
+Disallow: /api/
+Disallow: /assmin
+Allow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: *
+Disallow: /api/
+Disallow: /assmin
+Allow: /
+
+Sitemap: https://radongvn.vercel.app/sitemap.xml
+`;
 
 function parseCsv(value: string | undefined, defaultValue: string[]) {
   if (!value) {
@@ -115,6 +168,12 @@ app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
+
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain; charset=utf-8').send(ROBOTS_TXT);
+});
+
+app.use(createAntiScrapeMiddleware());
 
 app.use('/api', apiRouter);
 app.use(publicPricePagesRouter);

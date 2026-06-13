@@ -1,71 +1,23 @@
-import { createClient } from '@supabase/supabase-js'
+import { fetchBackendResponse } from '../../_shared.js'
 
-const FAMILY_META = {
-  'tin-gia-nong-san': {
-    label: 'Tin giá nông sản',
-    path: '/tin-tuc/nhom/tin-gia-nong-san',
-  },
-  'tin-thi-truong-hang-ngay': {
-    label: 'Tin thị trường hằng ngày',
-    path: '/tin-tuc/nhom/tin-thi-truong-hang-ngay',
-  },
-  'xuat-khau-va-doanh-nghiep': {
-    label: 'Xuất khẩu & doanh nghiệp',
-    path: '/tin-tuc/nhom/xuat-khau-va-doanh-nghiep',
-  },
-  'chuyen-mon-va-chinh-sach': {
-    label: 'Chuyên môn & chính sách',
-    path: '/tin-tuc/nhom/chuyen-mon-va-chinh-sach',
-  },
-}
-
-function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const key =
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY
-
-  return { url, key }
-}
-
-function getArticleTimestamp(row) {
-  return row.published_at || row.updated_at || row.created_at
-}
-
-function toNewsListItem(row) {
-  const family = FAMILY_META[row.content_family_slug] || {
-    label: 'Tin tức',
-    path: '/tin-tuc',
+function firstHeaderValue(value) {
+  if (Array.isArray(value)) {
+    return firstHeaderValue(value[0])
   }
 
-  return {
-    slug: row.slug,
-    title: row.title,
-    excerpt: row.excerpt,
-    thumbnailUrl: row.thumbnail_url,
-    sourceKey: row.source_key || 'nongsanvn_ai',
-    sourceLabel: row.source_label || 'NongSanVN AI',
-    publishedAt: getArticleTimestamp(row),
-    category: row.category,
-    topicTags: row.topic_tags || [],
-    contentMode: 'full_html',
-    contentFamilySlug: row.content_family_slug,
-    contentFamilyLabel: family.label,
-    familyPath: family.path,
-  }
+  return typeof value === 'string' ? value : ''
 }
 
-function toNewsDetail(row) {
-  return {
-    ...toNewsListItem(row),
-    canonicalUrl: `/tin-tuc/${row.slug}`,
-    contentHtml: row.content_html,
-    contentText: row.content_text,
-    author: row.source_label || 'NongSanVN AI',
-    fetchedAt: row.updated_at || row.created_at,
+function buildForwardHeaders(req) {
+  const headers = {}
+  for (const name of ['accept', 'user-agent', 'referer', 'x-forwarded-for', 'x-real-ip', 'cf-connecting-ip']) {
+    const value = firstHeaderValue(req.headers[name])
+    if (value) {
+      headers[name] = value
+    }
   }
+
+  return headers
 }
 
 export default async function handler(req, res) {
@@ -81,51 +33,28 @@ export default async function handler(req, res) {
     return
   }
 
-  const { url, key } = getSupabaseConfig()
-  if (!url || !key) {
-    res.status(500).json({ success: false, error: 'Supabase public API is not configured' })
-    return
+  try {
+    const response = await fetchBackendResponse(`/api/news/articles/${encodeURIComponent(slug)}`, {
+      headers: buildForwardHeaders(req),
+    })
+    const body = await response.text()
+    res.status(response.status)
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json; charset=utf-8')
+
+    const retryAfter = response.headers.get('retry-after')
+    if (retryAfter) {
+      res.setHeader('Retry-After', retryAfter)
+    }
+
+    if (response.ok) {
+      res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
+    }
+
+    res.send(body)
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to proxy article',
+    })
   }
-
-  const supabase = createClient(url, key, { auth: { persistSession: false } })
-  const { data: article, error } = await supabase
-    .from('ai_generated_articles')
-    .select('*')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .maybeSingle()
-
-  if (error) {
-    res.status(500).json({ success: false, error: error.message || 'Failed to load article' })
-    return
-  }
-
-  if (!article) {
-    res.status(404).json({ success: false, error: 'Article not found' })
-    return
-  }
-
-  const { data: relatedRows, error: relatedError } = await supabase
-    .from('ai_generated_articles')
-    .select('*')
-    .eq('status', 'published')
-    .eq('content_family_slug', article.content_family_slug)
-    .neq('slug', slug)
-    .order('published_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false })
-    .limit(4)
-
-  if (relatedError) {
-    res.status(500).json({ success: false, error: relatedError.message || 'Failed to load related articles' })
-    return
-  }
-
-  const related = (relatedRows || []).map(toNewsListItem)
-  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
-  res.status(200).json({
-    success: true,
-    article: toNewsDetail(article),
-    related,
-    latestFromSource: related,
-  })
 }

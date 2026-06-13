@@ -3,10 +3,10 @@ import CoffeePriceStackTable from '../components/marketplace/CoffeePriceStackTab
 import PriceChainSummaryCards from '../components/marketplace/PriceChainSummaryCards'
 import PriceChainTable from '../components/marketplace/PriceChainTable'
 import type {
-  GeneratedCommodityPricePageListResponse,
-  GeneratedCommodityPricePageSummary,
-  GeneratedPricePageListResponse,
-  GeneratedPricePageSummary,
+  GeneratedCommodityPricePageLink,
+  GeneratedCommodityPricePageLinkListResponse,
+  GeneratedPricePageLink,
+  GeneratedPricePageLinkListResponse,
 } from '../data/generatedPricePageTypes'
 import type { CoffeePriceStackResponse, VnPriceChainResponse } from '../data/vnPriceTypes'
 import { buildApiUrl } from '../lib/api'
@@ -33,8 +33,8 @@ const EMPTY_COFFEE_PRICE_STACK: CoffeePriceStackResponse = {
 export default function PriceChainPage() {
   const [payload, setPayload] = useState<VnPriceChainResponse>(EMPTY_PRICE_CHAIN)
   const [coffeePriceStack, setCoffeePriceStack] = useState<CoffeePriceStackResponse>(EMPTY_COFFEE_PRICE_STACK)
-  const [pricePages, setPricePages] = useState<GeneratedPricePageSummary[]>([])
-  const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageSummary[]>([])
+  const [pricePages, setPricePages] = useState<GeneratedPricePageLink[]>([])
+  const [commodityPages, setCommodityPages] = useState<GeneratedCommodityPricePageLink[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [coffeeStackError, setCoffeeStackError] = useState<string | null>(null)
@@ -48,13 +48,13 @@ export default function PriceChainPage() {
     try {
       const [response, pageResponse, commodityPageResponse, coffeeStackResponse] = await Promise.all([
         fetch(buildApiUrl('/api/vn-price-chain')),
-        fetch(buildApiUrl('/api/price-pages?limit=400')),
-        fetch(buildApiUrl('/api/commodity-price-pages?limit=400')),
+        fetch(buildApiUrl('/api/price-page-links?limit=400')),
+        fetch(buildApiUrl('/api/commodity-price-page-links?limit=400')),
         fetch(buildApiUrl('/api/coffee/price-stack?limit=120')),
       ])
       const json: VnPriceChainResponse = await response.json()
-      const pageJson: GeneratedPricePageListResponse = await pageResponse.json()
-      const commodityPageJson: GeneratedCommodityPricePageListResponse = await commodityPageResponse.json()
+      const pageJson: GeneratedPricePageLinkListResponse = await pageResponse.json()
+      const commodityPageJson: GeneratedCommodityPricePageLinkListResponse = await commodityPageResponse.json()
       const coffeeStackJson: CoffeePriceStackResponse = await coffeeStackResponse.json()
 
       if (!response.ok || !json.success) {

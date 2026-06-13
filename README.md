@@ -25,6 +25,10 @@ Required environment variables:
 - `SUPABASE_SECRET_KEY` (preferred backend admin key)
 - `SUPABASE_SERVICE_ROLE_KEY` should normally be unset. It is a legacy JWT fallback and `crawler:preflight` flags it when it looks like an old `eyJ...` service role token.
 - `REDIS_URL` for the queue/worker path
+- `ANTI_SCRAPE_ENABLED=true|false` to enable or disable app-level public anti-scrape controls. Defaults to enabled unless set to `false`, `0`, or `off`.
+- `ANTI_SCRAPE_INTERNAL_KEY` shared by Railway and Vercel sitemap functions so sitemap builders can fetch generated page indexes without public quota/caps. Use a strong random value and keep it server-side only.
+- `ANTI_SCRAPE_BLOCKED_UA_REGEX` optional extra case-insensitive user-agent pattern to block in addition to the built-in automation defaults.
+- `ANTI_SCRAPE_ALLOWED_IPS` and `ANTI_SCRAPE_BLOCKED_IPS` optional comma-separated exact IP lists for bypass/block decisions.
 - `INGESTION_INLINE_PROCESSING=true|false` to choose inline queue draining vs external worker
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for ingestion alerts
 - `CUSTOMS_REPORT_URL` to pin a known customs report file
@@ -63,6 +67,7 @@ Runtime behavior:
 - Public API reads use `SUPABASE_PUBLISHABLE_KEY`; they no longer fall back to the service role key.
 - If only public keys are present, the app falls back to legacy file-cache services until the remote schema is applied and the service role key is added.
 - If `REDIS_URL` is present, VN crawler refreshes enqueue raw price messages to `price:raw`; run `npm --prefix server run worker` for a dedicated worker, or keep `INGESTION_INLINE_PROCESSING=true` to drain the queue inside the API process.
+- Public price/news/content APIs and generated SEO pages are protected by the anti-scrape middleware. Without `REDIS_URL`, counters are per-process in memory; with `REDIS_URL`, counters are shared across API instances. Sitemaps need the same `ANTI_SCRAPE_INTERNAL_KEY` configured in both Vercel and the backend.
 - Run `npm --prefix server run monitor` to execute the ingestion health check and optional Telegram alerting.
 - Customs crawler is intentionally separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:customs`.
 - BHX crawler is also separate from the legacy VN homepage refresh. Run it manually or by cron with `npm --prefix server run crawler:bhx`.

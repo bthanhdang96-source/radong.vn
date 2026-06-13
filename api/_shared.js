@@ -73,23 +73,34 @@ function getPublicOrigin(req) {
   return normalizePublicOrigin(`${proto}://${host}`) || DEFAULT_PUBLIC_SITE_ORIGIN
 }
 
-export async function fetchBackendJson(path) {
-  const apiBaseUrl = getApiBaseUrl()
-  if (!apiBaseUrl) {
-    throw new Error('PRICE_CONTENT_API_BASE_URL or VITE_API_BASE_URL is required')
-  }
-
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: {
-      accept: 'application/json',
-    },
-  })
+export async function fetchBackendJson(path, options = {}) {
+  const response = await fetchBackendResponse(path, options)
   const json = await response.json()
   if (!response.ok || json.success === false) {
     throw new Error(json.error || `Request failed with ${response.status}`)
   }
 
   return json
+}
+
+export function getAntiScrapeInternalHeaders() {
+  const key = process.env.ANTI_SCRAPE_INTERNAL_KEY?.trim()
+  return key ? { 'x-anti-scrape-internal-key': key } : {}
+}
+
+export async function fetchBackendResponse(path, options = {}) {
+  const apiBaseUrl = getApiBaseUrl()
+  if (!apiBaseUrl) {
+    throw new Error('PRICE_CONTENT_API_BASE_URL or VITE_API_BASE_URL is required')
+  }
+
+  return fetch(`${apiBaseUrl}${path}`, {
+    headers: {
+      accept: 'application/json',
+      ...(options.headers || {}),
+    },
+    method: options.method || 'GET',
+  })
 }
 
 export function toAbsoluteUrl(req, path) {

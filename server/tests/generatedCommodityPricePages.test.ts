@@ -1,13 +1,50 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { toGeneratedCommodityPricePageLink } from '../routes/commodityPricePages.js'
 import { __generatedCommodityPricePagesTestUtils } from '../services/generatedCommodityPricePages/service.js'
 import { __generatedPricePagesTestUtils } from '../services/generatedPricePages/service.js'
+import type { GeneratedCommodityPricePageSummary } from '../services/generatedPricePages/types.js'
 
 test('buildGeneratedCommodityPricePagePath returns commodity route', () => {
   assert.equal(
     __generatedCommodityPricePagesTestUtils.buildGeneratedCommodityPricePagePath('ho-tieu'),
     '/gia-nong-san/ho-tieu',
   )
+})
+
+test('toGeneratedCommodityPricePageLink exposes only frontend link-index fields', () => {
+  const link = toGeneratedCommodityPricePageLink({
+    id: 'commodity-page-1',
+    slug: 'ho-tieu',
+    path: '/gia-nong-san/ho-tieu',
+    commoditySlug: 'ho-tieu',
+    category: 'Cay cong nghiep',
+    title: 'Gia ho tieu',
+    excerpt: 'excerpt',
+    answerSummary: 'summary',
+    topicTags: ['ho-tieu'],
+    thumbnailUrl: '/image.jpg',
+    thumbnailAlt: 'Ho tieu',
+    primaryPriceType: 'farm_gate',
+    renderMode: 'regional_table',
+    headlineLatestPriceVnd: 150000,
+    headlineLatestPriceUnit: 'VND/kg',
+    dayChangeVnd: 1000,
+    dayChangePct: 1,
+    change7dVnd: 2000,
+    change7dPct: 2,
+    lowestPriceVnd: 148000,
+    highestPriceVnd: 152000,
+    priceSpreadVnd: 4000,
+    locationCount: 5,
+    latestObservedOn: '2026-06-13',
+    nationalScopeLabel: null,
+    publishedAt: '2026-06-13T00:00:00.000Z',
+    updatedAt: '2026-06-13T00:00:00.000Z',
+    status: 'published',
+  } satisfies GeneratedCommodityPricePageSummary)
+
+  assert.deepEqual(Object.keys(link).sort(), ['commoditySlug', 'path'])
 })
 
 test('buildCommodityCandidatePages publishes regional_table and excludes Viet Nam row from the table', () => {

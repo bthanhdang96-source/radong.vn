@@ -129,6 +129,7 @@ const SUPABASE_BATCH_SIZE = 100
 const SUPABASE_READ_PAGE_SIZE = 1000
 const DEFAULT_PAGE_SIZE = 24
 const MAX_PAGE_SIZE = 60
+const MAX_MAP_ITEMS = 300
 const TRANSFORMED_ROWS_CACHE_TTL_MS = 3 * 60 * 1000
 const transformedRowsCache = new Map<ExportRegistryType, { expiresAt: number; items: ExportRegistryLookupItem[] }>()
 const KNOWN_PRODUCT_RULES: Array<{ label: string; patterns: string[] }> = [
@@ -359,7 +360,7 @@ export function selectExportRegistryMapSourceItems(
     return []
   }
 
-  return mapMode === 'page' ? pageItems : filteredItems
+  return mapMode === 'page' ? pageItems : filteredItems.slice(0, MAX_MAP_ITEMS)
 }
 
 function matchesSearch(item: ExportRegistryLookupItem, query: string) {

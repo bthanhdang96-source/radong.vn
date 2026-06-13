@@ -51,6 +51,11 @@ export type GeneratedPricePageSummary = {
   status: PricePageStatus
 }
 
+export type GeneratedPricePageLink = Pick<
+  GeneratedPricePageSummary,
+  'path' | 'commoditySlug' | 'locationSlug' | 'provinceCode' | 'locationLabel'
+>
+
 export type GeneratedPricePageDetail = GeneratedPricePageSummary & {
   bodyHtml: string
   bodyText: string
@@ -179,6 +184,11 @@ export type GeneratedCommodityPricePageSummary = {
   status: PricePageStatus
 }
 
+export type GeneratedCommodityPricePageLink = Pick<
+  GeneratedCommodityPricePageSummary,
+  'path' | 'commoditySlug'
+>
+
 export type GeneratedCommodityPricePageDetail = GeneratedCommodityPricePageSummary & {
   bodyHtml: string
   bodyText: string
@@ -197,6 +207,11 @@ export type GeneratedPricePageListResponse = {
   items: GeneratedPricePageSummary[]
 }
 
+export type GeneratedPricePageLinkListResponse = {
+  success: boolean
+  items: GeneratedPricePageLink[]
+}
+
 export type GeneratedPricePageDetailResponse = {
   success: boolean
   page: GeneratedPricePageDetail
@@ -205,6 +220,11 @@ export type GeneratedPricePageDetailResponse = {
 export type GeneratedCommodityPricePageListResponse = {
   success: boolean
   items: GeneratedCommodityPricePageSummary[]
+}
+
+export type GeneratedCommodityPricePageLinkListResponse = {
+  success: boolean
+  items: GeneratedCommodityPricePageLink[]
 }
 
 export type GeneratedCommodityPricePageDetailResponse = {

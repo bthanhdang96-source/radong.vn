@@ -74,7 +74,7 @@ router.get('/export-registry/entries', async (req, res) => {
           : undefined,
         page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
         limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
-        mapMode: parseMapMode(req.query.mapMode),
+        mapMode: parseMapMode(req.query.mapMode) ?? 'page',
       })
 
       return { success: true, ...payload }

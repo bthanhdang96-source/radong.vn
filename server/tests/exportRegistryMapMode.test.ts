@@ -48,4 +48,13 @@ describe('export registry mapMode', () => {
     )
     assert.deepEqual(selectExportRegistryMapSourceItems(filteredItems, pageItems, 'none'), [])
   })
+
+  it('caps all map source items to avoid oversized public map payloads', () => {
+    const filteredItems = Array.from({ length: 305 }, (_, index) => makeLookupItem(String(index + 1)))
+    const selected = selectExportRegistryMapSourceItems(filteredItems, filteredItems.slice(0, 24), 'all')
+
+    assert.equal(selected.length, 300)
+    assert.equal(selected[0]?.id, '1')
+    assert.equal(selected.at(-1)?.id, '300')
+  })
 })

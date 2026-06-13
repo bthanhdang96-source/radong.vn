@@ -4,9 +4,49 @@ import {
   __generatedPricePagesTestUtils,
   buildGeneratedPricePagePath,
 } from '../services/generatedPricePages/service.js'
+import { toGeneratedPricePageLink } from '../routes/pricePages.js'
+import type { GeneratedPricePageSummary } from '../services/generatedPricePages/types.js'
 
 test('buildGeneratedPricePagePath returns commodity-by-location route', () => {
   assert.equal(buildGeneratedPricePagePath('ca-phe-robusta', 'dak-lak'), '/gia-nong-san/ca-phe-robusta/dak-lak')
+})
+
+test('toGeneratedPricePageLink exposes only frontend link-index fields', () => {
+  const link = toGeneratedPricePageLink({
+    id: 'page-1',
+    slug: 'ca-phe-robusta/dak-lak',
+    path: '/gia-nong-san/ca-phe-robusta/dak-lak',
+    commoditySlug: 'ca-phe-robusta',
+    locationSlug: 'dak-lak',
+    scopeType: 'province',
+    scopeKey: 'DLK',
+    provinceCode: 'DLK',
+    regionLabel: null,
+    locationLabel: 'Dak Lak',
+    category: 'Cay cong nghiep',
+    title: 'Gia ca phe',
+    excerpt: 'excerpt',
+    answerSummary: 'summary',
+    topicTags: ['ca-phe'],
+    thumbnailUrl: '/image.jpg',
+    thumbnailAlt: 'Ca phe',
+    primaryPriceType: 'farm_gate',
+    latestPriceVnd: 120000,
+    latestPriceUnit: 'VND/kg',
+    dayChangeVnd: 1000,
+    dayChangePct: 1,
+    change7dVnd: 2000,
+    change7dPct: 2,
+    minPrice7dVnd: 118000,
+    maxPrice7dVnd: 122000,
+    observationCount7d: 7,
+    latestObservedOn: '2026-06-13',
+    publishedAt: '2026-06-13T00:00:00.000Z',
+    updatedAt: '2026-06-13T00:00:00.000Z',
+    status: 'published',
+  } satisfies GeneratedPricePageSummary)
+
+  assert.deepEqual(Object.keys(link).sort(), ['commoditySlug', 'locationLabel', 'locationSlug', 'path', 'provinceCode'])
 })
 
 test('deriveScope prefers province code and falls back to normalized region label', () => {

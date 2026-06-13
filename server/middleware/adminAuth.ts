@@ -32,6 +32,10 @@ export function hasAdminApiKeyConfigured() {
   return getConfiguredAdminApiKey().length > 0
 }
 
+export function hasValidAdminApiKey(req: Request) {
+  return matchesAdminApiKey(getProvidedAdminApiKey(req), getConfiguredAdminApiKey())
+}
+
 export function requireAdminApiKey(req: Request, res: Response, next: NextFunction) {
   const configuredKey = getConfiguredAdminApiKey()
   if (!configuredKey) {
@@ -42,8 +46,7 @@ export function requireAdminApiKey(req: Request, res: Response, next: NextFuncti
     return
   }
 
-  const providedKey = getProvidedAdminApiKey(req)
-  if (!matchesAdminApiKey(providedKey, configuredKey)) {
+  if (!matchesAdminApiKey(getProvidedAdminApiKey(req), configuredKey)) {
     res.status(401).json({
       success: false,
       error: 'Admin API key is required',

@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { GeneratedCommodityPricePageSummary, GeneratedPricePageSummary } from '../../data/generatedPricePageTypes'
+import type { GeneratedCommodityPricePageLink, GeneratedPricePageLink } from '../../data/generatedPricePageTypes'
 import type { PriceChainItem } from '../../data/vnPriceTypes'
 import './PriceChainTable.css'
 
 type Props = {
   data: PriceChainItem[]
-  pricePages: GeneratedPricePageSummary[]
-  commodityPages: GeneratedCommodityPricePageSummary[]
+  pricePages: GeneratedPricePageLink[]
+  commodityPages: GeneratedCommodityPricePageLink[]
   loading: boolean
   error: string | null
   lastUpdated: string
 }
 
-function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
-  return pricePages.reduce<Map<string, GeneratedPricePageSummary>>((acc, page) => {
+function buildPricePageLookup(pricePages: GeneratedPricePageLink[]) {
+  return pricePages.reduce<Map<string, GeneratedPricePageLink>>((acc, page) => {
     const provinceKey = page.provinceCode ? `${page.commoditySlug}::${page.provinceCode}` : null
     if (provinceKey && !acc.has(provinceKey)) {
       acc.set(provinceKey, page)
@@ -24,8 +24,8 @@ function buildPricePageLookup(pricePages: GeneratedPricePageSummary[]) {
   }, new Map())
 }
 
-function buildCommodityPageLookup(commodityPages: GeneratedCommodityPricePageSummary[]) {
-  return commodityPages.reduce<Map<string, GeneratedCommodityPricePageSummary>>((acc, page) => {
+function buildCommodityPageLookup(commodityPages: GeneratedCommodityPricePageLink[]) {
+  return commodityPages.reduce<Map<string, GeneratedCommodityPricePageLink>>((acc, page) => {
     if (!acc.has(page.commoditySlug)) {
       acc.set(page.commoditySlug, page)
     }
