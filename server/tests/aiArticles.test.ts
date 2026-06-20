@@ -463,6 +463,15 @@ test('agri blog fact snippets remove source-site navigation and hotline text', (
   assert.ok(snippets.every(snippet => !/hotline|multimedia/i.test(snippet)))
 })
 
+test('Vietnamese decimal and thousands separators normalize for source-number checks', () => {
+  assert.deepEqual(__aiArticleTestUtils.extractNumberTokens('tăng 8,9% trên 1.000ha, quả nặng 1,5 đến 2kg'), [
+    '8.9',
+    '1000',
+    '1.5',
+    '2',
+  ])
+})
+
 test('valid agri blog passes hard gates with body FAQ and source ledger references', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, validBlogDraft(context))
@@ -471,6 +480,20 @@ test('valid agri blog passes hard gates with body FAQ and source ledger referenc
   assert.equal(quality.hardFailures.length, 0)
   assert.ok(quality.wordCount >= 700)
   assert.ok(quality.wordCount <= 1000)
+})
+
+test('numbered-list markers are not treated as factual claims', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(
+      '## Checklist việc cần kiểm tra',
+      '## Checklist việc cần kiểm tra\n\n1.\n\n2.\n\n3.',
+    ),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
 })
 
 test('retail price ceiling cannot be rewritten as an import-price rule', () => {

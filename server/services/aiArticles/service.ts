@@ -519,7 +519,7 @@ const AI_BLOG_FORBIDDEN_VISIBLE_PATTERNS: Array<{ code: string; pattern: RegExp;
   { code: 'FORBIDDEN_NONG_SAN', pattern: /\bnong-san\b/i, label: 'nong-san' },
 ]
 const AI_BLOG_MATERIAL_CLAIM_PATTERN =
-  /\d|%|usd|vnd|php|đồng|ha\b|kg\b|tấn|triệu|tỷ|theo quy định|sắc lệnh|nghị định|thông tư|bộ trưởng|thứ trưởng|bí thư|chủ tịch|kim ngạch|sản lượng|diện tích|mã số|giá bán|giá nhập|giá thu mua|giá bán lẻ|xuất khẩu|nhập khẩu/i
+  /\d|%|usd|vnd|php|đồng|ha\b|kg\b|tấn|triệu|tỷ|theo quy định|sắc lệnh|nghị định|thông tư|bộ trưởng|thứ trưởng|bí thư|chủ tịch|kim ngạch|sản lượng|diện tích|mã số|giá bán|giá nhập|giá thu mua|giá bán lẻ/i
 const AI_BLOG_LEGAL_OBLIGATION_PATTERN =
   /\b(bắt buộc|nghĩa vụ pháp lý|phải tuân thủ|phải thực hiện|bị xử phạt|bị cấm|không được phép|yêu cầu pháp lý)\b/i
 const AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN =
@@ -1526,7 +1526,9 @@ HARD RULES
 - ${sensitiveRule}
 - Khong dung cac token rac: News, Hàng Hóa, thi-truong, gia-ca, nong-san.
 - Khong dung HTML. Khong viet bai "gia hom nay".
-- Viet 700-1000 tu, tieng Viet tu nhien, khong chen tu khoa guong ep.
+- Nhắm 780-900 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
+- Checklist nên là các câu hỏi hoặc bước cần xác minh an toàn. Không gắn [Sx] cho lời khuyên biên tập nếu fact snippets không nói điều đó.
+- Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
 
 CAU TRUC BAT BUOC TRONG bodyMarkdown
 - Mo dau bang "**Tóm tắt:**" va 2-3 cau tra loi truc tiep.
@@ -1570,6 +1572,30 @@ function buildAiBlogRepairPrompt(
   draft: AiDraft | null,
   failures: AiBlogValidationIssue[],
 ) {
+  const failureCodes = new Set(failures.map(failure => failure.code))
+  const repairGuidance = [
+    failureCodes.has('WORD_COUNT_MIN') || failureCodes.has('WORD_COUNT_MAX')
+      ? '- Viet lai trong khoang 780-900 tu. Mo rong bang giai thich va cau hoi can xac minh, khong them fact moi.'
+      : null,
+    failureCodes.has('CLAIM_TEXT_UNSUPPORTED') ||
+    failureCodes.has('CITED_CLAIM_MAPPING_MISSING') ||
+    failureCodes.has('CLAIM_MAPPING_MISSING')
+      ? '- Voi loi khuyen/checklist khong nam trong fact snippets: bo [Sx], viet thanh cau hoi can kiem tra hoac xoa. Khong tao claimSources gia.'
+      : null,
+    failureCodes.has('CLAIM_INLINE_CITATION')
+      ? '- Claim co so lieu/chinh sach/nhan vat phai co [Sx]. Neu chi la nhan dinh bien tap, bo chi tiet factual de khong bien thanh claim.'
+      : null,
+    failureCodes.has('STRUCTURE_SUMMARY')
+      ? '- Ky tu dau tien cua bodyMarkdown phai chinh xac la **Tóm tắt:**, khong dat heading hay loi dan phia truoc.'
+      : null,
+    failureCodes.has('PRICE_TYPE_CHANGED')
+      ? '- Dung cum "trần giá bán lẻ đối với gạo nhập khẩu"; cam viet "giá nhập khẩu" hoac "quy định giá nhập khẩu".'
+      : null,
+    failureCodes.has('AUDIENCE_MISMATCH') || failureCodes.has('STYLE_MISMATCH')
+      ? `- Giu dung JSON audience="${context.audience}" va style="${context.style}".`
+      : null,
+  ].filter((item): item is string => Boolean(item))
+
   return `${buildAgriBlogArticlePrompt(context)}
 
 DAY LA LAN SUA. Ban nhap truoc do:
@@ -1577,6 +1603,9 @@ ${draft ? JSON.stringify(draft, null, 2) : 'Khong parse duoc JSON.'}
 
 CAC HARD GATE DANG THAT BAI:
 ${failures.map(failure => `- ${failure.code}: ${failure.message}`).join('\n')}
+
+HUONG SUA CU THE:
+${repairGuidance.join('\n') || '- Sua dung theo hard gate, khong them fact moi.'}
 
 Hay viet lai TOAN BO JSON de sua dung cac loi tren. Khong them fact, source hoac con so moi.`
 }
@@ -1642,9 +1671,10 @@ async function callGemini(prompt: string, articleType?: AiArticleType) {
   }
 
   const model = getModelName(articleType)
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  let response: Response | null = null
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -1654,11 +1684,19 @@ async function callGemini(prompt: string, articleType?: AiArticleType) {
           responseMimeType: 'application/json',
         },
       }),
-    },
-  )
-
-  if (!response.ok) {
-    throw new Error(`Gemini request failed with HTTP ${response.status}: ${await response.text()}`)
+    })
+    if (response.ok) {
+      break
+    }
+    const retryable = response.status === 429 || response.status >= 500
+    if (!retryable || attempt === 3) {
+      throw new Error(`Gemini request failed with HTTP ${response.status}: ${await response.text()}`)
+    }
+    await response.text()
+    await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+  }
+  if (!response?.ok) {
+    throw new Error('Gemini request failed without a usable response')
   }
 
   const json = (await response.json()) as {
@@ -1726,7 +1764,21 @@ function tokenCoverage(left: string, right: string) {
 }
 
 function extractNumberTokens(value: string) {
-  return [...foldText(stripSourceCitations(value)).matchAll(/\d+(?:[.,]\d+)?/g)].map(match => match[0].replace(',', '.'))
+  return [...foldText(stripSourceCitations(value)).matchAll(/\d[\d.,]*/g)].map(match => {
+    const raw = match[0].replace(/[.,]+$/, '')
+    const separators = [...raw.matchAll(/[.,]/g)].map(item => item.index ?? -1)
+    if (separators.length === 0) {
+      return raw
+    }
+    const lastSeparator = separators.at(-1) ?? -1
+    const trailingDigits = raw.length - lastSeparator - 1
+    if (separators.length === 1 && trailingDigits === 3) {
+      return raw.replace(/[.,]/g, '')
+    }
+    const integerPart = raw.slice(0, lastSeparator).replace(/[.,]/g, '')
+    const decimalPart = raw.slice(lastSeparator + 1)
+    return `${integerPart}.${decimalPart}`
+  })
 }
 
 function extractMaterialBlogClaims(markdown: string) {
@@ -1738,7 +1790,8 @@ function extractMaterialBlogClaims(markdown: string) {
     .split(/\r?\n/)
     .filter(line => line.trim() && !/^#{1,6}\s/.test(line))
     .flatMap(line => line.split(/(?<=[.!?])\s+/))
-    .map(sentence => sentence.trim())
+    .map(sentence => sentence.trim().replace(/^\d+[.)]\s*/, ''))
+    .filter(sentence => /[a-zA-ZÀ-ỹ]/.test(sentence))
     .filter(sentence => AI_BLOG_MATERIAL_CLAIM_PATTERN.test(stripSourceCitations(sentence)))
 }
 
@@ -1837,7 +1890,7 @@ function validateAgriBlogDraft(
   if (h2Count < 3) {
     hardFailures.push(validationIssue('STRUCTURE_H2', 'Bài phải có ít nhất ba heading H2.'))
   }
-  if (!/^\*\*Tóm tắt:\*\*/im.test(draft.bodyMarkdown)) {
+  if (!/^\s*\*\*Tóm tắt:\*\*/i.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('STRUCTURE_SUMMARY', 'Body phải mở đầu bằng **Tóm tắt:**.'))
   }
   if (!/^##\s+(?:.*Checklist.*|Việc cần kiểm tra.*)$/im.test(draft.bodyMarkdown)) {
@@ -1922,11 +1975,11 @@ function validateAgriBlogDraft(
         hardFailures.push(validationIssue('CLAIM_SOURCE_INVALID', `Claim dùng nguồn không hợp lệ hoặc chưa khai báo: ${sourceId}.`))
         continue
       }
-      const sourceFacts = sourceFactText(source)
+      const sourceNumbers = new Set(extractNumberTokens(source.factSnippets.join(' ')))
       if (tokenCoverage(mappedClaim.claim, source.factSnippets.join(' ')) >= 0.35) {
         hasTextualSupport = true
       }
-      const missingNumbers = extractNumberTokens(mappedClaim.claim).filter(number => !sourceFacts.includes(number))
+      const missingNumbers = extractNumberTokens(mappedClaim.claim).filter(number => !sourceNumbers.has(number))
       if (missingNumbers.length > 0) {
         hardFailures.push(
           validationIssue('CLAIM_NUMBER_UNSUPPORTED', `Claim "${mappedClaim.claim}" có số không nằm trong ${sourceId}: ${missingNumbers.join(', ')}.`),
@@ -3415,6 +3468,7 @@ export const __aiArticleTestUtils = {
   buildAiBlogRepairPrompt,
   buildBlogSourcePack,
   calculateBlogSimilarity,
+  extractNumberTokens,
   generateAgriBlogDraftWithRetries,
   getBlogSourceRelevance,
   getBlogFactSnippets,
