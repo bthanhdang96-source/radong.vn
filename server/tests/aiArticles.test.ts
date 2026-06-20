@@ -115,6 +115,59 @@ function blogNewsRow(overrides: Partial<BlogNewsRow> = {}): BlogNewsRow {
   }
 }
 
+function validBlogDraft(context: ReturnType<typeof buildAgriBlogArticleContextFromSeed>) {
+  const filler = Array.from(
+    { length: 12 },
+    () =>
+      'Người đọc nên quan sát điều kiện thực tế, ghi lại câu hỏi còn thiếu và trao đổi với đơn vị hỗ trợ địa phương trước khi thay đổi cách làm.',
+  ).join(' ')
+  const faq = [
+    {
+      question: 'Nên bắt đầu kiểm tra thông tin từ đâu?',
+      answer: 'Nên bắt đầu từ nguồn chính, sau đó đối chiếu điều kiện thực tế và hỏi đơn vị hỗ trợ tại địa phương.',
+    },
+    {
+      question: 'Khi nào nên tạm hoãn quyết định?',
+      answer: 'Nên tạm hoãn khi dữ liệu còn thiếu, điều kiện thực tế chưa rõ hoặc chưa có người có chuyên môn xác nhận.',
+    },
+  ]
+  return {
+    title: 'Chuẩn bị thông tin trước khi thay đổi cách làm',
+    excerpt: 'Khung kiểm tra thận trọng giúp người đọc đánh giá thông tin và điều kiện thực tế.',
+    answerSummary: 'Cần kiểm tra nguồn, điều kiện áp dụng và các rủi ro trước khi hành động.',
+    bodyMarkdown: [
+      '**Tóm tắt:** Người đọc cần kiểm tra nguồn, điều kiện áp dụng và các rủi ro trước khi hành động. Cách tiếp cận thận trọng giúp tránh quyết định vội vàng.',
+      '## Bối cảnh cần hiểu',
+      filler,
+      '## Checklist việc cần kiểm tra',
+      '- Xác định thông tin nào đã rõ.',
+      '- Ghi lại thông tin còn thiếu.',
+      '- Hỏi đơn vị hỗ trợ phù hợp.',
+      '## Cách trao đổi với đơn vị hỗ trợ',
+      filler,
+      '## Câu hỏi thường gặp',
+      `### ${faq[0].question}`,
+      faq[0].answer,
+      `### ${faq[1].question}`,
+      faq[1].answer,
+      '## Kết luận',
+      'Chỉ nên thay đổi cách làm sau khi đã đối chiếu nguồn, đánh giá điều kiện riêng và có phương án theo dõi kết quả.',
+      '## Nguồn tham khảo',
+      `- [S1] [${context.sourceArticles[0]?.title}](${context.sourceArticles[0]?.canonicalUrl}) — ${context.sourceArticles[0]?.sourceKey}, 2026-06-10.`,
+    ].join('\n\n'),
+    seo: {
+      title: 'Chuẩn bị thông tin trước khi thay đổi cách làm',
+      description: 'Khung kiểm tra thận trọng trước khi hành động.',
+      faq,
+    },
+    topicTags: ['lua'],
+    audience: context.audience,
+    style: context.style,
+    sourcesUsed: ['S1'],
+    claimSources: [],
+  }
+}
+
 test('export period context stays period scoped for one customs period', () => {
   const context = buildExportPeriodArticleContextFromRows([
     customsRow(),
@@ -329,13 +382,15 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.equal(context.articleType, 'agri_blog')
   assert.equal(context.contentFamilySlug, 'blog-nong-nghiep')
   assert.equal('dailySignals' in context, false)
-  assert.match(prompt, /blog SEO hang ngay/)
-  assert.match(prompt, /khong phai "gia hom nay"/)
+  assert.match(prompt, /rule base ai-blog-rules-v2/)
+  assert.match(prompt, /SOURCE_LEDGER/)
+  assert.match(prompt, /Khong viet bai "gia hom nay"/)
+  assert.match(prompt, /claimSources/)
 })
 
-test('agri blog draft validation warns on raw HTML, short body, and missing attribution', () => {
+test('agri blog draft validation returns deterministic hard-gate codes', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
-  const quality = __aiArticleTestUtils.validateDraft(context, {
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     title: 'Cach chuan bi vu lua he thu',
     excerpt: 'Checklist ngan cho nha nong.',
     answerSummary: 'Can kiem tra lich xuong giong, nuoc va sau benh.',
@@ -355,10 +410,126 @@ test('agri blog draft validation warns on raw HTML, short body, and missing attr
   })
 
   assert.equal(quality.valid, false)
-  assert.ok(quality.warnings.some(warning => warning.includes('raw HTML')))
-  assert.ok(quality.warnings.some(warning => warning.includes('shorter')))
-  assert.ok(quality.warnings.some(warning => warning.includes('lacks visible attribution')))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'RAW_HTML'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'WORD_COUNT_MIN'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_INLINE_CITATION'))
   assert.throws(() => __aiArticleTestUtils.parseAiDraft('{"title":"Thieu body"}'), /missing title, excerpt, or bodyMarkdown/)
+})
+
+test('agri blog source pack keeps relevant rice sources and rejects unrelated coffee and durian', () => {
+  const primary = blogNewsRow({
+    id: 'rice-primary',
+    slug: 'philippines-tran-gia-ban-le-gao',
+    title: 'Philippines áp trần giá bán lẻ gạo nhập khẩu',
+    topic_tags: ['gao', 'philippines', 'gia-ban-le'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('trader', primary, [
+    primary,
+    blogNewsRow({
+      id: 'rice-related',
+      canonical_url: 'https://example.com/rice-related',
+      slug: 'thi-truong-gao-philippines',
+      title: 'Thị trường gạo Philippines cần theo dõi nguồn cung',
+      topic_tags: ['gao', 'philippines'],
+    }),
+    blogNewsRow({
+      id: 'coffee',
+      canonical_url: 'https://example.com/coffee',
+      slug: 'du-bao-ca-phe-viet-nam',
+      title: 'Dự báo sản lượng cà phê Việt Nam',
+      topic_tags: ['ca-phe'],
+    }),
+    blogNewsRow({
+      id: 'durian',
+      canonical_url: 'https://example.com/durian',
+      slug: 'ma-so-vung-trong-sau-rieng',
+      title: 'Kiểm soát mã số vùng trồng sầu riêng',
+      topic_tags: ['sau-rieng'],
+    }),
+  ])
+
+  assert.deepEqual(context.sourceArticles.map(source => source.id), ['rice-primary', 'rice-related'])
+  assert.deepEqual(context.sourceArticles.map(source => source.sourceId), ['S1', 'S2'])
+})
+
+test('agri blog fact snippets remove source-site navigation and hotline text', () => {
+  const snippets = __aiArticleTestUtils.getBlogFactSnippets(
+    'Hotline: 0983.970.780 Thời sự Nông nghiệp Môi trường Multimedia Pháp luật - Bạn đọc. ' +
+      'Theo báo cáo, diện tích vùng nguyên liệu đạt 653ha trong kế hoạch năm 2026. ' +
+      'Các hộ tham gia được hướng dẫn ghi chép thông tin sản xuất.',
+  )
+
+  assert.ok(snippets.some(snippet => snippet.includes('653ha')))
+  assert.ok(snippets.every(snippet => !/hotline|multimedia/i.test(snippet)))
+})
+
+test('valid agri blog passes hard gates with body FAQ and source ledger references', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, validBlogDraft(context))
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+  assert.equal(quality.hardFailures.length, 0)
+  assert.ok(quality.wordCount >= 700)
+  assert.ok(quality.wordCount <= 1000)
+})
+
+test('retail price ceiling cannot be rewritten as an import-price rule', () => {
+  const context = buildAgriBlogArticleContextFromNews(
+    'trader',
+    blogNewsRow({
+      title: 'Philippines áp trần giá đối với gạo nhập khẩu',
+      content_text: 'Mức giá bán lẻ tối đa là 50 PHP/kg đối với gạo nhập khẩu loại 5% tấm trong 30 ngày.',
+      topic_tags: ['gao', 'philippines', 'gia-ban-le'],
+    }),
+    [],
+  )
+  const draft = validBlogDraft(buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()]))
+  const bodyMarkdown = draft.bodyMarkdown.replace(
+    '## Câu hỏi thường gặp',
+    'Đây là quy định về giá nhập khẩu tại Philippines [S1].\n\n## Câu hỏi thường gặp',
+  )
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    audience: 'trader',
+    style: 'market_note',
+    bodyMarkdown: bodyMarkdown.replace('https://example.com/news-1', context.sourceArticles[0]?.canonicalUrl ?? ''),
+    claimSources: [{ claim: 'Đây là quy định về giá nhập khẩu tại Philippines.', sourceIds: ['S1'] }],
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'PRICE_TYPE_CHANGED'))
+})
+
+test('citation cannot legitimize advice that is absent from source facts', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const unsupportedClaim = 'Bà con cần dựng nhà kính kín hoàn toàn trước khi bắt đầu [S1].'
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace('## Câu hỏi thường gặp', `${unsupportedClaim}\n\n## Câu hỏi thường gặp`),
+    claimSources: [{ claim: unsupportedClaim, sourceIds: ['S1'] }],
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_TEXT_UNSUPPORTED'))
+})
+
+test('agri blog generation stops after three invalid model responses', async () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  let calls = 0
+  const result = await __aiArticleTestUtils.generateAgriBlogDraftWithRetries(
+    context,
+    [],
+    async () => {
+      calls += 1
+      return { model: 'test-model', text: '{"title":"missing body"}' }
+    },
+  )
+
+  assert.equal(result.success, false)
+  assert.equal(calls, 3)
+  assert.equal(result.attempts.length, 3)
+  assert.ok(result.failures.some(failure => failure.code === 'MODEL_RESPONSE_INVALID'))
 })
 
 test('AI article feed item keeps news path and taxonomy metadata', () => {

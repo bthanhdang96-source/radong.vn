@@ -179,6 +179,7 @@ router.get('/admin/ai-articles/context', requireAdminApiKey, async (req, res) =>
       year: typeof req.query.year === 'string' ? Number(req.query.year) : undefined,
       month: typeof req.query.month === 'string' ? Number(req.query.month) : undefined,
       observedOn: typeof req.query.observedOn === 'string' ? req.query.observedOn : undefined,
+      articleSlug: typeof req.query.articleSlug === 'string' ? req.query.articleSlug : undefined,
       audience: parseBlogAudience(req.query.audience),
       seedId: typeof req.query.seedId === 'string' ? req.query.seedId : undefined,
       dailyLimit: parseInteger(req.query.dailyLimit),
@@ -205,6 +206,7 @@ router.post('/admin/ai-articles/generate', requireAdminApiKey, async (req, res) 
       year: typeof body.year === 'number' ? body.year : undefined,
       month: typeof body.month === 'number' ? body.month : undefined,
       observedOn: typeof body.observedOn === 'string' ? body.observedOn : undefined,
+      articleSlug: typeof body.articleSlug === 'string' ? body.articleSlug : undefined,
       audience: parseBlogAudience(body.audience),
       seedId: typeof body.seedId === 'string' ? body.seedId : undefined,
       dailyLimit: parseInteger(body.dailyLimit),
@@ -238,6 +240,28 @@ router.post('/admin/ai-articles/generate-blog', requireAdminApiKey, async (req, 
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to generate AI blog articles',
+    })
+  }
+})
+
+router.post('/admin/ai-articles/:slug/regenerate', requireAdminApiKey, async (req, res) => {
+  try {
+    const slug = getRouteParam(req.params.slug)
+    if (!slug) {
+      res.status(400).json({ success: false, error: 'Invalid AI article slug' })
+      return
+    }
+    const result = await generateAiArticles({
+      articleType: 'agri_blog',
+      articleSlug: slug,
+      force: true,
+    })
+    res.json({ success: result.status !== 'failed', ...result })
+  } catch (error) {
+    console.error('[API] Failed to regenerate AI blog article:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to regenerate AI blog article',
     })
   }
 })

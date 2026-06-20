@@ -79,17 +79,20 @@ test('admin AI static routes are registered before slug route', () => {
   const contextIndex = routeIndex('/admin/ai-articles/context', 'get')
   const generateIndex = routeIndex('/admin/ai-articles/generate', 'post')
   const generateBlogIndex = routeIndex('/admin/ai-articles/generate-blog', 'post')
+  const regenerateBlogIndex = routeIndex('/admin/ai-articles/:slug/regenerate', 'post')
   const topicSeedsIndex = routeIndex('/admin/ai-blog-topic-seeds', 'get')
   const slugIndex = routeIndex('/admin/ai-articles/:slug', 'get')
 
   assert.notEqual(contextIndex, -1)
   assert.notEqual(generateIndex, -1)
   assert.notEqual(generateBlogIndex, -1)
+  assert.notEqual(regenerateBlogIndex, -1)
   assert.notEqual(topicSeedsIndex, -1)
   assert.notEqual(slugIndex, -1)
   assert.ok(contextIndex < slugIndex)
   assert.ok(generateIndex < slugIndex)
   assert.ok(generateBlogIndex < slugIndex)
+  assert.ok(regenerateBlogIndex < slugIndex)
 })
 
 test('public origin helper ignores untrusted host headers outside local development', () => {

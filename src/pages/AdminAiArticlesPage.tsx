@@ -87,7 +87,9 @@ type GenerateResponse = {
   createdCount: number
   updatedCount: number
   skippedCount: number
+  retainedCount?: number
   errorCount: number
+  articles?: AiArticleSummary[]
   errors?: string[]
   error?: string
 }
@@ -218,6 +220,7 @@ export default function AdminAiArticlesPage() {
   const [loadingSeeds, setLoadingSeeds] = useState(false)
   const [creatingSeed, setCreatingSeed] = useState(false)
   const [generatingBlog, setGeneratingBlog] = useState(false)
+  const [regeneratingArticle, setRegeneratingArticle] = useState(false)
   const [savingStatus, setSavingStatus] = useState<ReviewableAiArticleStatus | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -549,6 +552,41 @@ export default function AdminAiArticlesPage() {
     }
   }
 
+  async function regenerateSelectedArticle() {
+    if (!adminKey || !selectedArticle || selectedArticle.articleType !== 'agri_blog') {
+      return
+    }
+
+    setRegeneratingArticle(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await fetch(buildApiUrl(`/api/admin/ai-articles/${selectedArticle.slug}/regenerate`), {
+        method: 'POST',
+        headers: buildHeaders(adminKey),
+      })
+      const json = (await response.json()) as GenerateResponse
+      const nextArticle = json.articles?.[0]
+      if (nextArticle?.slug) {
+        setSelectedSlug(nextArticle.slug)
+      }
+      setRefreshToken(current => current + 1)
+
+      if ((json.retainedCount ?? 0) > 0) {
+        setError(`Bản cũ được giữ lại vì bài viết lại chưa vượt hard gate: ${json.errors?.join('; ') ?? 'không đạt'}`)
+        return
+      }
+      if (!response.ok || !json.success) {
+        throw new Error(json.error ?? json.errors?.join('; ') ?? 'Không thể viết lại bài AI')
+      }
+      setSuccessMessage('Đã viết lại bài theo rule-base; trạng thái vẫn là draft chờ duyệt')
+    } catch (regenerateError) {
+      setError(regenerateError instanceof Error ? regenerateError.message : 'Không thể viết lại bài AI')
+    } finally {
+      setRegeneratingArticle(false)
+    }
+  }
+
   return (
     <main className="admin-ai">
       <header className="admin-ai__topbar">
@@ -769,6 +807,15 @@ export default function AdminAiArticlesPage() {
                   ) : null}
                 </div>
                 <div className="admin-ai__actions">
+                  {selectedArticle.articleType === 'agri_blog' && selectedArticle.status === 'draft' ? (
+                    <button
+                      type="button"
+                      disabled={regeneratingArticle || savingStatus !== null}
+                      onClick={() => void regenerateSelectedArticle()}
+                    >
+                      {regeneratingArticle ? 'Đang viết lại' : 'Viết lại theo rule'}
+                    </button>
+                  ) : null}
                   {REVIEWABLE_STATUSES.map(status => (
                     <button
                       key={status}
