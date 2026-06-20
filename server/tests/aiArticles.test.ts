@@ -537,6 +537,21 @@ test('citation cannot legitimize advice that is absent from source facts', () =>
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_TEXT_UNSUPPORTED'))
 })
 
+test('validator derives a missing claim mapping when inline citation is supported', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const supportedClaim =
+    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026 [S1].'
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace('## Câu hỏi thường gặp', `${supportedClaim}\n\n## Câu hỏi thường gặp`),
+    claimSources: [],
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+  assert.ok(quality.claimSources.some(item => item.sourceIds.includes('S1')))
+})
+
 test('agri blog generation stops after three invalid model responses', async () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   let calls = 0

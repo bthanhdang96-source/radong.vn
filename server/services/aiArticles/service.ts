@@ -519,7 +519,7 @@ const AI_BLOG_FORBIDDEN_VISIBLE_PATTERNS: Array<{ code: string; pattern: RegExp;
   { code: 'FORBIDDEN_NONG_SAN', pattern: /\bnong-san\b/i, label: 'nong-san' },
 ]
 const AI_BLOG_MATERIAL_CLAIM_PATTERN =
-  /\d|%|usd|vnd|php|đồng|ha\b|kg\b|tấn|triệu|tỷ|theo quy định|sắc lệnh|nghị định|thông tư|bộ trưởng|thứ trưởng|bí thư|chủ tịch|kim ngạch|sản lượng|diện tích|mã số|giá bán|giá nhập|giá thu mua|giá bán lẻ/i
+  /\d|%|usd|vnd|php|đồng|ha\b|kg\b|tấn|triệu|tỷ|theo quy định|sắc lệnh|nghị định|thông tư|bộ trưởng|thứ trưởng|bí thư|chủ tịch|giá bán|giá nhập|giá thu mua|giá bán lẻ/i
 const AI_BLOG_LEGAL_OBLIGATION_PATTERN =
   /\b(bắt buộc|nghĩa vụ pháp lý|phải tuân thủ|phải thực hiện|bị xử phạt|bị cấm|không được phép|yêu cầu pháp lý)\b/i
 const AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN =
@@ -1579,6 +1579,7 @@ function buildAiBlogRepairPrompt(
       : null,
     failureCodes.has('CLAIM_TEXT_UNSUPPORTED') ||
     failureCodes.has('CITED_CLAIM_MAPPING_MISSING') ||
+    failureCodes.has('CITED_CLAIM_UNSUPPORTED') ||
     failureCodes.has('CLAIM_MAPPING_MISSING')
       ? '- Voi loi khuyen/checklist khong nam trong fact snippets: bo [Sx], viet thanh cau hoi can kiem tra hoac xoa. Khong tao claimSources gia.'
       : null,
@@ -1792,11 +1793,19 @@ function extractMaterialBlogClaims(markdown: string) {
     .flatMap(line => line.split(/(?<=[.!?])\s+/))
     .map(sentence => sentence.trim().replace(/^\d+[.)]\s*/, ''))
     .filter(sentence => /[a-zA-ZÀ-ỹ]/.test(sentence))
+    .filter(sentence => !sentence.endsWith('?'))
+    .filter(sentence => !/^(?:lưu ý|disclaimer)\s*:/i.test(sentence))
+    .filter(sentence => {
+      if (/\d/.test(sentence)) {
+        return true
+      }
+      return !/^(?:kiểm tra|xác minh|đối chiếu|liên hệ|theo dõi|hỏi|đánh giá|ghi lại|tham khảo|đảm bảo)\b/i.test(sentence)
+    })
     .filter(sentence => AI_BLOG_MATERIAL_CLAIM_PATTERN.test(stripSourceCitations(sentence)))
 }
 
 function sourceFactText(source: AiBlogSourceArticleFact) {
-  return foldText(source.factSnippets.join(' '))
+  return foldText([source.title, source.excerpt ?? '', ...source.factSnippets].join(' '))
 }
 
 function isAuthoritativeSource(source: AiBlogSourceArticleFact) {
@@ -1870,6 +1879,7 @@ function validateAgriBlogDraft(
   const sourceById = new Map(context.sourceArticles.map(source => [source.sourceId, source]))
   const sourcesUsed = uniqueStrings(draft.sourcesUsed ?? [])
   const claimSources = draft.claimSources ?? []
+  const effectiveClaimSources = [...claimSources]
 
   if (context.sourceArticles.length === 0) {
     hardFailures.push(validationIssue('SOURCE_PRIMARY_MISSING', 'Bài blog không có nguồn chính phù hợp.'))
@@ -1975,8 +1985,9 @@ function validateAgriBlogDraft(
         hardFailures.push(validationIssue('CLAIM_SOURCE_INVALID', `Claim dùng nguồn không hợp lệ hoặc chưa khai báo: ${sourceId}.`))
         continue
       }
-      const sourceNumbers = new Set(extractNumberTokens(source.factSnippets.join(' ')))
-      if (tokenCoverage(mappedClaim.claim, source.factSnippets.join(' ')) >= 0.35) {
+      const sourceEvidence = sourceFactText(source)
+      const sourceNumbers = new Set(extractNumberTokens(sourceEvidence))
+      if (tokenCoverage(mappedClaim.claim, sourceEvidence) >= 0.35) {
         hasTextualSupport = true
       }
       const missingNumbers = extractNumberTokens(mappedClaim.claim).filter(number => !sourceNumbers.has(number))
@@ -1985,13 +1996,49 @@ function validateAgriBlogDraft(
           validationIssue('CLAIM_NUMBER_UNSUPPORTED', `Claim "${mappedClaim.claim}" có số không nằm trong ${sourceId}: ${missingNumbers.join(', ')}.`),
         )
       }
-      if (AI_BLOG_TENTATIVE_STATUS_PATTERN.test(source.factSnippets.join(' ')) && AI_BLOG_CERTAIN_STATUS_PATTERN.test(mappedClaim.claim)) {
+      if (AI_BLOG_TENTATIVE_STATUS_PATTERN.test(sourceEvidence) && AI_BLOG_CERTAIN_STATUS_PATTERN.test(mappedClaim.claim)) {
         hardFailures.push(validationIssue('CLAIM_STATUS_CHANGED', `Claim từ ${sourceId} đổi trạng thái dự kiến/thử nghiệm thành đã hoàn thành.`))
       }
     }
     if (!hasTextualSupport) {
       hardFailures.push(
         validationIssue('CLAIM_TEXT_UNSUPPORTED', `Claim không đủ căn cứ trong fact snippets: "${mappedClaim.claim}".`),
+      )
+    }
+  }
+
+  const referencesIndexForClaims = draft.bodyMarkdown.search(/^##\s+Nguồn tham khảo\s*$/im)
+  const claimBody =
+    referencesIndexForClaims >= 0 ? draft.bodyMarkdown.slice(0, referencesIndexForClaims) : draft.bodyMarkdown
+  const citedSentences = claimBody
+    .split(/\r?\n/)
+    .flatMap(line => line.split(/(?<=[.!?])\s+/))
+    .map(sentence => sentence.trim())
+    .filter(sentence => /\[S\d+\]/i.test(sentence))
+  for (const sentence of citedSentences) {
+    const existingMapping = effectiveClaimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
+    if (existingMapping) {
+      continue
+    }
+    const sourceIds = uniqueStrings(
+      [...sentence.matchAll(/\[(S\d+)\]/gi)].map(match => match[1].toUpperCase()),
+    ).filter(sourceId => sourceById.has(sourceId) && sourcesUsed.includes(sourceId))
+    const strippedSentence = stripSourceCitations(sentence)
+    const supportedSourceIds = sourceIds.filter(sourceId => {
+      const source = sourceById.get(sourceId)
+      if (!source) {
+        return false
+      }
+      const sourceEvidence = sourceFactText(source)
+      const sourceNumbers = new Set(extractNumberTokens(sourceEvidence))
+      const numbersSupported = extractNumberTokens(strippedSentence).every(number => sourceNumbers.has(number))
+      return numbersSupported && tokenCoverage(strippedSentence, sourceEvidence) >= 0.35
+    })
+    if (supportedSourceIds.length > 0) {
+      effectiveClaimSources.push({ claim: strippedSentence, sourceIds: supportedSourceIds })
+    } else {
+      hardFailures.push(
+        validationIssue('CITED_CLAIM_UNSUPPORTED', `Câu có citation nhưng nguồn không hỗ trợ: "${strippedSentence.slice(0, 180)}".`),
       )
     }
   }
@@ -2006,29 +2053,14 @@ function validateAgriBlogDraft(
     if (inlineSourceIds.some(sourceId => !sourceById.has(sourceId) || !sourcesUsed.includes(sourceId))) {
       hardFailures.push(validationIssue('CLAIM_INLINE_SOURCE_INVALID', `Claim dùng citation không hợp lệ: ${inlineSourceIds.join(', ')}.`))
     }
-    const mapped = claimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
+    const mapped = effectiveClaimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
     if (!mapped) {
       hardFailures.push(validationIssue('CLAIM_MAPPING_MISSING', `Claim chưa có trong claimSources: "${stripSourceCitations(sentence).slice(0, 180)}".`))
     }
   }
 
-  const citedSentences = draft.bodyMarkdown
-    .slice(0, Math.max(0, draft.bodyMarkdown.search(/^##\s+Nguồn tham khảo\s*$/im)))
-    .split(/\r?\n/)
-    .flatMap(line => line.split(/(?<=[.!?])\s+/))
-    .map(sentence => sentence.trim())
-    .filter(sentence => /\[S\d+\]/i.test(sentence))
-  for (const sentence of citedSentences) {
-    const mapped = claimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
-    if (!mapped) {
-      hardFailures.push(
-        validationIssue('CITED_CLAIM_MAPPING_MISSING', `Câu có citation nhưng chưa có claimSources: "${stripSourceCitations(sentence).slice(0, 180)}".`),
-      )
-    }
-  }
-
   if (AI_BLOG_LEGAL_OBLIGATION_PATTERN.test(draft.bodyMarkdown)) {
-    const legalMappings = claimSources.filter(item => AI_BLOG_LEGAL_OBLIGATION_PATTERN.test(item.claim))
+    const legalMappings = effectiveClaimSources.filter(item => AI_BLOG_LEGAL_OBLIGATION_PATTERN.test(item.claim))
     const hasAuthoritativeLegalSource = legalMappings.some(item =>
       item.sourceIds.some(sourceId => {
         const source = sourceById.get(sourceId)
@@ -2041,11 +2073,11 @@ function validateAgriBlogDraft(
   }
 
   if (AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN.test(draft.bodyMarkdown)) {
-    const technicalMappings = claimSources.filter(item => AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN.test(item.claim))
+    const technicalMappings = effectiveClaimSources.filter(item => AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN.test(item.claim))
     const supported = technicalMappings.some(item =>
       item.sourceIds.some(sourceId => {
         const source = sourceById.get(sourceId)
-        return source ? tokenCoverage(item.claim, source.factSnippets.join(' ')) >= 0.5 : false
+        return source ? tokenCoverage(item.claim, sourceFactText(source)) >= 0.5 : false
       }),
     )
     if (!supported) {
@@ -2105,7 +2137,7 @@ function validateAgriBlogDraft(
     wordCount,
     sourceCount: context.sourceArticles.length,
     sourcesUsed,
-    claimSources,
+    claimSources: effectiveClaimSources,
     ruleBaseVersion: AI_BLOG_RULE_BASE_VERSION,
     generatedAt: new Date().toISOString(),
   }
@@ -3053,10 +3085,22 @@ function buildAgriBlogContextFromExistingRow(existing: AiArticleRow, newsRows: N
   if (!storedPrimary) {
     return null
   }
+  const primaryCandidates = newsRows.filter(row => {
+    return (
+      row.id === storedPrimary.id ||
+      row.canonical_url === storedPrimary.canonical_url ||
+      foldText(row.title) === foldText(storedPrimary.title) ||
+      row.slug === storedPrimary.slug
+    )
+  })
   const primary =
-    newsRows.find(row => row.id === storedPrimary.id) ??
-    newsRows.find(row => row.canonical_url === storedPrimary.canonical_url) ??
-    storedPrimary
+    primaryCandidates
+      .sort((left, right) => {
+        const relevanceDelta =
+          tokenCoverage(storedPrimary.title, right.content_text ?? right.excerpt ?? right.title) -
+          tokenCoverage(storedPrimary.title, left.content_text ?? left.excerpt ?? left.title)
+        return relevanceDelta !== 0 ? relevanceDelta : right.fetched_at.localeCompare(left.fetched_at)
+      })[0] ?? storedPrimary
   const combinedRows = [
     primary,
     ...newsRows.filter(row => row.id !== primary.id),
