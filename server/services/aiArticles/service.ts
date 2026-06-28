@@ -283,6 +283,9 @@ export type AiArticleContext =
       sourceNotes: string[]
       requiresDisclaimer: boolean
       ruleBaseVersion: string
+      replacementArticleId?: string | null
+      replacementArticleSlug?: string | null
+      replacementArticleScopeKey?: string | null
     }
 
 type AiDraft = {
@@ -530,6 +533,7 @@ const AI_BLOG_PAGE_FURNITURE_PATTERN =
   /hotline|thời sự\s+nông nghiệp|multimedia|pháp luật\s*-\s*bạn đọc|radio|văn hóa\s*-\s*thể thao|đọc nhiều nhất|bình luận mới nhất|xem thêm|bạn đang đọc bài viết|gmail|zalo/i
 const AI_BLOG_STRONG_TOPIC_PHRASES = [
   'ca-ro-phi',
+  'gao',
   'vai-khong-hat',
   'phu-giao',
   'tuyen-quang',
@@ -547,6 +551,136 @@ const AI_BLOG_STRONG_TOPIC_PHRASES = [
   'vuon-vai',
   'mac-man',
 ]
+const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
+  ...AI_BLOG_GENERIC_TOPIC_SIGNALS,
+  'quoc',
+  'gia',
+  'lon',
+  'nhat',
+  'hiep',
+  'hoi',
+  'luong',
+  'thuc',
+  'duong',
+  'canh',
+  'bao',
+  'chuan',
+  'moi',
+  'cap',
+  'nhat',
+  'thong',
+  'tin',
+  'nguon',
+  'goc',
+])
+const AI_BLOG_GENERIC_ACTION_PATTERNS = [
+  /\btheo doi thong tin\b/,
+  /\bchu dong cap nhat\b/,
+  /\bnam bat co hoi\b/,
+  /\bcap nhat thong tin\b/,
+  /\blinh hoat dieu chinh\b/,
+  /\btang cuong ket noi\b/,
+]
+const AI_BLOG_TITLE_PROMISE_RULES: Array<{
+  code: 'evaluation' | 'market' | 'compliance' | 'guide' | 'outcome'
+  titlePattern: RegExp
+  evidencePattern: RegExp
+  message: string
+  requiresSourceEvidence?: boolean
+}> = [
+  {
+    code: 'evaluation',
+    titlePattern: /\b(danh gia|goc nhin|nhan xet|y kien|phan hoi|cam nhan)\b/,
+    evidencePattern:
+      /\b(?:ong|ba|nha vuon|nong dan|thuong lai|tieu thuong|doanh nghiep|hiep hoi|chuyen gia|co quan|don vi)\b.{0,100}\b(?:cho biet|chia se|danh gia|nhan xet|nhan dinh|ghi nhan)\b|\b(?:cho biet|chia se|danh gia|nhan xet|nhan dinh|ghi nhan)\b.{0,100}\b(?:nha vuon|nong dan|thuong lai|tieu thuong|doanh nghiep|hiep hoi|chuyen gia|co quan|don vi)\b/,
+    message: 'Tieu de hua danh gia/goc nhin nhung body va source evidence khong co y kien/nhan dinh cua chu the cu the.',
+    requiresSourceEvidence: true,
+  },
+  {
+    code: 'market',
+    titlePattern: /\b(gia|thi truong|nguon cung|nhu cau|thu mua|ban buon|ban le|nhap khau|xuat khau)\b/,
+    evidencePattern:
+      /\b(?:gia|thi truong|nguon cung|nhu cau|thu mua|ban buon|ban le|nhap khau|xuat khau|ton kho|don hang|logistics)\b.{0,100}(?:\d|%|kg|tan|usd|vnd|php|dong)|(?:\d|%|kg|tan|usd|vnd|php|dong).{0,100}\b(?:gia|thi truong|nguon cung|nhu cau|thu mua|ban buon|ban le|nhap khau|xuat khau|ton kho|don hang|logistics)\b/,
+    message: 'Tieu de hua thong tin gia/thi truong nhung body khong co bang chung market cu the duoc nguon ho tro.',
+    requiresSourceEvidence: true,
+  },
+  {
+    code: 'compliance',
+    titlePattern: /\b(quy dinh|tieu chuan|truy xuat|ho so|ma so|kiem dich|chung nhan|tu vung|cam|bat buoc)\b/,
+    evidencePattern:
+      /\b(quy dinh|tieu chuan|truy xuat|ho so|ma so|kiem dich|chung nhan|sps|tbt|vietgap|globalgap|an toan thuc pham|kiem soat chat luong)\b/,
+    message: 'Tieu de hua quy dinh/tieu chuan/truy xuat nhung body khong co bang chung compliance tu source.',
+    requiresSourceEvidence: true,
+  },
+  {
+    code: 'guide',
+    titlePattern: /\b(cach|huong dan|checklist|can lam|viec can kiem tra|nen kiem tra|luu y gi)\b/,
+    evidencePattern: /\b(checklist|viec can kiem tra|kiem tra|doi chieu|hoi|xac minh|dieu kien ap dung|rui ro)\b/,
+    message: 'Tieu de hua huong dan nhung body khong co cac buoc/cau hoi kiem tra ro rang.',
+  },
+  {
+    code: 'outcome',
+    titlePattern: /\b(loi nhuan|nang suat|hieu qua|tang gap|giup|giam hao hut|tang gia tri|co hoi)\b/,
+    evidencePattern: /\b(loi nhuan|nang suat|hieu qua|tang gap|giam hao hut|tang gia tri|san luong|dien tich|gia tri)\b.{0,120}(?:\d|%|kg|tan|ha|dong|usd|vnd)|(?:\d|%|kg|tan|ha|dong|usd|vnd).{0,120}\b(loi nhuan|nang suat|hieu qua|tang gap|giam hao hut|tang gia tri|san luong|dien tich|gia tri)\b/,
+    message: 'Tieu de hua ket qua/loi ich nhung body khong co bang chung dinh luong hoac nguon ho tro.',
+    requiresSourceEvidence: true,
+  },
+]
+const AI_BLOG_AUDIENCE_VALUE_RULES: Record<
+  AiBlogAudience,
+  {
+    minimumDimensions: number
+    dimensions: Array<{ name: string; pattern: RegExp }>
+    hardSignalPattern: RegExp
+    missingCode: string
+    genericCode: string
+    message: string
+  }
+> = {
+  farmer: {
+    minimumDimensions: 2,
+    dimensions: [
+      { name: 'applicability', pattern: /\b(dieu kien ap dung|phu hop voi|ap dung tren|dong ruong|vuon cay|trang trai|mua vu|thoi tiet)\b/ },
+      { name: 'production-risk', pattern: /\b(rui ro san xuat|sau benh|dich benh|nguon giong|dat|nuoc|phan bon|thuoc bao ve thuc vat)\b/ },
+      { name: 'extension', pattern: /\b(khuyen nong|can bo ky thuat|co quan chuyen mon|don vi ho tro dia phuong|hop tac xa)\b/ },
+      { name: 'field-verification', pattern: /\b(kiem tra an toan|quan sat|ghi lai|doi chieu thuc te|lay mau|kiem tra vuon|kiem tra dong)\b/ },
+    ],
+    hardSignalPattern: /\b(dieu kien ap dung|rui ro san xuat|sau benh|dich benh|khuyen nong|can bo ky thuat|kiem tra an toan|mua vu|dong ruong|vuon cay|trang trai)\b/,
+    missingCode: 'AUDIENCE_VALUE_MISSING',
+    genericCode: 'AUDIENCE_ACTIONS_TOO_GENERIC',
+    message: 'Bai cho nha nong thieu gia tri cu the ve dieu kien ap dung, rui ro san xuat, hoi khuyen nong hoac kiem tra tren ruong/vuon.',
+  },
+  trader: {
+    minimumDimensions: 2,
+    dimensions: [
+      { name: 'supply', pattern: /\b(nguon cung|san luong|vung nguyen lieu|mua vu|hang ve|nguon hang)\b/ },
+      { name: 'grading', pattern: /\b(phan loai|phan hang|quy cach|chat luong|do chin|kich co|ty le loai)\b/ },
+      { name: 'loss-storage', pattern: /\b(hao hut|bao quan|ton kho|kho lanh|van chuyen|hu hong|thoi gian giu hang)\b/ },
+      { name: 'logistics', pattern: /\b(logistics|van tai|luu thong|chi phi van chuyen|diem tap ket|cho dau moi)\b/ },
+      { name: 'buyer-demand', pattern: /\b(nhu cau|don hang|nguoi mua|thi truong dau ra|ban buon|ban le|thu mua|gia thu mua|gia ban)\b/ },
+      { name: 'purchase-verification', pattern: /\b(xac minh|doi chieu|kiem tra truoc khi mua|hop dong mua ban|dat coc|cong no)\b/ },
+    ],
+    hardSignalPattern: /\b(gia thu mua|gia ban|gia ban le|gia ban buon|gia tai vuon|phan loai|phan hang|quy cach|chat luong|hao hut|bao quan|ton kho|nhu cau|don hang|nguoi mua|cho dau moi)\b/,
+    missingCode: 'AUDIENCE_VALUE_MISSING',
+    genericCode: 'AUDIENCE_ACTIONS_TOO_GENERIC',
+    message: 'Bai cho tieu thuong thieu gia tri cu the ve gia/chat luong/phan loai/hao hut/bao quan/nhu cau hoac thong tin can xac minh truoc khi mua.',
+  },
+  exporter: {
+    minimumDimensions: 2,
+    dimensions: [
+      { name: 'documentation', pattern: /\b(ho so|chung tu|hop dong|invoice|packing list|chung nhan|kiem dich)\b/ },
+      { name: 'traceability', pattern: /\b(truy xuat|ma so vung trong|ma co so dong goi|nhat ky san xuat|nguon goc)\b/ },
+      { name: 'quality-control', pattern: /\b(kiem soat chat luong|du luong|an toan thuc pham|kiem nghiem|tieu chuan|quy cach)\b/ },
+      { name: 'destination-market', pattern: /\b(thi truong dich|thi truong nhap khau|sps|tbt|globalgap|vietgap|eu|trung quoc|hoa ky|my|nhat ban)\b/ },
+      { name: 'operations', pattern: /\b(logistics|container|chuoi lanh|dong goi|cang|lich giao hang|rui ro van hanh)\b/ },
+      { name: 'contract-risk', pattern: /\b(hop dong|dieu khoan|thanh toan|giao hang|khieu nai|phat sinh chi phi)\b/ },
+    ],
+    hardSignalPattern: /\b(ho so|chung tu|truy xuat|ma so vung trong|ma co so dong goi|kiem soat chat luong|du luong|chung nhan|kiem dich|thi truong dich|thi truong nhap khau|sps|tbt|globalgap|vietgap|container|chuoi lanh|hop dong)\b/,
+    missingCode: 'AUDIENCE_VALUE_MISSING',
+    genericCode: 'AUDIENCE_ACTIONS_TOO_GENERIC',
+    message: 'Bai cho doanh nghiep xuat khau thieu gia tri cu the ve ho so, truy xuat, chat luong, hop dong, thi truong dich hoac rui ro van hanh.',
+  },
+}
 const AI_ARTICLE_COMMODITY_LABELS: Record<string, string> = {
   'rice-5pct': 'Gạo 5% tấm',
   'rice-25pct': 'Gạo 25% tấm',
@@ -734,6 +868,72 @@ function extractBlogTopicSignals(input: {
 function extractStrongBlogTopicSignals(input: { title: string; slug?: string | null }) {
   const folded = normalizeTopicKey(`${input.title} ${input.slug ?? ''}`)
   return AI_BLOG_STRONG_TOPIC_PHRASES.filter(signal => folded.includes(signal))
+}
+
+function sourceEvidenceTextWithoutTitle(source: AiBlogSourceArticleFact) {
+  const title = foldText(source.title)
+  return foldText([source.excerpt ?? '', ...source.factSnippets].join(' '))
+    .replace(title, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sourceEvidenceKeyWithoutTitle(source: AiBlogSourceArticleFact) {
+  return foldText(sourceEvidenceTextWithoutTitle(source))
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function getSourceTitleTokens(source: AiBlogSourceArticleFact) {
+  return foldText(source.title)
+    .split(/[^a-z0-9]+/)
+    .filter(token => token.length >= 3 && !/^\d+$/.test(token) && !AI_BLOG_SOURCE_TITLE_STOPWORDS.has(token))
+}
+
+function validatePrimarySourceContentCoherence(source: AiBlogSourceArticleFact | null | undefined) {
+  if (!source) {
+    return []
+  }
+
+  const issues: AiBlogValidationIssue[] = []
+  const evidenceKey = sourceEvidenceKeyWithoutTitle(source)
+  const evidenceText = sourceEvidenceTextWithoutTitle(source)
+  const strongSignals = extractStrongBlogTopicSignals({ title: source.title, slug: source.slug })
+  const matchedStrongSignals = strongSignals.filter(signal => evidenceKey.includes(signal))
+  if (strongSignals.length > 0 && matchedStrongSignals.length === 0) {
+    issues.push(
+      validationIssue(
+        'SOURCE_PRIMARY_CONTENT_MISMATCH',
+        `Nguon chinh S1 co tieu de/slug ve ${strongSignals.join(', ')} nhung excerpt/fact snippets khong ho tro cac tin hieu nay.`,
+      ),
+    )
+    return issues
+  }
+
+  const titleTokens = uniqueStrings(getSourceTitleTokens(source))
+  if (titleTokens.length === 0) {
+    return issues
+  }
+  const matchedTokens = titleTokens.filter(token => {
+    const tokenPattern = new RegExp(`(?:^|[^a-z0-9])${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[^a-z0-9])`)
+    return tokenPattern.test(evidenceText)
+  })
+  const requiredMatches = titleTokens.length <= 3 ? Math.max(1, Math.min(2, titleTokens.length)) : 2
+  const coverage = matchedTokens.length / titleTokens.length
+  if (matchedTokens.length < requiredMatches || (titleTokens.length >= 5 && coverage < 0.3)) {
+    issues.push(
+      validationIssue(
+        'SOURCE_PRIMARY_CONTENT_MISMATCH',
+        `Nguon chinh S1 co title khong khop excerpt/fact snippets: chi khop ${matchedTokens.length}/${titleTokens.length} tin hieu title.`,
+      ),
+    )
+  }
+
+  return issues
+}
+
+function validateAgriBlogSourcePreflight(context: Extract<AiArticleContext, { articleType: 'agri_blog' }>) {
+  return validatePrimarySourceContentCoherence(context.sourceArticles[0])
 }
 
 function getBlogSourceRelevance(primary: NewsArticleBlogRow, candidate: NewsArticleBlogRow) {
@@ -1522,6 +1722,10 @@ HARD RULES
 - Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
 - sourcesUsed chi gom nguon thuc su duoc dung. claimSources phai map moi claim quan trong sang sourceId hop le.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
+- Title cua nguon chi la tin hieu chu de, khong duoc xem la bang chung neu facts/excerpt khong lap lai hoac giai thich du noi dung do.
+- Neu titleHint hoac title ban muon viet hua "danh gia/goc nhin", "gia/thi truong", "quy dinh/tieu chuan", "huong dan" hoac "loi ich/ket qua" ma SOURCE_LEDGER khong co bang chung tuong ung, phai thu hep title/excerpt ve phan duoc nguon ho tro.
+- Moi bai phai co mot H2 mang gia tri tac nghiep rieng cho doc gia ${context.audience}: neu la farmer phai noi ro dieu kien ap dung/rui ro san xuat/cau hoi khuyen nong/kiem tra tren ruong vuon; neu la trader phai noi ro gia-chat luong-phan loai-hao hut-bao quan-nhu cau-hoac xac minh truoc khi mua; neu la exporter phai noi ro ho so-truy xuat-chat luong-hop dong-thi truong dich-hoac rui ro van hanh.
+- Cam dung cac cau padding chung chung nhu "theo doi thong tin", "chu dong cap nhat", "nam bat co hoi" neu khong gan voi mot hanh dong hoac thong tin can kiem tra cu the.
 - ${audienceRules.join('\n- ')}
 - ${sensitiveRule}
 - Khong dung cac token rac: News, Hàng Hóa, thi-truong, gia-ca, nong-san.
@@ -1594,6 +1798,15 @@ function buildAiBlogRepairPrompt(
       : null,
     failureCodes.has('AUDIENCE_MISMATCH') || failureCodes.has('STYLE_MISMATCH')
       ? `- Giu dung JSON audience="${context.audience}" va style="${context.style}".`
+      : null,
+    failureCodes.has('TITLE_PROMISE_UNSUPPORTED')
+      ? '- Thu hep title/excerpt de chi hua dieu SOURCE_LEDGER co fact ho tro; neu giu loi hua thi body phai co bang chung va citation tu source.'
+      : null,
+    failureCodes.has('AUDIENCE_VALUE_MISSING') || failureCodes.has('AUDIENCE_ACTIONS_TOO_GENERIC')
+      ? `- Them mot muc gia tri tac nghiep rieng cho ${context.audience}: dung thong tin can kiem tra cu the, tranh cac cau chung nhu theo doi/cap nhat/nam bat co hoi.`
+      : null,
+    failureCodes.has('SOURCE_PRIMARY_CONTENT_MISMATCH')
+      ? '- Loi nguon chinh lech title/noi dung khong sua duoc bang van phong; dung lai va can nguon S1 khac.'
       : null,
   ].filter((item): item is string => Boolean(item))
 
@@ -1720,14 +1933,19 @@ async function reviewAiBlogSeo(context: Extract<AiArticleContext, { articleType:
       recommendations?: unknown
       searchIntent?: unknown
     }
+    const normalizedScore = normalizeAiBlogSeoScore(parsed.score)
     return {
       model,
-      score: typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : null,
-      warnings: Array.isArray(parsed.warnings) ? parsed.warnings.filter((item): item is string => typeof item === 'string').slice(0, 12) : [],
+      score: normalizedScore.score,
+      warnings: [
+        ...(normalizedScore.warning ? [normalizedScore.warning.message] : []),
+        ...(Array.isArray(parsed.warnings) ? parsed.warnings.filter((item): item is string => typeof item === 'string') : []),
+      ].slice(0, 12),
       recommendations: Array.isArray(parsed.recommendations)
         ? parsed.recommendations.filter((item): item is string => typeof item === 'string').slice(0, 12)
         : [],
       searchIntent: typeof parsed.searchIntent === 'string' ? parsed.searchIntent : null,
+      advisoryWarnings: normalizedScore.warning ? [normalizedScore.warning] : [],
     }
   } catch (error) {
     return {
@@ -1736,6 +1954,7 @@ async function reviewAiBlogSeo(context: Extract<AiArticleContext, { articleType:
       warnings: [`SEO review failed: ${error instanceof Error ? error.message : String(error)}`],
       recommendations: [],
       searchIntent: null,
+      advisoryWarnings: [],
     }
   }
 }
@@ -1806,6 +2025,99 @@ function extractMaterialBlogClaims(markdown: string) {
 
 function sourceFactText(source: AiBlogSourceArticleFact) {
   return foldText([source.title, source.excerpt ?? '', ...source.factSnippets].join(' '))
+}
+
+function sourceEvidenceCorpusWithoutTitles(sources: AiBlogSourceArticleFact[]) {
+  return sources.map(sourceEvidenceTextWithoutTitle).join(' ')
+}
+
+function extractBodyWithoutReferences(markdown: string) {
+  const referencesIndex = markdown.search(/^##\s+Nguồn tham khảo\s*$/im)
+  return referencesIndex >= 0 ? markdown.slice(0, referencesIndex) : markdown
+}
+
+function extractMainEditorialBody(markdown: string) {
+  const withoutReferences = extractBodyWithoutReferences(markdown)
+  const faqIndex = withoutReferences.search(/^##\s+(?:Câu hỏi thường gặp|FAQ)\s*$/im)
+  const conclusionIndex = withoutReferences.search(/^##\s+Kết luận\s*$/im)
+  const cutoffCandidates = [faqIndex, conclusionIndex].filter(index => index >= 0)
+  return cutoffCandidates.length > 0 ? withoutReferences.slice(0, Math.min(...cutoffCandidates)) : withoutReferences
+}
+
+function validateTitlePromiseSupport(
+  context: Extract<AiArticleContext, { articleType: 'agri_blog' }>,
+  draft: AiDraft,
+  claimSources: AiBlogClaimSource[],
+) {
+  const issues: AiBlogValidationIssue[] = []
+  const title = foldText(draft.title)
+  const bodyEvidence = foldText([draft.excerpt, extractBodyWithoutReferences(draft.bodyMarkdown)].join(' '))
+  const sourceBackedEvidence = foldText([sourceEvidenceCorpusWithoutTitles(context.sourceArticles), ...claimSources.map(item => item.claim)].join(' '))
+  for (const rule of AI_BLOG_TITLE_PROMISE_RULES) {
+    if (!rule.titlePattern.test(title)) {
+      continue
+    }
+    const bodySupportsPromise = rule.evidencePattern.test(bodyEvidence)
+    const sourceSupportsPromise = rule.evidencePattern.test(sourceBackedEvidence)
+    const supported = rule.requiresSourceEvidence ? bodySupportsPromise && sourceSupportsPromise : bodySupportsPromise
+    if (!supported) {
+      issues.push(validationIssue('TITLE_PROMISE_UNSUPPORTED', rule.message))
+    }
+  }
+  return issues
+}
+
+function validateAudienceValue(
+  context: Extract<AiArticleContext, { articleType: 'agri_blog' }>,
+  draft: AiDraft,
+) {
+  const rule = AI_BLOG_AUDIENCE_VALUE_RULES[context.audience]
+  const foldedMainBody = foldText(`${draft.title}\n${draft.excerpt}\n${extractMainEditorialBody(draft.bodyMarkdown)}`)
+  const matchedDimensions = rule.dimensions.filter(dimension => dimension.pattern.test(foldedMainBody))
+  const genericActionCount = AI_BLOG_GENERIC_ACTION_PATTERNS.reduce(
+    (count, pattern) => count + (pattern.test(foldedMainBody) ? 1 : 0),
+    0,
+  )
+  const hasHardSignal = rule.hardSignalPattern.test(foldedMainBody)
+  if (matchedDimensions.length < rule.minimumDimensions || !hasHardSignal) {
+    return [
+      validationIssue(
+        rule.missingCode,
+        `${rule.message} Matched dimensions: ${matchedDimensions.map(item => item.name).join(', ') || 'none'}.`,
+      ),
+    ]
+  }
+  if (genericActionCount >= 2 && matchedDimensions.length <= rule.minimumDimensions) {
+    return [
+      validationIssue(
+        rule.genericCode,
+        'Bai lap cac loi khuyen chung chung nhu theo doi/cap nhat/nam bat co hoi nhung thieu hanh dong cu the theo audience.',
+      ),
+    ]
+  }
+  return []
+}
+
+function normalizeAiBlogSeoScore(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || !Number.isFinite(value)) {
+    return {
+      score: null,
+      warning: validationIssue('SEO_SCORE_INVALID_SCALE', 'SEO score phai la so nguyen tu 0 den 100.'),
+    }
+  }
+  if (value >= 0 && value <= 10) {
+    return {
+      score: null,
+      warning: validationIssue('SEO_SCORE_INVALID_SCALE', 'SEO score 0-10 bi mo ho ve thang diem; luu null thay vi quy doi.'),
+    }
+  }
+  if (value < 0 || value > 100) {
+    return {
+      score: null,
+      warning: validationIssue('SEO_SCORE_INVALID_SCALE', 'SEO score ngoai khoang 0-100; luu null.'),
+    }
+  }
+  return { score: value, warning: null }
 }
 
 function isAuthoritativeSource(source: AiBlogSourceArticleFact) {
@@ -1884,6 +2196,7 @@ function validateAgriBlogDraft(
   if (context.sourceArticles.length === 0) {
     hardFailures.push(validationIssue('SOURCE_PRIMARY_MISSING', 'Bài blog không có nguồn chính phù hợp.'))
   }
+  hardFailures.push(...validateAgriBlogSourcePreflight(context))
   for (const source of context.sourceArticles.slice(1)) {
     if (source.relevanceReasons.length === 0) {
       hardFailures.push(validationIssue('SOURCE_SUPPORT_IRRELEVANT', `${source.sourceId} không có lý do liên quan chủ đề.`))
@@ -2100,6 +2413,9 @@ function validateAgriBlogDraft(
   if (context.requiresDisclaimer && !/\b(lưu ý|khuyến cáo|cần kiểm tra|tham khảo cơ quan chuyên môn)\b/i.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('DISCLAIMER_MISSING', 'Chủ đề nhạy cảm cần lưu ý kiểm tra với cơ quan chuyên môn.'))
   }
+
+  hardFailures.push(...validateTitlePromiseSupport(context, draft, effectiveClaimSources))
+  hardFailures.push(...validateAudienceValue(context, draft))
 
   const generatedSlug = buildSlugForContext(context, draft.title)
   if (generatedSlug.includes(`${context.audience}-${context.audience}-`)) {
@@ -2339,6 +2655,48 @@ async function updateRun(runId: string | null, status: 'success' | 'skipped' | '
   }
 }
 
+type AiArticleIdentityCandidate = Pick<AiArticleRow, 'id' | 'slug' | 'article_scope_key' | 'title'>
+
+class AiBlogDuplicateIdentityError extends Error {
+  failures: AiBlogValidationIssue[]
+
+  constructor(failures: AiBlogValidationIssue[]) {
+    super(failures.map(failure => `${failure.code}: ${failure.message}`).join('; '))
+    this.name = 'AiBlogDuplicateIdentityError'
+    this.failures = failures
+  }
+}
+
+function getAiArticleIdentityCollisions(
+  candidates: AiArticleIdentityCandidate[],
+  targetArticleId: string | null,
+  identity: { slug: string; articleScopeKey: string },
+) {
+  const seen = new Set<string>()
+  return candidates.filter(candidate => {
+    if (targetArticleId && candidate.id === targetArticleId) {
+      return false
+    }
+    if (seen.has(candidate.id)) {
+      return false
+    }
+    const matches = candidate.slug === identity.slug || candidate.article_scope_key === identity.articleScopeKey
+    if (matches) {
+      seen.add(candidate.id)
+    }
+    return matches
+  })
+}
+
+function buildDuplicateDraftIdentityFailures(collisions: AiArticleIdentityCandidate[], identity: { slug: string; articleScopeKey: string }) {
+  return collisions.map(collision =>
+    validationIssue(
+      'DUPLICATE_DRAFT_IDENTITY',
+      `Draft identity collides with article ${collision.id} (${collision.slug || collision.article_scope_key}) while targeting slug=${identity.slug}, scope=${identity.articleScopeKey}.`,
+    ),
+  )
+}
+
 async function persistGeneratedArticle(context: AiArticleContext, draft: AiDraft, modelName: string, quality: Record<string, unknown>) {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -2393,6 +2751,60 @@ async function persistGeneratedArticle(context: AiArticleContext, draft: AiDraft
   if (existing.error) {
     throw existing.error
   }
+  const replacementArticleId = context.articleType === 'agri_blog' ? (context.replacementArticleId ?? null) : null
+  const targetArticleId = replacementArticleId ?? ((existing.data as Pick<AiArticleRow, 'id'> | null)?.id ?? null)
+
+  if (context.articleType === 'agri_blog') {
+    const [slugMatches, scopeMatches] = await Promise.all([
+      client
+        .from('ai_generated_articles')
+        .select('id, slug, article_scope_key, title')
+        .eq('article_type', 'agri_blog')
+        .eq('slug', slug)
+        .limit(10),
+      client
+        .from('ai_generated_articles')
+        .select('id, slug, article_scope_key, title')
+        .eq('article_type', 'agri_blog')
+        .eq('article_scope_key', context.articleScopeKey)
+        .limit(10),
+    ])
+    if (slugMatches.error) {
+      throw slugMatches.error
+    }
+    if (scopeMatches.error) {
+      throw scopeMatches.error
+    }
+    const collisions = getAiArticleIdentityCollisions(
+      [
+        ...((slugMatches.data ?? []) as AiArticleIdentityCandidate[]),
+        ...((scopeMatches.data ?? []) as AiArticleIdentityCandidate[]),
+      ],
+      targetArticleId,
+      { slug, articleScopeKey: context.articleScopeKey },
+    )
+    if (collisions.length > 0) {
+      throw new AiBlogDuplicateIdentityError(buildDuplicateDraftIdentityFailures(collisions, { slug, articleScopeKey: context.articleScopeKey }))
+    }
+  }
+
+  if (replacementArticleId) {
+    const { data, error } = await client
+      .from('ai_generated_articles')
+      .update(row)
+      .eq('id', replacementArticleId)
+      .select('*')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return {
+      article: toArticleSummary(data as AiArticleRow),
+      created: false,
+    }
+  }
 
   const { data, error } = await client
     .from('ai_generated_articles')
@@ -2427,6 +2839,29 @@ async function loadExistingArticleRow(context: AiArticleContext) {
   return data as AiArticleRow | null
 }
 
+async function loadArticleRowById(id: string | null | undefined) {
+  const client = getSupabaseAdminClient()
+  if (!client || !id) {
+    return null
+  }
+  const { data, error } = await client
+    .from('ai_generated_articles')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) {
+    throw error
+  }
+  return data as AiArticleRow | null
+}
+
+async function loadTargetArticleRow(context: AiArticleContext) {
+  if (context.articleType === 'agri_blog' && context.replacementArticleId) {
+    return loadArticleRowById(context.replacementArticleId)
+  }
+  return loadExistingArticleRow(context)
+}
+
 function getPrimarySourceIdentity(value: Record<string, unknown>) {
   const sourceArticles = Array.isArray(value.sourceArticles) ? value.sourceArticles : []
   const primary = sourceArticles[0]
@@ -2448,7 +2883,7 @@ async function loadBlogComparisonDrafts(context: Extract<AiArticleContext, { art
   }
   const { data, error } = await client
     .from('ai_generated_articles')
-    .select('article_scope_key, title, answer_summary, content_text, source_facts_json')
+    .select('id, article_scope_key, title, answer_summary, content_text, source_facts_json')
     .eq('article_type', 'agri_blog')
     .neq('article_scope_key', context.articleScopeKey)
     .limit(200)
@@ -2460,6 +2895,7 @@ async function loadBlogComparisonDrafts(context: Extract<AiArticleContext, { art
       const identity = getPrimarySourceIdentity((row as { source_facts_json?: Record<string, unknown> }).source_facts_json ?? {})
       return identity?.id === primary.id || identity?.canonicalUrl === primary.canonicalUrl
     })
+    .filter(row => String((row as { id?: string }).id ?? '') !== (context.replacementArticleId ?? ''))
     .map(row => ({
       articleScopeKey: String((row as { article_scope_key?: string }).article_scope_key ?? ''),
       title: String((row as { title?: string }).title ?? ''),
@@ -2521,6 +2957,16 @@ async function generateAgriBlogDraftWithRetries(
   let model = getModelName(context.articleType)
   let failures: AiBlogValidationIssue[] = []
   const attempts: Array<{ attempt: number; failures: AiBlogValidationIssue[] }> = []
+  const preflightFailures = validateAgriBlogSourcePreflight(context)
+  if (preflightFailures.length > 0) {
+    return {
+      success: false as const,
+      draft,
+      model,
+      failures: preflightFailures,
+      attempts: [{ attempt: 0, failures: preflightFailures }],
+    }
+  }
 
   for (let attempt = 1; attempt <= AI_BLOG_MAX_ATTEMPTS; attempt += 1) {
     const prompt =
@@ -2579,7 +3025,7 @@ async function generateOne(context: AiArticleContext, force = false) {
     throw new Error('Supabase admin client is required to generate AI articles')
   }
 
-  const existing = await loadExistingArticleRow(context)
+  const existing = await loadTargetArticleRow(context)
   if (!force && existing) {
     return { status: 'skipped' as const, article: toArticleSummary(existing), created: false }
   }
@@ -2614,6 +3060,7 @@ async function generateOne(context: AiArticleContext, force = false) {
         seoReview,
         advisoryWarnings: [
           ...generated.quality.advisoryWarnings,
+          ...(seoReview.advisoryWarnings ?? []),
           ...(seoReview.warnings ?? []).map(message => validationIssue('SEO_ADVISORY', message)),
         ],
         regeneration: {
@@ -2623,7 +3070,26 @@ async function generateOne(context: AiArticleContext, force = false) {
           ruleBaseVersion: AI_BLOG_RULE_BASE_VERSION,
         },
       }
-      const persisted = await persistGeneratedArticle(context, generated.draft, generated.model, quality)
+      let persisted: Awaited<ReturnType<typeof persistGeneratedArticle>>
+      try {
+        persisted = await persistGeneratedArticle(context, generated.draft, generated.model, quality)
+      } catch (error) {
+        if (error instanceof AiBlogDuplicateIdentityError && existing) {
+          const attempts = [
+            ...generated.attempts,
+            { attempt: generated.attempts.length + 1, failures: error.failures },
+          ]
+          const retained = await recordFailedBlogRegeneration(existing, context, attempts)
+          await updateRun(runId, 'failed', retained.id, error.message)
+          return {
+            status: 'retained' as const,
+            article: toArticleSummary(retained),
+            created: false,
+            failures: error.failures,
+          }
+        }
+        throw error
+      }
       await markBlogSeedUsed(context.seedId)
       await updateRun(runId, 'success', persisted.article.id)
       return { status: 'success' as const, article: persisted.article, created: persisted.created }
@@ -3108,19 +3574,23 @@ function buildAgriBlogContextFromExistingRow(existing: AiArticleRow, newsRows: N
   ]
   const context = buildAgriBlogArticleContextFromNews(audience, primary, combinedRows)
   const style = isAiBlogStyle(stored.style) ? stored.style : getAiBlogAudienceMeta(audience).defaultStyle
+  const topicKey = getBlogTopicKeyForNews(primary)
   return {
     ...context,
-    articleScopeKey: existing.article_scope_key,
+    articleScopeKey: getBlogScopeKey(audience, topicKey),
     titleHint: typeof stored.titleHint === 'string' && stored.titleHint.trim() ? stored.titleHint.trim() : primary.title,
     style,
     styleLabel: AI_BLOG_STYLE_LABELS[style],
-    topicKey: getBlogTopicKeyForNews(primary),
+    topicKey,
     seedId: typeof stored.seedId === 'string' ? stored.seedId : null,
     sourceMode: stored.sourceMode === 'seed' ? 'seed' as const : 'news_fallback' as const,
     sourceNotes: [
       'Regenerate existing draft with strict topical source filtering and deterministic validation.',
-      'Preserve the existing article scope and audience while cleaning the public slug.',
+      'Preserve the target row id and audience while cleaning the public slug and article scope.',
     ],
+    replacementArticleId: existing.id,
+    replacementArticleSlug: existing.slug,
+    replacementArticleScopeKey: existing.article_scope_key,
   } satisfies Extract<AiArticleContext, { articleType: 'agri_blog' }>
 }
 
@@ -3516,6 +3986,9 @@ export const __aiArticleTestUtils = {
   generateAgriBlogDraftWithRetries,
   getBlogSourceRelevance,
   getBlogFactSnippets,
+  getAiArticleIdentityCollisions,
+  normalizeAiBlogSeoScore,
+  validateAgriBlogSourcePreflight,
   validateAgriBlogDraft,
   validateDraft,
   parseAiDraft,

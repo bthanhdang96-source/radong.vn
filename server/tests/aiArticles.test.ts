@@ -452,6 +452,52 @@ test('agri blog source pack keeps relevant rice sources and rejects unrelated co
   assert.deepEqual(context.sourceArticles.map(source => source.sourceId), ['S1', 'S2'])
 })
 
+test('agri blog preflight rejects primary source title/content mismatch before Gemini', async () => {
+  const primary = blogNewsRow({
+    id: 'rice-mismatch',
+    slug: 'philippines-gia-nhap-khau-gao',
+    title: 'Philippines siet quy dinh ve gia nhap khau gao Viet Nam',
+    excerpt: 'He thong truy xuat moi duoc gioi thieu cho nhieu san pham nong lam thuy san.',
+    content_text:
+      'Co quan quan ly cong bo he thong truy xuat nguon goc cho 18.000 san pham nong lam thuy san va yeu cau co so cap nhat ma truy xuat.',
+    topic_tags: ['truy-xuat'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('exporter', primary, [primary])
+
+  const preflight = __aiArticleTestUtils.validateAgriBlogSourcePreflight(context)
+  assert.ok(preflight.some(failure => failure.code === 'SOURCE_PRIMARY_CONTENT_MISMATCH'))
+
+  let calls = 0
+  const result = await __aiArticleTestUtils.generateAgriBlogDraftWithRetries(
+    context,
+    [],
+    async () => {
+      calls += 1
+      return { model: 'test-model', text: '{"title":"should not be called"}' }
+    },
+  )
+
+  assert.equal(result.success, false)
+  assert.equal(calls, 0)
+  assert.equal(result.attempts[0]?.attempt, 0)
+  assert.ok(result.failures.some(failure => failure.code === 'SOURCE_PRIMARY_CONTENT_MISMATCH'))
+})
+
+test('agri blog preflight accepts coherent primary source title/content', () => {
+  const primary = blogNewsRow({
+    id: 'rice-coherent',
+    slug: 'philippines-tran-gia-ban-le-gao',
+    title: 'Philippines ap tran gia ban le voi gao nhap khau Viet Nam',
+    excerpt: 'Philippines ap tran gia ban le 50 PHP/kg voi gao nhap khau loai 5% tam trong 30 ngay.',
+    content_text:
+      'Co quan Philippines ap tran gia ban le 50 PHP/kg doi voi gao nhap khau loai 5% tam trong 30 ngay va nhac toi nguon cung gao Viet Nam.',
+    topic_tags: ['gao', 'philippines', 'gia-ban-le'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('trader', primary, [primary])
+
+  assert.deepEqual(__aiArticleTestUtils.validateAgriBlogSourcePreflight(context), [])
+})
+
 test('agri blog fact snippets remove source-site navigation and hotline text', () => {
   const snippets = __aiArticleTestUtils.getBlogFactSnippets(
     'Hotline: 0983.970.780 Thời sự Nông nghiệp Môi trường Multimedia Pháp luật - Bạn đọc. ' +
@@ -463,6 +509,68 @@ test('agri blog fact snippets remove source-site navigation and hotline text', (
   assert.ok(snippets.every(snippet => !/hotline|multimedia/i.test(snippet)))
 })
 
+test('agri blog title promise gate rejects evaluation headline without sourced opinion', () => {
+  const context = buildAgriBlogArticleContextFromNews(
+    'farmer',
+    blogNewsRow({
+      id: 'black-thorn',
+      slug: 'sau-rieng-black-thorn-vinh-long',
+      title: 'Sau rieng Black Thorn duoc trong thu nghiem tai Vinh Long',
+      excerpt: 'Giong sau rieng Black Thorn co nguon goc Malaysia va duoc mot so vuon dua vao trong thu nghiem.',
+      content_text:
+        'Giong sau rieng Black Thorn co nguon goc Malaysia, duoc gioi thieu tai Vinh Long va can theo doi dieu kien dat nuoc khi trong thu nghiem.',
+      topic_tags: ['sau-rieng', 'black-thorn'],
+    }),
+    [],
+  )
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    title: 'Nha vuon Vinh Long danh gia gi ve sau rieng Black Thorn',
+    seo: { ...draft.seo, title: 'Nha vuon Vinh Long danh gia gi ve sau rieng Black Thorn' },
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'TITLE_PROMISE_UNSUPPORTED'))
+})
+
+test('agri blog audience value gate rejects generic trader and exporter advice', () => {
+  const traderContext = buildAgriBlogArticleContextFromNews(
+    'trader',
+    blogNewsRow({
+      id: 'tuyen-quang-trader',
+      slug: 'tuyen-quang-san-xuat-nong-nghiep',
+      title: 'Tuyen Quang phat trien san xuat nong nghiep nam 2026',
+      excerpt: 'Dia phuong tap trung vung san xuat va ke hoach phat trien nong nghiep.',
+      content_text:
+        'Tuyen Quang tap trung phat trien san xuat nong nghiep, mo rong vung san xuat va tang cuong lien ket voi hop tac xa trong nam 2026.',
+      topic_tags: ['tuyen-quang'],
+    }),
+    [],
+  )
+  const exporterContext = buildAgriBlogArticleContextFromNews(
+    'exporter',
+    blogNewsRow({
+      id: 'tuyen-quang-exporter',
+      slug: 'tuyen-quang-san-xuat-nong-nghiep',
+      title: 'Tuyen Quang phat trien san xuat nong nghiep nam 2026',
+      excerpt: 'Dia phuong tap trung vung san xuat va ke hoach phat trien nong nghiep.',
+      content_text:
+        'Tuyen Quang tap trung phat trien san xuat nong nghiep, mo rong vung san xuat va tang cuong lien ket voi hop tac xa trong nam 2026.',
+      topic_tags: ['tuyen-quang'],
+    }),
+    [],
+  )
+
+  const traderQuality = __aiArticleTestUtils.validateAgriBlogDraft(traderContext, validBlogDraft(traderContext))
+  const exporterQuality = __aiArticleTestUtils.validateAgriBlogDraft(exporterContext, validBlogDraft(exporterContext))
+
+  assert.equal(traderQuality.valid, false)
+  assert.ok(traderQuality.hardFailures.some(failure => failure.code === 'AUDIENCE_VALUE_MISSING'))
+  assert.equal(exporterQuality.valid, false)
+  assert.ok(exporterQuality.hardFailures.some(failure => failure.code === 'AUDIENCE_VALUE_MISSING'))
+})
+
 test('Vietnamese decimal and thousands separators normalize for source-number checks', () => {
   assert.deepEqual(__aiArticleTestUtils.extractNumberTokens('tăng 8,9% trên 1.000ha, quả nặng 1,5 đến 2kg'), [
     '8.9',
@@ -470,6 +578,37 @@ test('Vietnamese decimal and thousands separators normalize for source-number ch
     '1.5',
     '2',
   ])
+})
+
+test('SEO score normalization stores only integer 0-100 scores and rejects ambiguous 0-10 scale', () => {
+  assert.deepEqual(__aiArticleTestUtils.normalizeAiBlogSeoScore(86), { score: 86, warning: null })
+
+  const tenPoint = __aiArticleTestUtils.normalizeAiBlogSeoScore(9)
+  assert.equal(tenPoint.score, null)
+  assert.equal(tenPoint.warning?.code, 'SEO_SCORE_INVALID_SCALE')
+
+  const numericString = __aiArticleTestUtils.normalizeAiBlogSeoScore('86')
+  assert.equal(numericString.score, null)
+  assert.equal(numericString.warning?.code, 'SEO_SCORE_INVALID_SCALE')
+
+  const decimal = __aiArticleTestUtils.normalizeAiBlogSeoScore(86.5)
+  assert.equal(decimal.score, null)
+  assert.equal(decimal.warning?.code, 'SEO_SCORE_INVALID_SCALE')
+})
+
+test('duplicate draft identity helper ignores target row and flags other slug or scope collisions', () => {
+  const collisions = __aiArticleTestUtils.getAiArticleIdentityCollisions(
+    [
+      { id: 'target-row', slug: 'blog-nong-nghiep-trader-topic', article_scope_key: 'agri_blog:trader:topic', title: 'Target' },
+      { id: 'other-slug', slug: 'blog-nong-nghiep-trader-topic', article_scope_key: 'agri_blog:trader:old-topic', title: 'Other slug' },
+      { id: 'other-scope', slug: 'blog-nong-nghiep-trader-other', article_scope_key: 'agri_blog:trader:topic', title: 'Other scope' },
+      { id: 'unrelated', slug: 'blog-nong-nghiep-farmer-topic', article_scope_key: 'agri_blog:farmer:topic', title: 'Unrelated' },
+    ],
+    'target-row',
+    { slug: 'blog-nong-nghiep-trader-topic', articleScopeKey: 'agri_blog:trader:topic' },
+  )
+
+  assert.deepEqual(collisions.map(item => item.id), ['other-slug', 'other-scope'])
 })
 
 test('valid agri blog passes hard gates with body FAQ and source ledger references', () => {
