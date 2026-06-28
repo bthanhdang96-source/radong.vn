@@ -52,8 +52,20 @@ function findDurianTable(html: string) {
         return false;
       }
 
-      return rows.some((cells) => foldText(cells[0] ?? '').includes('sau rieng'));
+      return rows.some((cells) => isDurianPriceLabel(cells[0] ?? ''));
     }) ?? null
+  );
+}
+
+function isDurianPriceLabel(label: string) {
+  const folded = foldText(label);
+  return (
+    folded.includes('sau rieng') ||
+    folded.includes('sau thai') ||
+    /\bri\s*6\b/.test(folded) ||
+    folded.includes('musang king') ||
+    folded.includes('black thorn') ||
+    folded.includes('dona')
   );
 }
 
@@ -71,12 +83,22 @@ export function parseDaklakSctDurianHtml(html: string, fallbackTimestamp: string
   }
 
   const rows = extractRows(tableHtml);
+  const dataRows = rows.slice(1);
+  const hasExplicitDakLakRows = dataRows.some((cells) => {
+    const label = cells[0] ?? '';
+    return isDurianPriceLabel(label) && foldText(label).includes('dak lak');
+  });
   const items = rows
     .slice(1)
     .flatMap((cells) => {
       const rawLabel = cells[0]?.replace(/\s+/g, ' ').trim() ?? '';
       const priceText = cells[1]?.replace(/\s+/g, ' ').trim() ?? '';
-      if (!rawLabel || !foldText(rawLabel).includes('sau rieng')) {
+      const foldedLabel = foldText(rawLabel);
+      if (!rawLabel || !isDurianPriceLabel(rawLabel)) {
+        return [];
+      }
+
+      if (hasExplicitDakLakRows && !foldedLabel.includes('dak lak')) {
         return [];
       }
 

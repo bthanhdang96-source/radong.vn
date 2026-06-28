@@ -24,7 +24,13 @@ export function normalizeDurianVariety(value: string | null | undefined) {
     return 'ri6'
   }
 
-  if (normalized.includes('monthong') || normalized.includes('mon thong') || normalized.includes('sau rieng thai') || normalized.startsWith('thai')) {
+  if (
+    normalized.includes('monthong') ||
+    normalized.includes('mon thong') ||
+    normalized.includes('sau rieng thai') ||
+    normalized.includes('sau thai') ||
+    normalized.startsWith('thai')
+  ) {
     return 'thai-monthong'
   }
 

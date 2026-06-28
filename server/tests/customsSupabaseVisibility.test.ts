@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getCustomsReportPeriod } from '../services/crawlers/customsCrawler.js'
+import { getCustomsReportPeriod, parseCustomsPdfText } from '../services/crawlers/customsCrawler.js'
 import {
   aggregateLatestSourceSnapshotsFromRows,
   resolveSourceSnapshotIds,
@@ -63,6 +63,32 @@ test('customs report period metadata identifies semimonthly aggregate coverage',
   assert.equal(period.label, 'Ky 2 thang 4 nam 2026')
   assert.equal(period.startsOn, '2026-04-16')
   assert.equal(period.endsOn, '2026-04-30')
+})
+
+test('parseCustomsPdfText parses pdf-parse tabular rows with leading numeric columns', () => {
+  const text = `
+    CỤC HẢI QUAN
+    Kỳ 2 tháng 5 năm 2026
+    Lượng\tTrị giá (USD) \tTrị giá (USD)\tLượng
+    1.877.394.179\t268.408\t293.197.782\tTấn\t3 \tHạt điều \t41.159
+    4.225.736.599\t927.339\t348.413.868\tTấn\t4 \tCà phê \t76.400
+    74.667.651\t43.166\t8.777.528\tTấn\t5 \tChè \t4.593
+    789.740.528\t121.914\t100.585.711\tTấn\t6 \tHạt tiêu \t14.996
+    124.266.836\t52.557\t19.647.072\tTấn\t7 \tQuế và hoa quế \t7.481
+    2.009.954.677\t4.275.174\t212.153.683\tTấn\t8 \tGạo \t433.492
+    617.954.295\t1.789.214\t42.065.114\tTấn\t9 \tSắn và các sản phẩm từ sắn \t103.841
+    760.799.252\t1.443.295\t64.293.783\tTấn\t21 \tPhân bón các loại \t103.045
+    994.867.726\t529.055\t93.055.116\tTấn\t24 \tCao su \t45.891
+  `
+
+  const parsed = parseCustomsPdfText(text)
+
+  assert.equal(parsed.report.code, '2026-t5-k2')
+  assert.equal(parsed.rows.length, 7)
+  assert.deepEqual(
+    parsed.rows.map(row => row.commoditySlug),
+    ['cashew', 'ca-phe-robusta', 'tea-avg', 'ho-tieu', 'rice-5pct', 'cassava', 'rubber-rss3'],
+  )
 })
 
 test('aggregateLatestSourceSnapshotsFromRows batches latest rows by source', () => {

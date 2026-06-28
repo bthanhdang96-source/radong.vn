@@ -92,6 +92,57 @@ test('parseDaklakSctDurianHtml parses Dak Lak durian board rows correctly', () =
   assert.equal(ri6?.price, 68000)
 })
 
+test('parseDaklakSctDurianHtml parses current regional durian labels without mislabeling other regions', () => {
+  const html = `
+    <html>
+      <head>
+        <meta property="article:published_time" content="2026-06-26T10:00:00+07:00" />
+      </head>
+      <body>
+        <h1>Bang gia nong san ngay 26/6/2026</h1>
+        <table>
+          <tr>
+            <th>Các loại (đồng/kg)</th>
+            <th>Giá (đồng/kg)</th>
+            <th>Thay đổi +/-</th>
+          </tr>
+          <tr>
+            <td>Sầu Thái loại A (ĐBSCL)</td>
+            <td>63.000 - 78.000</td>
+            <td>▼ -5.000</td>
+          </tr>
+          <tr>
+            <td>Ri6 loại A (Đồng Nai)</td>
+            <td>40.000 - 48.000</td>
+            <td>Không đổi</td>
+          </tr>
+          <tr>
+            <td>Sầu Thái loại A (Đắk Lắk)</td>
+            <td>70.000 - 80.000</td>
+            <td>▼ -5.000 ~ -2.000 đ</td>
+          </tr>
+          <tr>
+            <td>Sầu Thái hàng xô lùa (Đắk Lắk)</td>
+            <td>60.000</td>
+            <td>Không đổi</td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const parsed = parseDaklakSctDurianHtml(html, '2026-06-26T01:00:00.000Z')
+
+  assert.equal(parsed.items.length, 2)
+  assert.deepEqual(
+    parsed.items.map(item => ({ variety: item.variety, qualityGrade: item.qualityGrade, price: item.price })),
+    [
+      { variety: 'thai-monthong', qualityGrade: 'loai-a', price: 75000 },
+      { variety: 'thai-monthong', qualityGrade: 'hang-xo', price: 60000 },
+    ],
+  )
+})
+
 test('parseVietnambizDurianArticle maps thu mua prose to farm_gate rows', () => {
   const html = `
     <html>

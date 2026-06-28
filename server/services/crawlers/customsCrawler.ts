@@ -514,13 +514,15 @@ export function parseCustomsPdfText(text: string) {
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
-    if (!/^\d+\s+/.test(line) || line.startsWith('-')) {
+    if (!/^\d/.test(line) || line.startsWith('-')) {
       continue
     }
 
     const flatLine = parseFlatPdfLine(line)
     if (flatLine) {
-      const flatTarget = findCommodityTarget(flatLine.sourceLabel) ?? findCommodityTargetByRowNumber(flatLine.rowNumber)
+      const flatTarget =
+        findCommodityTarget(flatLine.sourceLabel) ??
+        (flatLine.sourceLabel.trim() ? null : findCommodityTargetByRowNumber(flatLine.rowNumber))
       if (flatTarget && flatLine.unit === 'tan' && flatLine.currentQuantityTon > 0 && flatLine.currentValueUsd > 0) {
         rows.push({
           commoditySlug: flatTarget.slug,
