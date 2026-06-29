@@ -583,6 +583,12 @@ const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   'nen',
   'huong',
 ])
+const AI_BLOG_CHECKLIST_HARD_FACT_PATTERN =
+  /\d|%|usd|vnd|php|\bha\b|\bkg\b|\btan\b|\btrieu\b|\bty\b|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
+const AI_BLOG_CHECKLIST_LEGAL_OBLIGATION_PATTERN =
+  /\b(bat buoc|nghia vu phap ly|phai tuan thu|phai thuc hien|bi xu phat|bi cam|khong duoc phep|yeu cau phap ly)\b/
+const AI_BLOG_CHECKLIST_TECHNICAL_DETAIL_PATTERN =
+  /\b(\d+(?:[.,]\d+)?\s*(?:kg|g|mg|ml|lit|ppm|ngay|gio|cm|met|m2|ha)\b|lieu luong|hoat chat|thuoc bao ve thuc vat|thuoc thu y|mat do tha|lich tuoi|lich bon)\b/
 const AI_BLOG_GENERIC_ACTION_PATTERNS = [
   /\btheo doi thong tin\b/,
   /\bchu dong cap nhat\b/,
@@ -2122,6 +2128,7 @@ function validateAgriBlogChecklist(draft: AiDraft) {
   const checklistItems = extractChecklistItems(draft.bodyMarkdown)
   for (const item of checklistItems) {
     const strippedItem = stripSourceCitations(item)
+    const foldedItem = foldText(strippedItem)
     if (/\[S\d+\]/i.test(item)) {
       issues.push(validationIssue('CHECKLIST_CITATION_FORBIDDEN', `Checklist khong duoc gan citation: "${item.slice(0, 160)}".`))
     }
@@ -2129,9 +2136,9 @@ function validateAgriBlogChecklist(draft: AiDraft) {
       issues.push(validationIssue('CHECKLIST_ITEM_NOT_QUESTION', `Checklist phai la cau hoi xac minh ket thuc bang dau ?: "${item.slice(0, 160)}".`))
     }
     if (
-      AI_BLOG_MATERIAL_CLAIM_PATTERN.test(strippedItem) ||
-      AI_BLOG_LEGAL_OBLIGATION_PATTERN.test(strippedItem) ||
-      AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN.test(strippedItem)
+      AI_BLOG_CHECKLIST_HARD_FACT_PATTERN.test(foldedItem) ||
+      AI_BLOG_CHECKLIST_LEGAL_OBLIGATION_PATTERN.test(foldedItem) ||
+      AI_BLOG_CHECKLIST_TECHNICAL_DETAIL_PATTERN.test(foldedItem)
     ) {
       issues.push(validationIssue('CHECKLIST_FACTUAL_DETAIL', `Checklist khong duoc chua so lieu/chinh sach/khuyen nghi ky thuat cu the: "${item.slice(0, 160)}".`))
     }

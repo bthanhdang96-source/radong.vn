@@ -644,6 +644,20 @@ test('agri blog checklist gate rejects declarative cited advice and checklist cl
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_CLAIM_MAPPING_FORBIDDEN'))
 })
 
+test('agri blog checklist gate allows operational verification questions', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(
+      '- Thông tin nào trong nguồn chính đã rõ?',
+      '- Các điều khoản trong hợp đồng và bước truy xuất nguồn gốc nào cần đối chiếu thêm?',
+    ),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
 test('Vietnamese decimal and thousands separators normalize for source-number checks', () => {
   assert.deepEqual(__aiArticleTestUtils.extractNumberTokens('tăng 8,9% trên 1.000ha, quả nặng 1,5 đến 2kg'), [
     '8.9',
