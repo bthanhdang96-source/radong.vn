@@ -572,6 +572,16 @@ const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   'tin',
   'nguon',
   'goc',
+  'doi',
+  'nho',
+  'cau',
+  'chuyen',
+  'bi',
+  'quyet',
+  'giup',
+  'lam',
+  'nen',
+  'huong',
 ])
 const AI_BLOG_GENERIC_ACTION_PATTERNS = [
   /\btheo doi thong tin\b/,
@@ -674,8 +684,10 @@ const AI_BLOG_AUDIENCE_VALUE_RULES: Record<
       { name: 'destination-market', pattern: /\b(thi truong dich|thi truong nhap khau|sps|tbt|globalgap|vietgap|eu|trung quoc|hoa ky|my|nhat ban)\b/ },
       { name: 'operations', pattern: /\b(logistics|container|chuoi lanh|dong goi|cang|lich giao hang|rui ro van hanh)\b/ },
       { name: 'contract-risk', pattern: /\b(hop dong|dieu khoan|thanh toan|giao hang|khieu nai|phat sinh chi phi)\b/ },
+      { name: 'chain-development', pattern: /\b(vung nguyen lieu|lien ket chuoi|chuoi gia tri|che bien xuat khau|nang luc cung ung)\b/ },
+      { name: 'investment-operations', pattern: /\b(du an dau tu|khao sat dau tu|nha may che bien|co so che bien|chat luong san pham)\b/ },
     ],
-    hardSignalPattern: /\b(ho so|chung tu|truy xuat|ma so vung trong|ma co so dong goi|kiem soat chat luong|du luong|chung nhan|kiem dich|thi truong dich|thi truong nhap khau|sps|tbt|globalgap|vietgap|container|chuoi lanh|hop dong)\b/,
+    hardSignalPattern: /\b(ho so|chung tu|truy xuat|ma so vung trong|ma co so dong goi|kiem soat chat luong|du luong|chung nhan|kiem dich|thi truong dich|thi truong nhap khau|sps|tbt|globalgap|vietgap|container|chuoi lanh|hop dong|vung nguyen lieu|lien ket chuoi|chuoi gia tri|che bien xuat khau|nang luc cung ung|du an dau tu|khao sat dau tu|nha may che bien|chat luong san pham)\b/,
     missingCode: 'AUDIENCE_VALUE_MISSING',
     genericCode: 'AUDIENCE_ACTIONS_TOO_GENERIC',
     message: 'Bai cho doanh nghiep xuat khau thieu gia tri cu the ve ho so, truy xuat, chat luong, hop dong, thi truong dich hoac rui ro van hanh.',
@@ -900,17 +912,19 @@ function validatePrimarySourceContentCoherence(source: AiBlogSourceArticleFact |
   const evidenceText = sourceEvidenceTextWithoutTitle(source)
   const strongSignals = extractStrongBlogTopicSignals({ title: source.title, slug: source.slug })
   const matchedStrongSignals = strongSignals.filter(signal => evidenceKey.includes(signal))
-  if (strongSignals.length > 0 && matchedStrongSignals.length === 0) {
+  const missingStrongSignals = strongSignals.filter(signal => !matchedStrongSignals.includes(signal))
+  if (missingStrongSignals.length > 0) {
     issues.push(
       validationIssue(
         'SOURCE_PRIMARY_CONTENT_MISMATCH',
-        `Nguon chinh S1 co tieu de/slug ve ${strongSignals.join(', ')} nhung excerpt/fact snippets khong ho tro cac tin hieu nay.`,
+        `Nguon chinh S1 co tieu de/slug ve ${strongSignals.join(', ')} nhung excerpt/fact snippets thieu ${missingStrongSignals.join(', ')}.`,
       ),
     )
     return issues
   }
 
-  const titleTokens = uniqueStrings(getSourceTitleTokens(source))
+  const strongSignalTokens = new Set(strongSignals.flatMap(signal => signal.split('-')))
+  const titleTokens = uniqueStrings(getSourceTitleTokens(source).filter(token => !strongSignalTokens.has(token)))
   if (titleTokens.length === 0) {
     return issues
   }
@@ -1720,24 +1734,28 @@ HARD RULES
 - Giu nguyen y nghia ve loai gia, don vi, pham vi, thoi diem va muc do chac chan. Khong doi "du kien/thi diem/de xuat" thanh "da/chinh thuc".
 - Moi cau co so lieu, moc thoi gian, chinh sach, nhan vat, chuc danh, gia, dien tich, san luong, xuat/nhap khau phai co citation [S1], [S2]... ngay trong cau hoac cuoi cau.
 - Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
-- sourcesUsed chi gom nguon thuc su duoc dung. claimSources phai map moi claim quan trong sang sourceId hop le.
+- claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
+- sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
 - Title cua nguon chi la tin hieu chu de, khong duoc xem la bang chung neu facts/excerpt khong lap lai hoac giai thich du noi dung do.
 - Neu titleHint hoac title ban muon viet hua "danh gia/goc nhin", "gia/thi truong", "quy dinh/tieu chuan", "huong dan" hoac "loi ich/ket qua" ma SOURCE_LEDGER khong co bang chung tuong ung, phai thu hep title/excerpt ve phan duoc nguon ho tro.
+- Khong dung "danh gia", "goc nhin", "nhan dinh", "y kien" hoac "phan hoi" trong title neu SOURCE_LEDGER khong co chu the cu the duoc trich dan/ghi nhan danh gia.
 - Moi bai phai co mot H2 mang gia tri tac nghiep rieng cho doc gia ${context.audience}: neu la farmer phai noi ro dieu kien ap dung/rui ro san xuat/cau hoi khuyen nong/kiem tra tren ruong vuon; neu la trader phai noi ro gia-chat luong-phan loai-hao hut-bao quan-nhu cau-hoac xac minh truoc khi mua; neu la exporter phai noi ro ho so-truy xuat-chat luong-hop dong-thi truong dich-hoac rui ro van hanh.
+- Voi exporter, co the khai thac cac diem ve vung nguyen lieu, lien ket chuoi, chuoi gia tri, che bien xuat khau, chat luong san pham, nang luc cung ung, du an/khao sat dau tu neu ledger co noi dung do.
 - Cam dung cac cau padding chung chung nhu "theo doi thong tin", "chu dong cap nhat", "nam bat co hoi" neu khong gan voi mot hanh dong hoac thong tin can kiem tra cu the.
 - ${audienceRules.join('\n- ')}
 - ${sensitiveRule}
 - Khong dung cac token rac: News, Hàng Hóa, thi-truong, gia-ca, nong-san.
 - Khong dung HTML. Khong viet bai "gia hom nay".
 - Nhắm 780-900 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
-- Checklist nên là các câu hỏi hoặc bước cần xác minh an toàn. Không gắn [Sx] cho lời khuyên biên tập nếu fact snippets không nói điều đó.
+- Phan bo do dai: tom tat 60-90 tu; 3 H2 cot loi moi muc 120-170 tu; checklist 5 bullet cau hoi; moi cau tra loi FAQ 50-90 tu; ket luan 60-90 tu.
+- Checklist bat buoc la cac cau hoi xac minh ket thuc bang "?". Khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
 - Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
 
 CAU TRUC BAT BUOC TRONG bodyMarkdown
 - Mo dau bang "**Tóm tắt:**" va 2-3 cau tra loi truc tiep.
 - It nhat 3 heading H2 co y nghia.
-- Mot H2 co chu "Checklist" hoac "Việc cần kiểm tra".
+- Mot H2 co chu "Checklist" hoac "Việc cần kiểm tra", ben duoi co 5 bullet va moi bullet la mot cau hoi ket thuc bang "?".
 - Mot H2 "Câu hỏi thường gặp", ben duoi co it nhat 2 cau hoi H3 va cau tra loi. Hai cau hoi nay phai trung voi seo.faq.
 - Mot H2 "Kết luận".
 - H2 cuoi "Nguồn tham khảo". Moi nguon trong sourcesUsed phai co dung mau:
@@ -1779,13 +1797,27 @@ function buildAiBlogRepairPrompt(
   const failureCodes = new Set(failures.map(failure => failure.code))
   const repairGuidance = [
     failureCodes.has('WORD_COUNT_MIN') || failureCodes.has('WORD_COUNT_MAX')
-      ? '- Viet lai trong khoang 780-900 tu. Mo rong bang giai thich va cau hoi can xac minh, khong them fact moi.'
+      ? '- Viet lai trong khoang 780-900 tu. Dung quota: tom tat 60-90 tu, 3 H2 cot loi 120-170 tu/muc, FAQ 50-90 tu/cau tra loi, ket luan 60-90 tu; khong them fact moi.'
       : null,
     failureCodes.has('CLAIM_TEXT_UNSUPPORTED') ||
     failureCodes.has('CITED_CLAIM_MAPPING_MISSING') ||
     failureCodes.has('CITED_CLAIM_UNSUPPORTED') ||
-    failureCodes.has('CLAIM_MAPPING_MISSING')
+    failureCodes.has('CLAIM_MAPPING_MISSING') ||
+    failureCodes.has('CLAIM_SOURCE_INVALID')
       ? '- Voi loi khuyen/checklist khong nam trong fact snippets: bo [Sx], viet thanh cau hoi can kiem tra hoac xoa. Khong tao claimSources gia.'
+      : null,
+    failureCodes.has('CHECKLIST_ITEM_NOT_QUESTION') ||
+    failureCodes.has('CHECKLIST_CITATION_FORBIDDEN') ||
+    failureCodes.has('CHECKLIST_FACTUAL_DETAIL')
+      ? '- Viet lai Checklist thanh 5 bullet cau hoi ket thuc bang "?"; khong [Sx], khong so lieu, khong chinh sach, khong nhan vat, khong khuyen nghi ky thuat cu the.'
+      : null,
+    failureCodes.has('CHECKLIST_CLAIM_MAPPING_FORBIDDEN')
+      ? '- Xoa moi claimSources map vao checklist/loi khuyen bien tap; claimSources chi map cau factual trong body phan tich co citation.'
+      : null,
+    failureCodes.has('REFERENCE_INCOMPLETE') ||
+    failureCodes.has('REFERENCE_UNUSED_SOURCE') ||
+    failureCodes.has('SOURCE_UNKNOWN')
+      ? '- Dong bo sourcesUsed voi Nguon tham khao: neu chi dung S1 thi sourcesUsed=["S1"] va chi liet ke S1; chi them S2+ khi body co fact duoc citation va claimSources ho tro.'
       : null,
     failureCodes.has('CLAIM_INLINE_CITATION')
       ? '- Claim co so lieu/chinh sach/nhan vat phai co [Sx]. Neu chi la nhan dinh bien tap, bo chi tiet factual de khong bien thanh claim.'
@@ -2044,6 +2076,77 @@ function extractMainEditorialBody(markdown: string) {
   return cutoffCandidates.length > 0 ? withoutReferences.slice(0, Math.min(...cutoffCandidates)) : withoutReferences
 }
 
+function extractMarkdownSection(markdown: string, headingPredicate: (heading: string) => boolean) {
+  const headingMatches = [...markdown.matchAll(/^##\s+(.+?)\s*$/gm)]
+  for (let index = 0; index < headingMatches.length; index += 1) {
+    const match = headingMatches[index]
+    const heading = match[1] ?? ''
+    if (!headingPredicate(heading)) {
+      continue
+    }
+    const matchIndex = match.index ?? 0
+    const start = matchIndex + match[0].length
+    const nextMatch = headingMatches[index + 1]
+    const end = nextMatch?.index ?? markdown.length
+    return {
+      heading,
+      body: markdown.slice(start, end).trim(),
+      start,
+      end,
+    }
+  }
+  return null
+}
+
+function extractChecklistSection(markdown: string) {
+  return extractMarkdownSection(markdown, heading => {
+    const foldedHeading = foldText(heading)
+    return foldedHeading.includes('checklist') || foldedHeading.includes('viec can kiem tra')
+  })
+}
+
+function extractChecklistItems(markdown: string) {
+  const section = extractChecklistSection(markdown)
+  if (!section) {
+    return []
+  }
+  return section.body
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .map(line => /^(?:[-*+]\s+|\d+[.)]\s*)(.*)$/.exec(line)?.[1]?.trim() ?? '')
+    .filter(Boolean)
+}
+
+function validateAgriBlogChecklist(draft: AiDraft) {
+  const issues: AiBlogValidationIssue[] = []
+  const checklistItems = extractChecklistItems(draft.bodyMarkdown)
+  for (const item of checklistItems) {
+    const strippedItem = stripSourceCitations(item)
+    if (/\[S\d+\]/i.test(item)) {
+      issues.push(validationIssue('CHECKLIST_CITATION_FORBIDDEN', `Checklist khong duoc gan citation: "${item.slice(0, 160)}".`))
+    }
+    if (!/\?\s*$/.test(strippedItem)) {
+      issues.push(validationIssue('CHECKLIST_ITEM_NOT_QUESTION', `Checklist phai la cau hoi xac minh ket thuc bang dau ?: "${item.slice(0, 160)}".`))
+    }
+    if (
+      AI_BLOG_MATERIAL_CLAIM_PATTERN.test(strippedItem) ||
+      AI_BLOG_LEGAL_OBLIGATION_PATTERN.test(strippedItem) ||
+      AI_BLOG_TECHNICAL_PRESCRIPTION_PATTERN.test(strippedItem)
+    ) {
+      issues.push(validationIssue('CHECKLIST_FACTUAL_DETAIL', `Checklist khong duoc chua so lieu/chinh sach/khuyen nghi ky thuat cu the: "${item.slice(0, 160)}".`))
+    }
+  }
+  return issues
+}
+
+function isClaimMappedFromChecklist(claim: string, checklistItems: string[]) {
+  const strippedClaim = stripSourceCitations(claim)
+  return checklistItems.some(item => {
+    const strippedItem = stripSourceCitations(item)
+    return tokenCoverage(strippedClaim, strippedItem) >= 0.55 || tokenCoverage(strippedItem, strippedClaim) >= 0.55
+  })
+}
+
 function validateTitlePromiseSupport(
   context: Extract<AiArticleContext, { articleType: 'agri_blog' }>,
   draft: AiDraft,
@@ -2192,6 +2295,7 @@ function validateAgriBlogDraft(
   const sourcesUsed = uniqueStrings(draft.sourcesUsed ?? [])
   const claimSources = draft.claimSources ?? []
   const effectiveClaimSources = [...claimSources]
+  const checklistItems = extractChecklistItems(draft.bodyMarkdown)
 
   if (context.sourceArticles.length === 0) {
     hardFailures.push(validationIssue('SOURCE_PRIMARY_MISSING', 'Bài blog không có nguồn chính phù hợp.'))
@@ -2219,6 +2323,7 @@ function validateAgriBlogDraft(
   if (!/^##\s+(?:.*Checklist.*|Việc cần kiểm tra.*)$/im.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('STRUCTURE_CHECKLIST', 'Thiếu H2 Checklist hoặc Việc cần kiểm tra.'))
   }
+  hardFailures.push(...validateAgriBlogChecklist(draft))
   if (!/^##\s+Câu hỏi thường gặp\s*$/im.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('STRUCTURE_FAQ', 'Thiếu H2 Câu hỏi thường gặp trong body.'))
   }
@@ -2290,6 +2395,14 @@ function validateAgriBlogDraft(
     if (!mappedClaim.claim || mappedClaim.sourceIds.length === 0) {
       hardFailures.push(validationIssue('CLAIM_MAPPING_EMPTY', 'claimSources có claim hoặc sourceIds rỗng.'))
       continue
+    }
+    if (isClaimMappedFromChecklist(mappedClaim.claim, checklistItems)) {
+      hardFailures.push(
+        validationIssue(
+          'CHECKLIST_CLAIM_MAPPING_FORBIDDEN',
+          `claimSources khong duoc map cau checklist/editorial advice: "${mappedClaim.claim.slice(0, 160)}".`,
+        ),
+      )
     }
     let hasTextualSupport = false
     for (const sourceId of mappedClaim.sourceIds) {
@@ -2697,6 +2810,42 @@ function buildDuplicateDraftIdentityFailures(collisions: AiArticleIdentityCandid
   )
 }
 
+function buildDuplicateScopePreflightFailures(
+  context: Extract<AiArticleContext, { articleType: 'agri_blog' }>,
+  candidates: AiArticleIdentityCandidate[],
+) {
+  const targetArticleId = context.replacementArticleId ?? null
+  const collisions = candidates.filter(candidate => {
+    if (targetArticleId && candidate.id === targetArticleId) {
+      return false
+    }
+    return candidate.article_scope_key === context.articleScopeKey
+  })
+  return buildDuplicateDraftIdentityFailures(collisions, {
+    slug: context.replacementArticleSlug ?? '(pending-generated-slug)',
+    articleScopeKey: context.articleScopeKey,
+  })
+}
+
+async function validateAgriBlogDuplicateIdentityPreflight(context: Extract<AiArticleContext, { articleType: 'agri_blog' }>) {
+  const client = getSupabaseAdminClient()
+  if (!client) {
+    return []
+  }
+  const { data, error } = await client
+    .from('ai_generated_articles')
+    .select('id, slug, article_scope_key, title')
+    .eq('article_type', 'agri_blog')
+    .eq('article_scope_key', context.articleScopeKey)
+    .limit(10)
+
+  if (error) {
+    throw error
+  }
+
+  return buildDuplicateScopePreflightFailures(context, (data ?? []) as AiArticleIdentityCandidate[])
+}
+
 async function persistGeneratedArticle(context: AiArticleContext, draft: AiDraft, modelName: string, quality: Record<string, unknown>) {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -3033,6 +3182,23 @@ async function generateOne(context: AiArticleContext, force = false) {
   const runId = await insertRun(context, 'started')
   try {
     if (context.articleType === 'agri_blog') {
+      const duplicatePreflightFailures = await validateAgriBlogDuplicateIdentityPreflight(context)
+      if (duplicatePreflightFailures.length > 0) {
+        const attempts = [{ attempt: 0, failures: duplicatePreflightFailures }]
+        const message = duplicatePreflightFailures.map(failure => `${failure.code}: ${failure.message}`).join('; ')
+        if (existing) {
+          const retained = await recordFailedBlogRegeneration(existing, context, attempts)
+          await updateRun(runId, 'failed', retained.id, message)
+          return {
+            status: 'retained' as const,
+            article: toArticleSummary(retained),
+            created: false,
+            failures: duplicatePreflightFailures,
+          }
+        }
+        await updateRun(runId, 'failed', null, message)
+        throw new Error(message)
+      }
       const comparisons = await loadBlogComparisonDrafts(context)
       const generated = await generateAgriBlogDraftWithRetries(context, comparisons)
       if (!generated.success) {
@@ -3538,6 +3704,10 @@ async function loadDraftBlogRowBySlug(slug: string) {
   return data as AiArticleRow | null
 }
 
+function isCoherentPrimaryBlogCandidate(row: NewsArticleBlogRow) {
+  return validatePrimarySourceContentCoherence(toBlogSourceArticleFact(row, 0, ['primary-source'])).length === 0
+}
+
 function buildAgriBlogContextFromExistingRow(existing: AiArticleRow, newsRows: NewsArticleBlogRow[]) {
   const stored = existing.source_facts_json ?? {}
   const audience = isAiBlogAudience(stored.audience) ? stored.audience : null
@@ -3562,6 +3732,10 @@ function buildAgriBlogContextFromExistingRow(existing: AiArticleRow, newsRows: N
   const primary =
     primaryCandidates
       .sort((left, right) => {
+        const coherenceDelta = Number(isCoherentPrimaryBlogCandidate(right)) - Number(isCoherentPrimaryBlogCandidate(left))
+        if (coherenceDelta !== 0) {
+          return coherenceDelta
+        }
         const relevanceDelta =
           tokenCoverage(storedPrimary.title, right.content_text ?? right.excerpt ?? right.title) -
           tokenCoverage(storedPrimary.title, left.content_text ?? left.excerpt ?? left.title)
@@ -3987,6 +4161,7 @@ export const __aiArticleTestUtils = {
   getBlogSourceRelevance,
   getBlogFactSnippets,
   getAiArticleIdentityCollisions,
+  buildDuplicateScopePreflightFailures,
   normalizeAiBlogSeoScore,
   validateAgriBlogSourcePreflight,
   validateAgriBlogDraft,

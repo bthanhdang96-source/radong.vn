@@ -140,9 +140,11 @@ function validBlogDraft(context: ReturnType<typeof buildAgriBlogArticleContextFr
       '## Bối cảnh cần hiểu',
       filler,
       '## Checklist việc cần kiểm tra',
-      '- Xác định thông tin nào đã rõ.',
-      '- Ghi lại thông tin còn thiếu.',
-      '- Hỏi đơn vị hỗ trợ phù hợp.',
+      '- Thông tin nào trong nguồn chính đã rõ?',
+      '- Điều kiện áp dụng tại thực tế cần kiểm tra thêm là gì?',
+      '- Đơn vị hỗ trợ phù hợp nào nên được hỏi trước khi làm?',
+      '- Rủi ro nào cần ghi lại để theo dõi sau khi thử?',
+      '- Khi nào nên tạm hoãn quyết định để đối chiếu thêm?',
       '## Cách trao đổi với đơn vị hỗ trợ',
       filler,
       '## Câu hỏi thường gặp',
@@ -386,6 +388,19 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /SOURCE_LEDGER/)
   assert.match(prompt, /Khong viet bai "gia hom nay"/)
   assert.match(prompt, /claimSources/)
+  assert.match(prompt, /sourcesUsed mac dinh chi gom \["S1"\]/)
+  assert.match(prompt, /Checklist bat buoc la cac cau hoi xac minh/)
+})
+
+test('agri blog repair prompt gives checklist and source-reference guidance', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const prompt = __aiArticleTestUtils.buildAiBlogRepairPrompt(context, null, [
+    { code: 'CHECKLIST_ITEM_NOT_QUESTION', message: 'bad checklist' },
+    { code: 'REFERENCE_INCOMPLETE', message: 'bad references' },
+  ])
+
+  assert.match(prompt, /Checklist thanh 5 bullet cau hoi/)
+  assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {
@@ -498,6 +513,21 @@ test('agri blog preflight accepts coherent primary source title/content', () => 
   assert.deepEqual(__aiArticleTestUtils.validateAgriBlogSourcePreflight(context), [])
 })
 
+test('agri blog preflight accepts marketing-title filler when commodity evidence is coherent', () => {
+  const primary = blogNewsRow({
+    id: 'melon-coherent',
+    slug: 'doi-doi-nho-trong-dua-le',
+    title: 'Doi doi nho trong dua le',
+    excerpt: 'Mo hinh trong dua le giup ho dan co them huong san xuat phu hop voi dieu kien dia phuong.',
+    content_text:
+      'Bai viet ghi nhan mo hinh trong dua le, cach ho dan theo doi vuon cay va nhung cau hoi can kiem tra khi mo rong dien tich.',
+    topic_tags: ['dua-le'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('farmer', primary, [primary])
+
+  assert.deepEqual(__aiArticleTestUtils.validateAgriBlogSourcePreflight(context), [])
+})
+
 test('agri blog fact snippets remove source-site navigation and hotline text', () => {
   const snippets = __aiArticleTestUtils.getBlogFactSnippets(
     'Hotline: 0983.970.780 Thời sự Nông nghiệp Môi trường Multimedia Pháp luật - Bạn đọc. ' +
@@ -571,6 +601,49 @@ test('agri blog audience value gate rejects generic trader and exporter advice',
   assert.ok(exporterQuality.hardFailures.some(failure => failure.code === 'AUDIENCE_VALUE_MISSING'))
 })
 
+test('agri blog audience value gate accepts exporter chain-development detail', () => {
+  const context = buildAgriBlogArticleContextFromNews(
+    'exporter',
+    blogNewsRow({
+      id: 'chain-exporter',
+      slug: 'du-an-lien-ket-chuoi-che-bien-xuat-khau',
+      title: 'Du an lien ket chuoi che bien xuat khau nong san',
+      excerpt: 'Doanh nghiep khao sat vung nguyen lieu va lien ket chuoi de phuc vu che bien xuat khau.',
+      content_text:
+        'Nguon tin neu doanh nghiep khao sat vung nguyen lieu, lien ket chuoi, nang luc cung ung, chat luong san pham va co so che bien xuat khau.',
+      topic_tags: ['xuat-khau', 'vung-nguyen-lieu', 'lien-ket-chuoi'],
+    }),
+    [],
+  )
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(
+      'Người đọc nên quan sát điều kiện thực tế, ghi lại câu hỏi còn thiếu và trao đổi với đơn vị hỗ trợ địa phương trước khi thay đổi cách làm.',
+      'Nên hỏi: vùng nguyên liệu nào cần xác minh, liên kết chuỗi ra sao, năng lực cung ứng đến đâu, chất lượng sản phẩm được kiểm tra thế nào, cơ sở chế biến xuất khẩu và điều khoản hợp đồng cần đối chiếu gì?',
+    ),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
+test('agri blog checklist gate rejects declarative cited advice and checklist claimSources', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const checklistClaim = 'Thiết lập vùng nguyên liệu 100 ha trước khi ký hợp đồng [S1].'
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace('## Checklist việc cần kiểm tra', `## Checklist việc cần kiểm tra\n\n- ${checklistClaim}`),
+    claimSources: [{ claim: checklistClaim, sourceIds: ['S1'] }],
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_ITEM_NOT_QUESTION'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_CITATION_FORBIDDEN'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_FACTUAL_DETAIL'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_CLAIM_MAPPING_FORBIDDEN'))
+})
+
 test('Vietnamese decimal and thousands separators normalize for source-number checks', () => {
   assert.deepEqual(__aiArticleTestUtils.extractNumberTokens('tăng 8,9% trên 1.000ha, quả nặng 1,5 đến 2kg'), [
     '8.9',
@@ -609,6 +682,22 @@ test('duplicate draft identity helper ignores target row and flags other slug or
   )
 
   assert.deepEqual(collisions.map(item => item.id), ['other-slug', 'other-scope'])
+})
+
+test('duplicate scope preflight flags legacy draft before generation', () => {
+  const baseContext = buildAgriBlogArticleContextFromNews('trader', blogNewsRow({ slug: 'topic', title: 'Topic' }), [])
+  const context = {
+    ...baseContext,
+    articleScopeKey: 'agri_blog:trader:topic',
+    replacementArticleId: 'target-row',
+    replacementArticleSlug: 'blog-nong-nghiep-trader-topic-old',
+  }
+  const failures = __aiArticleTestUtils.buildDuplicateScopePreflightFailures(context, [
+    { id: 'target-row', slug: 'blog-nong-nghiep-trader-topic-old', article_scope_key: 'agri_blog:trader:old-topic', title: 'Target' },
+    { id: 'other-scope', slug: 'blog-nong-nghiep-trader-topic', article_scope_key: 'agri_blog:trader:topic', title: 'Other scope' },
+  ])
+
+  assert.deepEqual(failures.map(failure => failure.code), ['DUPLICATE_DRAFT_IDENTITY'])
 })
 
 test('valid agri blog passes hard gates with body FAQ and source ledger references', () => {
