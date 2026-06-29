@@ -1744,6 +1744,7 @@ HARD RULES
 - Moi cau co so lieu, moc thoi gian, chinh sach, nhan vat, chuc danh, gia, dien tich, san luong, xuat/nhap khau phai co citation [S1], [S2]... ngay trong cau hoac cuoi cau.
 - Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
 - Moi claimSources.claim phai la cau factual xuat hien trong body voi citation [Sx] tuong ung, gan nhu copy nguyen cau sau khi bo markdown. Khong dua cau dien giai/loi ich/ke hoach vao claimSources neu body khong co [Sx].
+- Moi cau trong body co so lieu hoac thong tin rieng cua nguon (vi du 124/124, ten dia phuong, ten doanh nghiep, chuc danh, ty le, san luong) bat buoc co [Sx] va claimSources. Khong viet cau tran thuat dang "la thong tin can xac minh" de ne citation; neu chi muon xac minh thi chuyen thanh checklist question khong lap so lieu cu the.
 - claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
 - sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
 - Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
@@ -1834,7 +1835,7 @@ function buildAiBlogRepairPrompt(
       ? '- Dong bo sourcesUsed voi Nguon tham khao: neu chi dung S1 thi sourcesUsed=["S1"] va chi liet ke S1; chi them S2+ khi body co fact duoc citation va claimSources ho tro.'
       : null,
     failureCodes.has('CLAIM_INLINE_CITATION')
-      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu khong du nguon, viet lai thanh cau hoi xac minh khong citation hoac bo chi tiet factual.'
+      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu cau co so lieu/ten rieng (vi du 124/124) thi khong duoc chi them "can xac minh"; hoac cite + claimSources, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual.'
       : null,
     failureCodes.has('STRUCTURE_SUMMARY')
       ? '- Ky tu dau tien cua bodyMarkdown phai chinh xac la **Tóm tắt:**, khong dat heading hay loi dan phia truoc.'

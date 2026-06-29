@@ -393,6 +393,7 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Nhắm 760-860 từ/)
   assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
   assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
+  assert.match(prompt, /Khong viet cau tran thuat dang "la thong tin can xac minh"/)
 })
 
 test('agri blog repair prompt gives checklist and source-reference guidance', () => {
@@ -410,6 +411,7 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
   assert.match(prompt, /cat ve 760-860 tu/)
   assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
   assert.match(prompt, /Moi claim ve quy hoach, loi ich, ket qua/)
+  assert.match(prompt, /khong duoc chi them "can xac minh"/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {

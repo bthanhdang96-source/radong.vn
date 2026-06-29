@@ -92,6 +92,7 @@ Additional implementation:
 
 - For `CLAIM_INLINE_CITATION`, tell the model that material planning, benefit, outcome, capacity, logistics, contract, or market implication sentences must either be directly source-backed with `[Sx]` and a matching `claimSources` entry, or rewritten as a non-factual verification question.
 - Remove standalone `ha` from the checklist hard-fact regex. Numeric area is already caught by digits and the technical-detail pattern; standalone folded `ha` also appears in normal Vietnamese words such as "ha tang".
+- If a sentence contains a source-specific number such as `124/124`, it cannot be made safe merely by saying "can xac minh". It must either keep the number with `[Sx]` plus `claimSources`, or move the idea into a checklist question without repeating the number.
 
 ## Testing And Verification
 
