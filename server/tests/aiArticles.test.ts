@@ -392,6 +392,7 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Checklist bat buoc la cac cau hoi xac minh/)
   assert.match(prompt, /Nhắm 760-860 từ/)
   assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
+  assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
 })
 
 test('agri blog repair prompt gives checklist and source-reference guidance', () => {
@@ -401,12 +402,14 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
     { code: 'REFERENCE_INCOMPLETE', message: 'bad references' },
     { code: 'WORD_COUNT_MAX', message: 'too long' },
     { code: 'CITED_CLAIM_UNSUPPORTED', message: 'bad advice citation' },
+    { code: 'CLAIM_INLINE_CITATION', message: 'missing body citation' },
   ])
 
   assert.match(prompt, /Checklist thanh 5 bullet cau hoi/)
   assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
   assert.match(prompt, /cat ve 760-860 tu/)
   assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
+  assert.match(prompt, /Moi claim ve quy hoach, loi ich, ket qua/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {
@@ -673,6 +676,20 @@ test('agri blog checklist gate allows operational verification questions', () =>
     bodyMarkdown: draft.bodyMarkdown.replace(
       '- Thông tin nào trong nguồn chính đã rõ?',
       '- Các điều khoản trong hợp đồng và bước truy xuất nguồn gốc nào cần đối chiếu thêm?',
+    ),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
+test('agri blog checklist gate does not treat folded ha tang as hectare detail', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(
+      '- Thông tin nào trong nguồn chính đã rõ?',
+      '- Hạ tầng vận chuyển tại khu vực dự án có đáp ứng được yêu cầu lưu thông hàng hóa không?',
     ),
   })
 

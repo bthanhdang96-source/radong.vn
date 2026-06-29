@@ -81,6 +81,18 @@ Update prompt/repair guidance:
 - advisory sentences should avoid `[Sx]` unless the fact snippet directly supports the whole sentence;
 - if advice needs support but is not sourced, rewrite as an uncited verification question or remove factual/material terms.
 
+### Retry follow-up refinements
+
+The first production retry resolved the canonical vai draft and the Tuyen Quang farmer draft. Two valid retained drafts still produced rejected candidates:
+
+- Tuyen Quang exporter candidate left a material benefit/planning sentence uncited (`CLAIM_INLINE_CITATION`).
+- Mavin exporter candidate used a checklist question about "ha tang van chuyen"; the current checklist regex falsely treated folded `ha` as the hectare unit.
+
+Additional implementation:
+
+- For `CLAIM_INLINE_CITATION`, tell the model that material planning, benefit, outcome, capacity, logistics, contract, or market implication sentences must either be directly source-backed with `[Sx]` and a matching `claimSources` entry, or rewritten as a non-factual verification question.
+- Remove standalone `ha` from the checklist hard-fact regex. Numeric area is already caught by digits and the technical-detail pattern; standalone folded `ha` also appears in normal Vietnamese words such as "ha tang".
+
 ## Testing And Verification
 
 Add regression tests for:
@@ -88,6 +100,7 @@ Add regression tests for:
 - Tuyên Quang-style source title passing when `tuyen-quang` evidence is present;
 - source-backed body claims not being rejected only because a checklist question uses similar words;
 - prompt/repair guidance containing the tighter word and advice-citation rules.
+- exporter checklist questions about "ha tang van chuyen" not being rejected as hectare facts.
 
 Run server tests, lint, build, deploy/push, then regenerate the repairable rows and archive the unsafe rows through admin API. Finish with an admin audit of draft/archived statuses.
 

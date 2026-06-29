@@ -587,7 +587,7 @@ const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   'truong',
 ])
 const AI_BLOG_CHECKLIST_HARD_FACT_PATTERN =
-  /\d|%|usd|vnd|php|\bha\b|\bkg\b|\btan\b|\btrieu\b|\bty\b|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
+  /\d|%|usd|vnd|php|\bkg\b|\btan\b|\btrieu\b|\bty\b|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
 const AI_BLOG_CHECKLIST_LEGAL_OBLIGATION_PATTERN =
   /\b(bat buoc|nghia vu phap ly|phai tuan thu|phai thuc hien|bi xu phat|bi cam|khong duoc phep|yeu cau phap ly)\b/
 const AI_BLOG_CHECKLIST_TECHNICAL_DETAIL_PATTERN =
@@ -1743,6 +1743,7 @@ HARD RULES
 - Giu nguyen y nghia ve loai gia, don vi, pham vi, thoi diem va muc do chac chan. Khong doi "du kien/thi diem/de xuat" thanh "da/chinh thuc".
 - Moi cau co so lieu, moc thoi gian, chinh sach, nhan vat, chuc danh, gia, dien tich, san luong, xuat/nhap khau phai co citation [S1], [S2]... ngay trong cau hoac cuoi cau.
 - Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
+- Moi claimSources.claim phai la cau factual xuat hien trong body voi citation [Sx] tuong ung, gan nhu copy nguyen cau sau khi bo markdown. Khong dua cau dien giai/loi ich/ke hoach vao claimSources neu body khong co [Sx].
 - claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
 - sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
 - Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
@@ -1833,7 +1834,7 @@ function buildAiBlogRepairPrompt(
       ? '- Dong bo sourcesUsed voi Nguon tham khao: neu chi dung S1 thi sourcesUsed=["S1"] va chi liet ke S1; chi them S2+ khi body co fact duoc citation va claimSources ho tro.'
       : null,
     failureCodes.has('CLAIM_INLINE_CITATION')
-      ? '- Claim co so lieu/chinh sach/nhan vat phai co [Sx]. Neu chi la nhan dinh bien tap, bo chi tiet factual de khong bien thanh claim.'
+      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu khong du nguon, viet lai thanh cau hoi xac minh khong citation hoac bo chi tiet factual.'
       : null,
     failureCodes.has('STRUCTURE_SUMMARY')
       ? '- Ky tu dau tien cua bodyMarkdown phai chinh xac la **Tóm tắt:**, khong dat heading hay loi dan phia truoc.'
