@@ -390,6 +390,8 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /claimSources/)
   assert.match(prompt, /sourcesUsed mac dinh chi gom \["S1"\]/)
   assert.match(prompt, /Checklist bat buoc la cac cau hoi xac minh/)
+  assert.match(prompt, /Nhắm 760-860 từ/)
+  assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
 })
 
 test('agri blog repair prompt gives checklist and source-reference guidance', () => {
@@ -397,10 +399,14 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
   const prompt = __aiArticleTestUtils.buildAiBlogRepairPrompt(context, null, [
     { code: 'CHECKLIST_ITEM_NOT_QUESTION', message: 'bad checklist' },
     { code: 'REFERENCE_INCOMPLETE', message: 'bad references' },
+    { code: 'WORD_COUNT_MAX', message: 'too long' },
+    { code: 'CITED_CLAIM_UNSUPPORTED', message: 'bad advice citation' },
   ])
 
   assert.match(prompt, /Checklist thanh 5 bullet cau hoi/)
   assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
+  assert.match(prompt, /cat ve 760-860 tu/)
+  assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {
@@ -522,6 +528,21 @@ test('agri blog preflight accepts marketing-title filler when commodity evidence
     content_text:
       'Bai viet ghi nhan mo hinh trong dua le, cach ho dan theo doi vuon cay va nhung cau hoi can kiem tra khi mo rong dien tich.',
     topic_tags: ['dua-le'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('farmer', primary, [primary])
+
+  assert.deepEqual(__aiArticleTestUtils.validateAgriBlogSourcePreflight(context), [])
+})
+
+test('agri blog preflight accepts Tuyen Quang title filler when strong entity evidence is coherent', () => {
+  const primary = blogNewsRow({
+    id: 'tuyen-quang-coherent',
+    slug: 'nong-nghiep-va-moi-truong-tuyen-quang-but-pha',
+    title: 'Nong nghiep va Moi truong Tuyen Quang but pha',
+    excerpt: '6 thang dau nam 2026, nhieu chi tieu san xuat cua nganh nong nghiep Tuyen Quang tang truong kha.',
+    content_text:
+      'Theo So Nong nghiep va Moi truong tinh Tuyen Quang, tong san luong luong thuc co hat uoc dat hon 158 nghin tan, dien tich dau tuong va cay lac deu tang so voi cung ky.',
+    topic_tags: ['tuyen-quang', 'nong-nghiep'],
   })
   const context = buildAgriBlogArticleContextFromNews('farmer', primary, [primary])
 
@@ -653,6 +674,22 @@ test('agri blog checklist gate allows operational verification questions', () =>
       '- Thông tin nào trong nguồn chính đã rõ?',
       '- Các điều khoản trong hợp đồng và bước truy xuất nguồn gốc nào cần đối chiếu thêm?',
     ),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
+test('agri blog claimSources may map supported body claims that resemble checklist questions', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const supportedClaim =
+    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026 [S1].'
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown
+      .replace('- Thông tin nào trong nguồn chính đã rõ?', '- Hồ sơ truy xuất nguồn gốc và tiêu chuẩn nào cần đối chiếu thêm?')
+      .replace('## Câu hỏi thường gặp', `${supportedClaim}\n\n## Câu hỏi thường gặp`),
+    claimSources: [{ claim: supportedClaim, sourceIds: ['S1'] }],
   })
 
   assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))

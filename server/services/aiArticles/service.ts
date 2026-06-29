@@ -582,6 +582,9 @@ const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   'lam',
   'nen',
   'huong',
+  'but',
+  'pha',
+  'truong',
 ])
 const AI_BLOG_CHECKLIST_HARD_FACT_PATTERN =
   /\d|%|usd|vnd|php|\bha\b|\bkg\b|\btan\b|\btrieu\b|\bty\b|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
@@ -1742,6 +1745,7 @@ HARD RULES
 - Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
 - claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
 - sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
+- Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
 - Title cua nguon chi la tin hieu chu de, khong duoc xem la bang chung neu facts/excerpt khong lap lai hoac giai thich du noi dung do.
 - Neu titleHint hoac title ban muon viet hua "danh gia/goc nhin", "gia/thi truong", "quy dinh/tieu chuan", "huong dan" hoac "loi ich/ket qua" ma SOURCE_LEDGER khong co bang chung tuong ung, phai thu hep title/excerpt ve phan duoc nguon ho tro.
@@ -1753,8 +1757,8 @@ HARD RULES
 - ${sensitiveRule}
 - Khong dung cac token rac: News, Hàng Hóa, thi-truong, gia-ca, nong-san.
 - Khong dung HTML. Khong viet bai "gia hom nay".
-- Nhắm 780-900 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
-- Phan bo do dai: tom tat 60-90 tu; 3 H2 cot loi moi muc 120-170 tu; checklist 5 bullet cau hoi; moi cau tra loi FAQ 50-90 tu; ket luan 60-90 tu.
+- Nhắm 760-860 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
+- Phan bo do dai: tom tat 55-75 tu; 3 H2 cot loi moi muc 110-140 tu; checklist 5 bullet cau hoi ngan; moi cau tra loi FAQ 45-65 tu; ket luan 50-70 tu.
 - Checklist bat buoc la cac cau hoi xac minh ket thuc bang "?". Khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
 - Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
 
@@ -1802,15 +1806,18 @@ function buildAiBlogRepairPrompt(
 ) {
   const failureCodes = new Set(failures.map(failure => failure.code))
   const repairGuidance = [
-    failureCodes.has('WORD_COUNT_MIN') || failureCodes.has('WORD_COUNT_MAX')
-      ? '- Viet lai trong khoang 780-900 tu. Dung quota: tom tat 60-90 tu, 3 H2 cot loi 120-170 tu/muc, FAQ 50-90 tu/cau tra loi, ket luan 60-90 tu; khong them fact moi.'
+    failureCodes.has('WORD_COUNT_MIN')
+      ? '- Bai dang thieu chu: viet lai 760-860 tu, chi mo rong phan phan tich cot loi bang nguon da co; moi H2 cot loi 110-140 tu, FAQ 45-65 tu/cau, khong them fact moi.'
+      : null,
+    failureCodes.has('WORD_COUNT_MAX')
+      ? '- Bai dang qua dai: cat ve 760-860 tu. Giu 3 H2 cot loi, checklist 5 cau hoi ngan, 2 FAQ ngan, ket luan ngan; bo lap lai source detail, vi du dai, padding va cau advisory khong can thiet.'
       : null,
     failureCodes.has('CLAIM_TEXT_UNSUPPORTED') ||
     failureCodes.has('CITED_CLAIM_MAPPING_MISSING') ||
     failureCodes.has('CITED_CLAIM_UNSUPPORTED') ||
     failureCodes.has('CLAIM_MAPPING_MISSING') ||
     failureCodes.has('CLAIM_SOURCE_INVALID')
-      ? '- Voi loi khuyen/checklist khong nam trong fact snippets: bo [Sx], viet thanh cau hoi can kiem tra hoac xoa. Khong tao claimSources gia.'
+      ? '- Voi loi khuyen/dien giai tac nghiep khong nam truc tiep trong fact snippets: bo [Sx] va bo khoi claimSources; neu can giu y thi viet thanh cau hoi xac minh khong citation hoac xoa chi tiet factual. Khong tao claimSources gia.'
       : null,
     failureCodes.has('CHECKLIST_ITEM_NOT_QUESTION') ||
     failureCodes.has('CHECKLIST_CITATION_FORBIDDEN') ||
@@ -2123,6 +2130,24 @@ function extractChecklistItems(markdown: string) {
     .filter(Boolean)
 }
 
+function extractBodyWithoutChecklist(markdown: string) {
+  const bodyWithoutReferences = extractBodyWithoutReferences(markdown)
+  const section = extractChecklistSection(bodyWithoutReferences)
+  if (!section) {
+    return bodyWithoutReferences
+  }
+  return `${bodyWithoutReferences.slice(0, section.start)}\n${bodyWithoutReferences.slice(section.end)}`.trim()
+}
+
+function extractComparableBodySegments(markdown: string) {
+  return markdown
+    .split(/\r?\n/)
+    .filter(line => line.trim() && !/^#{1,6}\s/.test(line))
+    .flatMap(line => line.split(/(?<=[.!?])\s+/))
+    .map(segment => stripSourceCitations(segment.trim().replace(/^(?:[-*+]\s+|\d+[.)]\s*)/, '')))
+    .filter(segment => normalizedTokens(segment).length > 0)
+}
+
 function validateAgriBlogChecklist(draft: AiDraft) {
   const issues: AiBlogValidationIssue[] = []
   const checklistItems = extractChecklistItems(draft.bodyMarkdown)
@@ -2146,11 +2171,17 @@ function validateAgriBlogChecklist(draft: AiDraft) {
   return issues
 }
 
-function isClaimMappedFromChecklist(claim: string, checklistItems: string[]) {
+function isClaimMappedFromChecklist(claim: string, checklistItems: string[], bodyWithoutChecklist: string) {
   const strippedClaim = stripSourceCitations(claim)
-  return checklistItems.some(item => {
+  const matchesChecklist = checklistItems.some(item => {
     const strippedItem = stripSourceCitations(item)
     return tokenCoverage(strippedClaim, strippedItem) >= 0.55 || tokenCoverage(strippedItem, strippedClaim) >= 0.55
+  })
+  if (!matchesChecklist) {
+    return false
+  }
+  return !extractComparableBodySegments(bodyWithoutChecklist).some(segment => {
+    return tokenCoverage(strippedClaim, segment) >= 0.55 || tokenCoverage(segment, strippedClaim) >= 0.55
   })
 }
 
@@ -2303,6 +2334,7 @@ function validateAgriBlogDraft(
   const claimSources = draft.claimSources ?? []
   const effectiveClaimSources = [...claimSources]
   const checklistItems = extractChecklistItems(draft.bodyMarkdown)
+  const bodyWithoutChecklist = extractBodyWithoutChecklist(draft.bodyMarkdown)
 
   if (context.sourceArticles.length === 0) {
     hardFailures.push(validationIssue('SOURCE_PRIMARY_MISSING', 'Bài blog không có nguồn chính phù hợp.'))
@@ -2403,7 +2435,7 @@ function validateAgriBlogDraft(
       hardFailures.push(validationIssue('CLAIM_MAPPING_EMPTY', 'claimSources có claim hoặc sourceIds rỗng.'))
       continue
     }
-    if (isClaimMappedFromChecklist(mappedClaim.claim, checklistItems)) {
+    if (isClaimMappedFromChecklist(mappedClaim.claim, checklistItems, bodyWithoutChecklist)) {
       hardFailures.push(
         validationIssue(
           'CHECKLIST_CLAIM_MAPPING_FORBIDDEN',
