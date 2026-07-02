@@ -389,7 +389,7 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Khong viet bai "gia hom nay"/)
   assert.match(prompt, /claimSources/)
   assert.match(prompt, /sourcesUsed mac dinh chi gom \["S1"\]/)
-  assert.match(prompt, /Checklist bat buoc la cac cau hoi xac minh/)
+  assert.match(prompt, /Checklist section phai co dung 5 dong bullet/)
   assert.match(prompt, /Nhắm 760-860 từ/)
   assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
   assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
@@ -404,9 +404,10 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
     { code: 'WORD_COUNT_MAX', message: 'too long' },
     { code: 'CITED_CLAIM_UNSUPPORTED', message: 'bad advice citation' },
     { code: 'CLAIM_INLINE_CITATION', message: 'missing body citation' },
+    { code: 'CHECKLIST_COUNT', message: 'wrong count' },
   ])
 
-  assert.match(prompt, /Checklist thanh 5 bullet cau hoi/)
+  assert.match(prompt, /Checklist thanh dung 5 dong bullet/)
   assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
   assert.match(prompt, /cat ve 760-860 tu/)
   assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
@@ -667,7 +668,19 @@ test('agri blog checklist gate rejects declarative cited advice and checklist cl
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_ITEM_NOT_QUESTION'))
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_CITATION_FORBIDDEN'))
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_FACTUAL_DETAIL'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_COUNT'))
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_CLAIM_MAPPING_FORBIDDEN'))
+})
+
+test('agri blog checklist gate accepts Viec can kiem tra heading with exactly five bullets', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(/^##\s+.*Checklist.*$/m, '## Việc cần kiểm tra trước khi làm'),
+  })
+
+  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
 })
 
 test('agri blog checklist gate allows operational verification questions', () => {
@@ -682,6 +695,29 @@ test('agri blog checklist gate allows operational verification questions', () =>
   })
 
   assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
+test('agri blog checklist gate rejects intro prose and numbered checklist items', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const replacement = [
+    '## Việc cần kiểm tra trước khi thu mua',
+    'Để đảm bảo giao dịch an toàn, người đọc cần thực hiện các bước sau:',
+    '1. Xác minh nguồn cung thực tế tại địa phương?',
+    '- Điều kiện áp dụng tại thực tế cần kiểm tra thêm là gì?',
+    '- Đơn vị hỗ trợ phù hợp nào nên được hỏi trước khi làm?',
+    '- Rủi ro nào cần ghi lại để theo dõi sau khi thử?',
+    '- Khi nào nên tạm hoãn quyết định để đối chiếu thêm?',
+  ].join('\n\n')
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(/^##\s+.*Checklist.*\n[\s\S]*?(?=^##\s+)/m, `${replacement}\n\n`),
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_COUNT'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_NUMBERED_FORBIDDEN'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_PROSE_FORBIDDEN'))
 })
 
 test('agri blog checklist gate does not treat folded ha tang as hectare detail', () => {
@@ -786,8 +822,8 @@ test('numbered-list markers are not treated as factual claims', () => {
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     ...draft,
     bodyMarkdown: draft.bodyMarkdown.replace(
-      '## Checklist việc cần kiểm tra',
-      '## Checklist việc cần kiểm tra\n\n1.\n\n2.\n\n3.',
+      '## Câu hỏi thường gặp',
+      '1. Kiểm tra thông tin nào còn thiếu?\n\n2. Khi nào cần hỏi thêm đơn vị hỗ trợ?\n\n## Câu hỏi thường gặp',
     ),
   })
 

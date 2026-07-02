@@ -1761,13 +1761,13 @@ HARD RULES
 - Khong dung HTML. Khong viet bai "gia hom nay".
 - Nhắm 760-860 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
 - Phan bo do dai: tom tat 55-75 tu; 3 H2 cot loi moi muc 110-140 tu; checklist 5 bullet cau hoi ngan; moi cau tra loi FAQ 45-65 tu; ket luan 50-70 tu.
-- Checklist bat buoc la cac cau hoi xac minh ket thuc bang "?". Khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
+- Checklist section phai co dung 5 dong bullet bat dau bang "- ". Moi bullet la mot cau hoi xac minh ket thuc bang "?". Khong viet doan mo dau trong checklist, khong dung danh sach danh so, khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
 - Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
 
 CAU TRUC BAT BUOC TRONG bodyMarkdown
 - Mo dau bang "**Tóm tắt:**" va 2-3 cau tra loi truc tiep.
 - It nhat 3 heading H2 co y nghia.
-- Mot H2 co chu "Checklist" hoac "Việc cần kiểm tra", ben duoi co 5 bullet va moi bullet la mot cau hoi ket thuc bang "?".
+- Mot H2 co chu "Checklist" hoac "Việc cần kiểm tra", ngay ben duoi co dung 5 bullet "- ...?" va khong co paragraph mo dau.
 - Mot H2 "Câu hỏi thường gặp", ben duoi co it nhat 2 cau hoi H3 va cau tra loi. Hai cau hoi nay phai trung voi seo.faq.
 - Mot H2 "Kết luận".
 - H2 cuoi "Nguồn tham khảo". Moi nguon trong sourcesUsed phai co dung mau:
@@ -1823,8 +1823,11 @@ function buildAiBlogRepairPrompt(
       : null,
     failureCodes.has('CHECKLIST_ITEM_NOT_QUESTION') ||
     failureCodes.has('CHECKLIST_CITATION_FORBIDDEN') ||
-    failureCodes.has('CHECKLIST_FACTUAL_DETAIL')
-      ? '- Viet lai Checklist thanh 5 bullet cau hoi ket thuc bang "?"; khong [Sx], khong so lieu, khong chinh sach, khong nhan vat, khong khuyen nghi ky thuat cu the.'
+    failureCodes.has('CHECKLIST_FACTUAL_DETAIL') ||
+    failureCodes.has('CHECKLIST_COUNT') ||
+    failureCodes.has('CHECKLIST_NUMBERED_FORBIDDEN') ||
+    failureCodes.has('CHECKLIST_PROSE_FORBIDDEN')
+      ? '- Viet lai Checklist thanh dung 5 dong bullet bat dau bang "- " va moi bullet la mot cau hoi ngan ket thuc bang "?"; khong paragraph mo dau, khong danh sach danh so, khong [Sx], khong so lieu, khong chinh sach, khong nhan vat, khong khuyen nghi ky thuat cu the.'
       : null,
     failureCodes.has('CHECKLIST_CLAIM_MAPPING_FORBIDDEN')
       ? '- Xoa moi claimSources map vao checklist/loi khuyen bien tap; claimSources chi map cau factual trong body phan tich co citation.'
@@ -2120,16 +2123,42 @@ function extractChecklistSection(markdown: string) {
   })
 }
 
-function extractChecklistItems(markdown: string) {
+function parseChecklistSection(markdown: string) {
   const section = extractChecklistSection(markdown)
   if (!section) {
-    return []
+    return {
+      section: null,
+      bulletItems: [] as string[],
+      numberedItems: [] as string[],
+      proseLines: [] as string[],
+    }
   }
-  return section.body
+
+  const bulletItems: string[] = []
+  const numberedItems: string[] = []
+  const proseLines: string[] = []
+  for (const line of section.body
     .split(/\r?\n/)
     .map(line => line.trim())
-    .map(line => /^(?:[-*+]\s+|\d+[.)]\s*)(.*)$/.exec(line)?.[1]?.trim() ?? '')
-    .filter(Boolean)
+    .filter(Boolean)) {
+    const bulletMatch = /^[-*+]\s+(.*)$/.exec(line)
+    if (bulletMatch?.[1]?.trim()) {
+      bulletItems.push(bulletMatch[1].trim())
+      continue
+    }
+    const numberedMatch = /^\d+[.)]\s+(.*)$/.exec(line)
+    if (numberedMatch?.[1]?.trim()) {
+      numberedItems.push(numberedMatch[1].trim())
+      continue
+    }
+    proseLines.push(line)
+  }
+
+  return { section, bulletItems, numberedItems, proseLines }
+}
+
+function extractChecklistItems(markdown: string) {
+  return parseChecklistSection(markdown).bulletItems
 }
 
 function extractBodyWithoutChecklist(markdown: string) {
@@ -2152,7 +2181,17 @@ function extractComparableBodySegments(markdown: string) {
 
 function validateAgriBlogChecklist(draft: AiDraft) {
   const issues: AiBlogValidationIssue[] = []
-  const checklistItems = extractChecklistItems(draft.bodyMarkdown)
+  const parsed = parseChecklistSection(draft.bodyMarkdown)
+  const checklistItems = parsed.bulletItems
+  if (parsed.section && checklistItems.length !== 5) {
+    issues.push(validationIssue('CHECKLIST_COUNT', `Checklist phai co dung 5 bullet cau hoi, hien co ${checklistItems.length}.`))
+  }
+  for (const item of parsed.numberedItems) {
+    issues.push(validationIssue('CHECKLIST_NUMBERED_FORBIDDEN', `Checklist khong duoc dung danh sach danh so: "${item.slice(0, 160)}".`))
+  }
+  for (const line of parsed.proseLines) {
+    issues.push(validationIssue('CHECKLIST_PROSE_FORBIDDEN', `Checklist khong duoc co paragraph hoac dong khong phai bullet: "${line.slice(0, 160)}".`))
+  }
   for (const item of checklistItems) {
     const strippedItem = stripSourceCitations(item)
     const foldedItem = foldText(strippedItem)
