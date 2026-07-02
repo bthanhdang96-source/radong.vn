@@ -551,6 +551,10 @@ const AI_BLOG_STRONG_TOPIC_PHRASES = [
   'vuon-vai',
   'mac-man',
 ]
+const AI_BLOG_STRONG_TOPIC_ALIASES: Record<string, string[]> = {
+  'mac-man': ['che-man', 'tam-man', 'lop-man', 'man-trang'],
+  'vuon-vai': ['cay-vai', 'vuon-cay-vai', 'nha-vuon-vai'],
+}
 const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   ...AI_BLOG_GENERIC_TOPIC_SIGNALS,
   'quoc',
@@ -587,7 +591,7 @@ const AI_BLOG_SOURCE_TITLE_STOPWORDS = new Set([
   'truong',
 ])
 const AI_BLOG_CHECKLIST_HARD_FACT_PATTERN =
-  /\d|%|usd|vnd|php|\bkg\b|\btan\b|\btrieu\b|\bty\b|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
+  /\d|%|usd|vnd|php|\bkg\b|\btan\b|\btrieu\b|\bty\b|ty le|bao nhieu|theo quy dinh|sac lenh|nghi dinh|thong tu|bo truong|thu truong|bi thu|chu tich|gia ban|gia nhap|gia thu mua|gia ban le/
 const AI_BLOG_CHECKLIST_LEGAL_OBLIGATION_PATTERN =
   /\b(bat buoc|nghia vu phap ly|phai tuan thu|phai thuc hien|bi xu phat|bi cam|khong duoc phep|yeu cau phap ly)\b/
 const AI_BLOG_CHECKLIST_TECHNICAL_DETAIL_PATTERN =
@@ -891,6 +895,13 @@ function extractStrongBlogTopicSignals(input: { title: string; slug?: string | n
   return AI_BLOG_STRONG_TOPIC_PHRASES.filter(signal => folded.includes(signal))
 }
 
+function sourceEvidenceMatchesStrongSignal(evidenceKey: string, signal: string) {
+  if (evidenceKey.includes(signal)) {
+    return true
+  }
+  return (AI_BLOG_STRONG_TOPIC_ALIASES[signal] ?? []).some(alias => evidenceKey.includes(alias))
+}
+
 function sourceEvidenceTextWithoutTitle(source: AiBlogSourceArticleFact) {
   const title = foldText(source.title)
   return foldText([source.excerpt ?? '', ...source.factSnippets].join(' '))
@@ -920,7 +931,7 @@ function validatePrimarySourceContentCoherence(source: AiBlogSourceArticleFact |
   const evidenceKey = sourceEvidenceKeyWithoutTitle(source)
   const evidenceText = sourceEvidenceTextWithoutTitle(source)
   const strongSignals = extractStrongBlogTopicSignals({ title: source.title, slug: source.slug })
-  const matchedStrongSignals = strongSignals.filter(signal => evidenceKey.includes(signal))
+  const matchedStrongSignals = strongSignals.filter(signal => sourceEvidenceMatchesStrongSignal(evidenceKey, signal))
   const missingStrongSignals = strongSignals.filter(signal => !matchedStrongSignals.includes(signal))
   if (missingStrongSignals.length > 0) {
     issues.push(
@@ -1748,6 +1759,7 @@ HARD RULES
 - claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
 - sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
 - Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
+- Trong body phan tich, tranh cau khuyen nghi/menh lenh dang "can/nen/hay/phai..." neu SOURCE_LEDGER khong noi truc tiep. Neu chi la viec can xac minh, chuyen thanh checklist question khong lap fact cu the. Ket luan khong dung "Hay..." de goi hanh dong chung chung.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
 - Title cua nguon chi la tin hieu chu de, khong duoc xem la bang chung neu facts/excerpt khong lap lai hoac giai thich du noi dung do.
 - Neu titleHint hoac title ban muon viet hua "danh gia/goc nhin", "gia/thi truong", "quy dinh/tieu chuan", "huong dan" hoac "loi ich/ket qua" ma SOURCE_LEDGER khong co bang chung tuong ung, phai thu hep title/excerpt ve phan duoc nguon ho tro.
@@ -1838,7 +1850,7 @@ function buildAiBlogRepairPrompt(
       ? '- Dong bo sourcesUsed voi Nguon tham khao: neu chi dung S1 thi sourcesUsed=["S1"] va chi liet ke S1; chi them S2+ khi body co fact duoc citation va claimSources ho tro.'
       : null,
     failureCodes.has('CLAIM_INLINE_CITATION')
-      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu cau co so lieu/ten rieng (vi du 124/124) thi khong duoc chi them "can xac minh"; hoac cite + claimSources, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual.'
+      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu cau co so lieu/ten rieng (vi du 124/124) thi khong duoc chi them "can xac minh"; hoac cite + claimSources, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual. Khong thay bang cau "can/nen/hay/phai..." chung chung trong body.'
       : null,
     failureCodes.has('STRUCTURE_SUMMARY')
       ? '- Ky tu dau tien cua bodyMarkdown phai chinh xac la **Tóm tắt:**, khong dat heading hay loi dan phia truoc.'

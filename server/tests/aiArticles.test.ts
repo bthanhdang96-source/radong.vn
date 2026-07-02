@@ -392,6 +392,8 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Checklist section phai co dung 5 dong bullet/)
   assert.match(prompt, /Nhắm 760-860 từ/)
   assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
+  assert.match(prompt, /tranh cau khuyen nghi\/menh lenh dang "can\/nen\/hay\/phai\.\.\."/)
+  assert.match(prompt, /Ket luan khong dung "Hay\.\.\."/)
   assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
   assert.match(prompt, /Khong viet cau tran thuat dang "la thong tin can xac minh"/)
 })
@@ -413,6 +415,7 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
   assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
   assert.match(prompt, /Moi claim ve quy hoach, loi ich, ket qua/)
   assert.match(prompt, /khong duoc chi them "can xac minh"/)
+  assert.match(prompt, /Khong thay bang cau "can\/nen\/hay\/phai\.\.\." chung chung trong body/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {
@@ -549,6 +552,20 @@ test('agri blog preflight accepts Tuyen Quang title filler when strong entity ev
     content_text:
       'Theo So Nong nghiep va Moi truong tinh Tuyen Quang, tong san luong luong thuc co hat uoc dat hon 158 nghin tan, dien tich dau tuong va cay lac deu tang so voi cung ky.',
     topic_tags: ['tuyen-quang', 'nong-nghiep'],
+  })
+  const context = buildAgriBlogArticleContextFromNews('farmer', primary, [primary])
+
+  assert.deepEqual(__aiArticleTestUtils.validateAgriBlogSourcePreflight(context), [])
+})
+
+test('agri blog preflight accepts mac man source aliases in evidence snippets', () => {
+  const primary = blogNewsRow({
+    id: 'mac-man-vai-coherent',
+    slug: 'mac-man-vuon-vai',
+    title: 'Mac man vuon vai',
+    excerpt: '18 cay vai duoc thu nghiem che man de theo doi sau hai vu.',
+    content_text: 'Lop man trang va nhung tam man duoc kiem tra tai vuon cay vai trong qua trinh thu nghiem.',
+    topic_tags: ['mac-man', 'vuon-vai'],
   })
   const context = buildAgriBlogArticleContextFromNews('farmer', primary, [primary])
 
@@ -695,6 +712,21 @@ test('agri blog checklist gate allows operational verification questions', () =>
   })
 
   assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
+})
+
+test('agri blog checklist gate rejects quantitative verification questions', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(
+      /^-\s+.*$/m,
+      '- Ty le hao hut trong qua trinh van chuyen la bao nhieu?',
+    ),
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CHECKLIST_FACTUAL_DETAIL'))
 })
 
 test('agri blog checklist gate rejects intro prose and numbered checklist items', () => {
