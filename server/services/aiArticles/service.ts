@@ -443,6 +443,29 @@ const AI_BLOG_AUDIENCE_META: Record<
     intent: 'uu tien bai phan tich co hoi, tieu chuan, thi truong dich va viec chuan bi don hang.',
   },
 }
+const AI_BLOG_SAFE_CHECKLIST_ITEMS: Record<AiBlogAudience, string[]> = {
+  farmer: [
+    'Dieu kien ruong vuon hien tai co phu hop voi noi dung nguon chinh khong?',
+    'Dau hieu rui ro nao tren cay trong hoac ao nuoi can duoc ghi lai truoc khi lam?',
+    'Don vi ho tro dia phuong nao co the duoc hoi de doi chieu them?',
+    'Nguon vat tu hoac giong dau vao da duoc kiem tra lai chua?',
+    'Khi nao nen tam hoan thay doi de hoi them nguoi co chuyen mon?',
+  ],
+  trader: [
+    'Nguon cung thuc te co khop voi mo ta trong nguon chinh khong?',
+    'Chat luong lo hang can duoc kiem tra tai diem giao nhan nhu the nao?',
+    'Dieu kien bao quan va van chuyen co diem nao can hoi lai khong?',
+    'Ben ban da lam ro cach phan loai hang truoc giao dich chua?',
+    'Rui ro nao nen duoc ghi lai truoc khi quyet dinh thu mua?',
+  ],
+  exporter: [
+    'Ho so lo hang co diem nao can doi chieu voi doi tac truoc khi ky khong?',
+    'Truy xuat nguon goc da duoc kiem tra theo quy trinh noi bo chua?',
+    'Chat luong san pham can duoc xac nhan o khau nao truoc giao hang?',
+    'Dieu khoan hop dong nao can hoi ro neu thong tin nguon con thieu?',
+    'Rui ro van hanh nao nen duoc ghi lai de theo doi them?',
+  ],
+}
 const AI_BLOG_STYLE_LABELS: Record<AiBlogStyle, string> = {
   guide: 'Huong dan thuc hanh',
   analysis: 'Phan tich',
@@ -1761,6 +1784,7 @@ HARD RULES
 - Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
 - Trong body phan tich, tranh cau khuyen nghi/menh lenh dang "can/nen/hay/phai..." neu SOURCE_LEDGER khong noi truc tiep. Neu chi la viec can xac minh, chuyen thanh checklist question khong lap fact cu the. Ket luan khong dung "Hay..." de goi hanh dong chung chung.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
+- Khong viet cac cum "dap ung yeu cau khat khe tu thi truong", "phai dap ung", "phai tuan thu" hoac ham y nghia vu phap ly/thi truong neu SOURCE_LEDGER khong noi truc tiep; chuyen thanh cau hoi xac minh ve ho so, hop dong hoac thi truong dich.
 - Title cua nguon chi la tin hieu chu de, khong duoc xem la bang chung neu facts/excerpt khong lap lai hoac giai thich du noi dung do.
 - Neu titleHint hoac title ban muon viet hua "danh gia/goc nhin", "gia/thi truong", "quy dinh/tieu chuan", "huong dan" hoac "loi ich/ket qua" ma SOURCE_LEDGER khong co bang chung tuong ung, phai thu hep title/excerpt ve phan duoc nguon ho tro.
 - Khong dung "danh gia", "goc nhin", "nhan dinh", "y kien" hoac "phan hoi" trong title neu SOURCE_LEDGER khong co chu the cu the duoc trich dan/ghi nhan danh gia.
@@ -1772,6 +1796,7 @@ HARD RULES
 - Khong dung cac token rac: News, Hàng Hóa, thi-truong, gia-ca, nong-san.
 - Khong dung HTML. Khong viet bai "gia hom nay".
 - Nhắm 760-860 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
+- Truoc khi tra JSON, tu dem xap xi va dam bao bodyMarkdown toi thieu 720 tu; neu thieu, mo rong cac H2 phan tich bang cau can trong dua tren SOURCE_LEDGER, khong them bullet checklist.
 - Phan bo do dai: tom tat 55-75 tu; 3 H2 cot loi moi muc 110-140 tu; checklist 5 bullet cau hoi ngan; moi cau tra loi FAQ 45-65 tu; ket luan 50-70 tu.
 - Checklist section phai co dung 5 dong bullet bat dau bang "- ". Moi bullet la mot cau hoi xac minh ket thuc bang "?". Khong viet doan mo dau trong checklist, khong dung danh sach danh so, khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
 - Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
@@ -1821,7 +1846,7 @@ function buildAiBlogRepairPrompt(
   const failureCodes = new Set(failures.map(failure => failure.code))
   const repairGuidance = [
     failureCodes.has('WORD_COUNT_MIN')
-      ? '- Bai dang thieu chu: viet lai 760-860 tu, chi mo rong phan phan tich cot loi bang nguon da co; moi H2 cot loi 110-140 tu, FAQ 45-65 tu/cau, khong them fact moi.'
+      ? '- Bai dang thieu chu: viet lai 760-860 tu va tu kiem tra bodyMarkdown toi thieu 720 tu truoc khi tra JSON. Chi mo rong 3 H2 phan tich cot loi bang cau can trong dua tren nguon da co; khong tang so bullet checklist va khong them fact moi.'
       : null,
     failureCodes.has('WORD_COUNT_MAX')
       ? '- Bai dang qua dai: cat ve 760-860 tu. Giu 3 H2 cot loi, checklist 5 cau hoi ngan, 2 FAQ ngan, ket luan ngan; bo lap lai source detail, vi du dai, padding va cau advisory khong can thiet.'
@@ -1851,6 +1876,9 @@ function buildAiBlogRepairPrompt(
       : null,
     failureCodes.has('CLAIM_INLINE_CITATION')
       ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu cau co so lieu/ten rieng (vi du 124/124) thi khong duoc chi them "can xac minh"; hoac cite + claimSources, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual. Khong thay bang cau "can/nen/hay/phai..." chung chung trong body.'
+      : null,
+    failureCodes.has('LEGAL_AUTHORITY_MISSING')
+      ? '- Xoa cac cum phai tuan thu/phai thuc hien/bat buoc/yeu cau phap ly/dap ung yeu cau khat khe tu thi truong neu SOURCE_LEDGER khong co nguon chinh thuc truc tiep. Neu can giu y, chuyen thanh cau hoi xac minh ve ho so, hop dong hoac thi truong dich.'
       : null,
     failureCodes.has('STRUCTURE_SUMMARY')
       ? '- Ky tu dau tien cua bodyMarkdown phai chinh xac la **Tóm tắt:**, khong dat heading hay loi dan phia truoc.'
@@ -2222,6 +2250,28 @@ function validateAgriBlogChecklist(draft: AiDraft) {
     }
   }
   return issues
+}
+
+function normalizeAgriBlogChecklistForValidation(
+  context: Extract<AiArticleContext, { articleType: 'agri_blog' }>,
+  draft: AiDraft,
+) {
+  const parsed = parseChecklistSection(draft.bodyMarkdown)
+  if (!parsed.section) {
+    return draft
+  }
+  const checklistIssues = validateAgriBlogChecklist(draft)
+  if (checklistIssues.length === 0) {
+    return draft
+  }
+  const replacement = `\n\n${AI_BLOG_SAFE_CHECKLIST_ITEMS[context.audience].map(item => `- ${item}`).join('\n')}\n\n`
+  const bodyMarkdown = `${draft.bodyMarkdown.slice(0, parsed.section.start)}${replacement}${draft.bodyMarkdown.slice(parsed.section.end)}`
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return {
+    ...draft,
+    bodyMarkdown,
+  }
 }
 
 function isClaimMappedFromChecklist(claim: string, checklistItems: string[], bodyWithoutChecklist: string) {
@@ -3217,7 +3267,7 @@ async function generateAgriBlogDraftWithRetries(
     try {
       const generated = await generate(prompt, context.articleType)
       model = generated.model
-      draft = parseAiDraft(generated.text)
+      draft = normalizeAgriBlogChecklistForValidation(context, parseAiDraft(generated.text))
       const quality = validateAgriBlogDraft(context, draft, comparisons)
       failures = quality.hardFailures
       attempts.push({ attempt, failures })

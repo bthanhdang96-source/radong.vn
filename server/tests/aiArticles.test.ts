@@ -394,6 +394,8 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Cau khuyen nghi, dien giai tac nghiep/)
   assert.match(prompt, /tranh cau khuyen nghi\/menh lenh dang "can\/nen\/hay\/phai\.\.\."/)
   assert.match(prompt, /Ket luan khong dung "Hay\.\.\."/)
+  assert.match(prompt, /dap ung yeu cau khat khe tu thi truong/)
+  assert.match(prompt, /toi thieu 720 tu/)
   assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
   assert.match(prompt, /Khong viet cau tran thuat dang "la thong tin can xac minh"/)
 })
@@ -403,19 +405,23 @@ test('agri blog repair prompt gives checklist and source-reference guidance', ()
   const prompt = __aiArticleTestUtils.buildAiBlogRepairPrompt(context, null, [
     { code: 'CHECKLIST_ITEM_NOT_QUESTION', message: 'bad checklist' },
     { code: 'REFERENCE_INCOMPLETE', message: 'bad references' },
+    { code: 'WORD_COUNT_MIN', message: 'too short' },
     { code: 'WORD_COUNT_MAX', message: 'too long' },
     { code: 'CITED_CLAIM_UNSUPPORTED', message: 'bad advice citation' },
     { code: 'CLAIM_INLINE_CITATION', message: 'missing body citation' },
     { code: 'CHECKLIST_COUNT', message: 'wrong count' },
+    { code: 'LEGAL_AUTHORITY_MISSING', message: 'bad legal authority' },
   ])
 
   assert.match(prompt, /Checklist thanh dung 5 dong bullet/)
   assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
   assert.match(prompt, /cat ve 760-860 tu/)
+  assert.match(prompt, /toi thieu 720 tu/)
   assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
   assert.match(prompt, /Moi claim ve quy hoach, loi ich, ket qua/)
   assert.match(prompt, /khong duoc chi them "can xac minh"/)
   assert.match(prompt, /Khong thay bang cau "can\/nen\/hay\/phai\.\.\." chung chung trong body/)
+  assert.match(prompt, /dap ung yeu cau khat khe tu thi truong/)
 })
 
 test('agri blog draft validation returns deterministic hard-gate codes', () => {
@@ -916,6 +922,39 @@ test('validator derives a missing claim mapping when inline citation is supporte
 
   assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
   assert.ok(quality.claimSources.some(item => item.sourceIds.includes('S1')))
+})
+
+test('agri blog generation normalizes malformed checklist before validation', async () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const malformedChecklist = [
+    '## Checklist viec can kiem tra',
+    'Can doc ky cac diem sau truoc khi lam:',
+    '1. Ty le hao hut trong qua trinh van chuyen la bao nhieu?',
+    '- Dien tich 40ha trong nguon co anh huong den quyet dinh khong?',
+    '- Gia ban tai cho co can duoc xac minh lai khong?',
+    '- Don vi nao nen duoc hoi them truoc khi lam?',
+    '- Rui ro nao can ghi lai sau khi thu?',
+    '- Khi nao nen tam hoan de doi chieu them?',
+  ].join('\n\n')
+  const modelDraft = {
+    ...draft,
+    bodyMarkdown: draft.bodyMarkdown.replace(/^##\s+.*Checklist.*\n[\s\S]*?(?=^##\s+)/m, `${malformedChecklist}\n\n`),
+  }
+
+  const result = await __aiArticleTestUtils.generateAgriBlogDraftWithRetries(
+    context,
+    [],
+    async () => ({ model: 'test-model', text: JSON.stringify(modelDraft) }),
+  )
+
+  assert.equal(result.success, true)
+  assert.ok(result.draft)
+  const section = result.draft.bodyMarkdown.match(/^##\s+.*Checklist.*\n([\s\S]*?)(?=^##\s+)/m)?.[1] ?? ''
+  assert.equal((section.match(/^- /gm) ?? []).length, 5)
+  assert.equal(section.includes('Ty le'), false)
+  assert.equal(section.includes('Can doc ky'), false)
+  assert.equal(section.includes('[S1]'), false)
 })
 
 test('agri blog generation stops after three invalid model responses', async () => {
