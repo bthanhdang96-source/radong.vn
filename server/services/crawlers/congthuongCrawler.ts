@@ -1,22 +1,66 @@
 import { createItem, extractParagraphs, failedSource, fetchUtf8, finalizeSourceBatch, foldText, parseNumber } from './common.js';
 import type { CrawledPriceItem, CrawlerResult } from './types.js';
 
-const SITEMAP_URL = 'https://congthuong.vn/news-sitemap.xml';
+const BASE_URL = 'https://congthuong.vn';
+const SITEMAP_URL = `${BASE_URL}/news-sitemap.xml`;
 
 type CommodityConfig = {
   commodity: string;
   commodityName: string;
   category: string;
   slug: string;
+  discoveryUrls: string[];
   provinces: string[];
 };
 
-function extractLatestArticleUrl(sitemapXml: string, slug: string): string | null {
-  const urls = [...sitemapXml.matchAll(/<loc>(https:\/\/congthuong\.vn\/[^<]+)<\/loc>/g)]
-    .map((match) => match[1])
-    .filter((url) => url.includes(slug));
+function normalizeCongthuongUrl(value: string): string | null {
+  try {
+    const url = new URL(value.replace(/&amp;/g, '&'), BASE_URL);
+    return url.origin === BASE_URL ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function extractLatestArticleUrl(documentText: string, slug: string): string | null {
+  const sitemapUrls = [...documentText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+  const hrefUrls = [...documentText.matchAll(/href=(["'])(.*?)\1/g)].map((match) => match[2]);
+  const urls = [...sitemapUrls, ...hrefUrls]
+    .map((url) => normalizeCongthuongUrl(url))
+    .filter((url): url is string => Boolean(url))
+    .filter((url, index, allUrls) => allUrls.indexOf(url) === index)
+    .filter((url) => url.includes(`/${slug}`) && /\.html(?:$|[?#])/.test(url));
 
   return urls[0] ?? null;
+}
+
+async function findLatestArticleUrl(commodity: CommodityConfig, fetchedAt: string): Promise<CrawlerResult | string> {
+  const errors: string[] = [];
+
+  for (const discoveryUrl of [SITEMAP_URL, ...commodity.discoveryUrls]) {
+    try {
+      const documentText = await fetchUtf8(discoveryUrl);
+      const articleUrl = extractLatestArticleUrl(documentText, commodity.slug);
+      if (articleUrl) {
+        return articleUrl;
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : 'Unknown discovery error');
+    }
+  }
+
+  return failedSource(
+    'congthuong',
+    `congthuong.vn - ${commodity.commodityName}`,
+    SITEMAP_URL,
+    fetchedAt,
+    [commodity.commodity],
+    new Error(
+      `No ${commodity.slug} article found in discovery pages${
+        errors.length > 0 ? `; discovery errors: ${errors.join('; ')}` : ''
+      }`,
+    ),
+  );
 }
 
 function extractChange(paragraph: string): number {
@@ -95,6 +139,10 @@ const COMMODITIES: CommodityConfig[] = [
     commodityName: 'Ca phe Robusta',
     category: 'Cay cong nghiep',
     slug: 'gia-ca-phe-hom-nay',
+    discoveryUrls: [
+      `${BASE_URL}/chu-de/gia-ca-phe-hom-nay.topic`,
+      `${BASE_URL}/tag/gia-ca-phe-2282.tag`,
+    ],
     provinces: ['Đắk Lắk', 'Gia Lai', 'Lâm Đồng', 'Đắk Nông'],
   },
   {
@@ -102,6 +150,10 @@ const COMMODITIES: CommodityConfig[] = [
     commodityName: 'Heo hoi',
     category: 'Chan nuoi',
     slug: 'gia-heo-hoi-hom-nay',
+    discoveryUrls: [
+      `${BASE_URL}/tag/gia-heo-hoi-hom-nay-56462.tag`,
+      `${BASE_URL}/chu-de/gia-heo-hoi.topic`,
+    ],
     provinces: [
       'Hưng Yên',
       'Thái Nguyên',
@@ -144,26 +196,14 @@ const COMMODITIES: CommodityConfig[] = [
 export async function crawlCongthuong(): Promise<CrawlerResult> {
   const fetchedAt = new Date().toISOString();
 
-  let sitemapXml = '';
-  try {
-    sitemapXml = await fetchUtf8(SITEMAP_URL);
-  } catch (error) {
-    return failedSource('congthuong', 'congthuong.vn', SITEMAP_URL, fetchedAt, COMMODITIES.map((item) => item.commodity), error);
-  }
-
   const results = await Promise.all(
     COMMODITIES.map(async (commodity) => {
-      const articleUrl = extractLatestArticleUrl(sitemapXml, commodity.slug);
-      if (!articleUrl) {
-        return failedSource(
-          'congthuong',
-          `congthuong.vn - ${commodity.commodityName}`,
-          SITEMAP_URL,
-          fetchedAt,
-          [commodity.commodity],
-          new Error(`No ${commodity.slug} article found in news sitemap`),
-        );
+      const discoveryResult = await findLatestArticleUrl(commodity, fetchedAt);
+      if (typeof discoveryResult !== 'string') {
+        return discoveryResult;
       }
+
+      const articleUrl = discoveryResult;
 
       try {
         const articleHtml = await fetchUtf8(articleUrl);
