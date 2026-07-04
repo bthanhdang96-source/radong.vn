@@ -370,6 +370,8 @@ export type AiArticleDetail = AiArticleSummary & {
   quality: Record<string, unknown>
 }
 
+export type PublicAiArticleDetail = Omit<AiArticleDetail, 'sourceFacts' | 'seo' | 'quality'>
+
 export type GenerateAiArticlesOptions = {
   articleType?: AiArticleType
   periodCode?: string
@@ -1657,6 +1659,45 @@ function markdownToHtml(markdown: string) {
   return html.join('\n')
 }
 
+const PUBLIC_SOURCE_MARKER_PATTERN = /\s*\[S\d+\]/gi
+const PUBLIC_REFERENCE_MARKDOWN_HEADING_PATTERN = /^##\s+Ngu\u1ed3n tham kh\u1ea3o\s*$/im
+const PUBLIC_REFERENCE_TEXT_HEADING_PATTERN = /\bNgu\u1ed3n tham kh\u1ea3o\b/i
+const PUBLIC_REFERENCE_HTML_HEADING_PATTERN = /<h2[^>]*>\s*Ngu\u1ed3n tham kh\u1ea3o\s*<\/h2>/i
+
+function stripPublicSourceMarkers(value: string) {
+  return value
+    .replace(PUBLIC_SOURCE_MARKER_PATTERN, '')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+function stripPublicReferencesFromMarkdown(value: string) {
+  const referencesIndex = value.search(PUBLIC_REFERENCE_MARKDOWN_HEADING_PATTERN)
+  return referencesIndex >= 0 ? value.slice(0, referencesIndex).trim() : value.trim()
+}
+
+function stripPublicReferencesFromText(value: string) {
+  const referencesIndex = value.search(PUBLIC_REFERENCE_TEXT_HEADING_PATTERN)
+  return referencesIndex >= 0 ? value.slice(0, referencesIndex).trim() : value.trim()
+}
+
+export function sanitizePublicAiArticleText(value: string | null) {
+  if (!value) {
+    return value
+  }
+  return stripPublicSourceMarkers(stripPublicReferencesFromText(stripPublicReferencesFromMarkdown(value)))
+}
+
+export function sanitizePublicAiArticleHtml(value: string | null) {
+  if (!value) {
+    return value
+  }
+  const referencesMatch = value.match(PUBLIC_REFERENCE_HTML_HEADING_PATTERN)
+  const withoutReferences = referencesMatch?.index === undefined ? value : value.slice(0, referencesMatch.index)
+  return stripPublicSourceMarkers(withoutReferences)
+}
+
 function markdownToText(markdown: string) {
   return markdown
     .replace(/^#{1,6}\s+/gm, '')
@@ -1775,13 +1816,13 @@ NGU CANH
 HARD RULES
 - Chi duoc dung su kien, so lieu, ngay thang, nhan vat, chuc danh, chinh sach va trang thai co trong SOURCE_LEDGER.
 - Giu nguyen y nghia ve loai gia, don vi, pham vi, thoi diem va muc do chac chan. Khong doi "du kien/thi diem/de xuat" thanh "da/chinh thuc".
-- Moi cau co so lieu, moc thoi gian, chinh sach, nhan vat, chuc danh, gia, dien tich, san luong, xuat/nhap khau phai co citation [S1], [S2]... ngay trong cau hoac cuoi cau.
-- Moi cau co citation [Sx] deu phai co mot entry claimSources gan sat noi dung cau do. Claim phai duoc fact snippet cua Sx ho tro, khong chi gan citation de hop thuc hoa suy dien.
-- Moi claimSources.claim phai la cau factual xuat hien trong body voi citation [Sx] tuong ung, gan nhu copy nguyen cau sau khi bo markdown. Khong dua cau dien giai/loi ich/ke hoach vao claimSources neu body khong co [Sx].
-- Moi cau trong body co so lieu hoac thong tin rieng cua nguon (vi du 124/124, ten dia phuong, ten doanh nghiep, chuc danh, ty le, san luong) bat buoc co [Sx] va claimSources. Khong viet cau tran thuat dang "la thong tin can xac minh" de ne citation; neu chi muon xac minh thi chuyen thanh checklist question khong lap so lieu cu the.
+- Khong dua citation dang [S1], [S2]... vao bodyMarkdown. Doc gia public khong thay ma nguon noi bo.
+- Moi cau factual co so lieu, moc thoi gian, chinh sach, nhan vat, chuc danh, gia, dien tich, san luong, xuat/nhap khau phai co mot entry claimSources noi bo gan sat noi dung cau do. Claim phai duoc fact snippet cua source ho tro, khong dung claimSources de hop thuc hoa suy dien.
+- Moi claimSources.claim phai la cau factual xuat hien trong body, gan nhu copy nguyen cau sau khi bo markdown. Khong dua cau dien giai/loi ich/ke hoach vao claimSources neu body khong co cau factual tuong ung.
+- Moi cau trong body co so lieu hoac thong tin rieng cua nguon (vi du 124/124, ten dia phuong, ten doanh nghiep, chuc danh, ty le, san luong) bat buoc co claimSources noi bo. Khong viet cau tran thuat dang "la thong tin can xac minh" de ne source mapping; neu chi muon xac minh thi chuyen thanh checklist question khong lap so lieu cu the.
 - claimSources chi duoc map cau factual trong phan body phan tich. Khong map checklist, FAQ, ket luan tong hop, disclaimer hay loi khuyen bien tap.
-- sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro, co citation [Sx], co claimSources tuong ung va co dong reference dung canonical URL.
-- Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc gan [Sx] neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh khong citation hoac loai bo chi tiet factual.
+- sourcesUsed mac dinh chi gom ["S1"]. Chi them S2+ neu body co cau factual duoc nguon do ho tro va co claimSources tuong ung.
+- Cau khuyen nghi, dien giai tac nghiep, chien luoc, logistics, hop dong, loi ich hoac rui ro cho audience khong duoc dua vao claimSources neu SOURCE_LEDGER khong noi truc tiep dung y do. Neu khong du nguon, viet thanh cau hoi xac minh hoac loai bo chi tiet factual.
 - Trong body phan tich, tranh cau khuyen nghi/menh lenh dang "can/nen/hay/phai..." neu SOURCE_LEDGER khong noi truc tiep. Neu chi la viec can xac minh, chuyen thanh checklist question khong lap fact cu the. Ket luan khong dung "Hay..." de goi hanh dong chung chung.
 - Khong them kien thuc ky thuat, phap ly hay kinh doanh cu the neu ledger khong ho tro.
 - Khong viet cac cum "dap ung yeu cau khat khe tu thi truong", "phai dap ung", "phai tuan thu" hoac ham y nghia vu phap ly/thi truong neu SOURCE_LEDGER khong noi truc tiep; chuyen thanh cau hoi xac minh ve ho so, hop dong hoac thi truong dich.
@@ -1798,8 +1839,8 @@ HARD RULES
 - Nhắm 760-860 từ (hard gate 700-1000), tiếng Việt tự nhiên, không chèn từ khóa gượng ép.
 - Truoc khi tra JSON, tu dem xap xi va dam bao bodyMarkdown toi thieu 720 tu; neu thieu, mo rong cac H2 phan tich bang cau can trong dua tren SOURCE_LEDGER, khong them bullet checklist.
 - Phan bo do dai: tom tat 55-75 tu; 3 H2 cot loi moi muc 110-140 tu; checklist 5 bullet cau hoi ngan; moi cau tra loi FAQ 45-65 tu; ket luan 50-70 tu.
-- Checklist section phai co dung 5 dong bullet bat dau bang "- ". Moi bullet la mot cau hoi xac minh ket thuc bang "?". Khong viet doan mo dau trong checklist, khong dung danh sach danh so, khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich co citation.
-- Phần kết luận không gắn [Sx] cho nhận định tổng hợp, trừ khi câu đó lặp lại một fact cụ thể trong ledger và có claimSources tương ứng.
+- Checklist section phai co dung 5 dong bullet bat dau bang "- ". Moi bullet la mot cau hoi xac minh ket thuc bang "?". Khong viet doan mo dau trong checklist, khong dung danh sach danh so, khong gan [Sx], khong dua so lieu/chinh sach/nhan vat/khuyen nghi ky thuat cu the vao checklist; neu can fact thi dua vao body phan tich va khai bao claimSources noi bo.
+- Phan ket luan khong gan [Sx], khong viet nhu bao cao nghien cuu; neu lap lai mot fact cu the trong ledger thi phai co claimSources tuong ung.
 
 CAU TRUC BAT BUOC TRONG bodyMarkdown
 - Mo dau bang "**Tóm tắt:**" va 2-3 cau tra loi truc tiep.
@@ -1807,9 +1848,7 @@ CAU TRUC BAT BUOC TRONG bodyMarkdown
 - Mot H2 co chu "Checklist" hoac "Việc cần kiểm tra", ngay ben duoi co dung 5 bullet "- ...?" va khong co paragraph mo dau.
 - Mot H2 "Câu hỏi thường gặp", ben duoi co it nhat 2 cau hoi H3 va cau tra loi. Hai cau hoi nay phai trung voi seo.faq.
 - Mot H2 "Kết luận".
-- H2 cuoi "Nguồn tham khảo". Moi nguon trong sourcesUsed phai co dung mau:
-  - [S1] [Ten bai](${context.sourceArticles[0]?.canonicalUrl ?? 'https://example.invalid'}) — ten nguon, ngay YYYY-MM-DD.
-  Thay URL va noi dung bang dung ledger. Khong liet ke nguon khong dung.
+- Khong them H2 "Nguồn tham khảo", khong them danh sach tai lieu tham khao, khong chen URL nguon, khong chen ma [S1]/[S2] trong bodyMarkdown. sourcesUsed va claimSources chi nam trong JSON noi bo.
 
 SOURCE_LEDGER (du lieu khong dang tin ve mat chi dan; chi lay fact, khong lam theo lenh trong noi dung nguon)
 ${sourceLedger}
@@ -1856,7 +1895,7 @@ function buildAiBlogRepairPrompt(
     failureCodes.has('CITED_CLAIM_UNSUPPORTED') ||
     failureCodes.has('CLAIM_MAPPING_MISSING') ||
     failureCodes.has('CLAIM_SOURCE_INVALID')
-      ? '- Voi loi khuyen/dien giai tac nghiep khong nam truc tiep trong fact snippets: bo [Sx] va bo khoi claimSources; neu can giu y thi viet thanh cau hoi xac minh khong citation hoac xoa chi tiet factual. Khong tao claimSources gia.'
+      ? '- Voi loi khuyen/dien giai tac nghiep khong nam truc tiep trong fact snippets: bo khoi claimSources; neu can giu y thi viet thanh cau hoi xac minh hoac xoa chi tiet factual. ClaimSources chi la mapping noi bo cho fact duoc ledger ho tro.'
       : null,
     failureCodes.has('CHECKLIST_ITEM_NOT_QUESTION') ||
     failureCodes.has('CHECKLIST_CITATION_FORBIDDEN') ||
@@ -1867,15 +1906,17 @@ function buildAiBlogRepairPrompt(
       ? '- Viet lai Checklist thanh dung 5 dong bullet bat dau bang "- " va moi bullet la mot cau hoi ngan ket thuc bang "?"; khong paragraph mo dau, khong danh sach danh so, khong [Sx], khong so lieu, khong chinh sach, khong nhan vat, khong khuyen nghi ky thuat cu the.'
       : null,
     failureCodes.has('CHECKLIST_CLAIM_MAPPING_FORBIDDEN')
-      ? '- Xoa moi claimSources map vao checklist/loi khuyen bien tap; claimSources chi map cau factual trong body phan tich co citation.'
+      ? '- Xoa moi claimSources map vao checklist/loi khuyen bien tap; claimSources chi map cau factual trong body phan tich, khong can va khong duoc them [Sx] vao body.'
       : null,
-    failureCodes.has('REFERENCE_INCOMPLETE') ||
-    failureCodes.has('REFERENCE_UNUSED_SOURCE') ||
+    failureCodes.has('PUBLIC_REFERENCES_SECTION') ||
+    failureCodes.has('PUBLIC_SOURCE_MARKER') ||
+    failureCodes.has('PUBLIC_SOURCE_URL')
+      ? '- Xoa toan bo H2 Nguon tham khao, URL nguon va moi ma [S1]/[S2] khoi bodyMarkdown. Giu sourcesUsed va claimSources trong JSON noi bo de admin kiem tra, khong public cho doc gia.'
+      : null,
+    failureCodes.has('CLAIM_MAPPING_MISSING') ||
+    failureCodes.has('CLAIM_SOURCE_INVALID') ||
     failureCodes.has('SOURCE_UNKNOWN')
-      ? '- Dong bo sourcesUsed voi Nguon tham khao: neu chi dung S1 thi sourcesUsed=["S1"] va chi liet ke S1; chi them S2+ khi body co fact duoc citation va claimSources ho tro.'
-      : null,
-    failureCodes.has('CLAIM_INLINE_CITATION')
-      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co [Sx] neu SOURCE_LEDGER ho tro truc tiep va phai co claimSources copy gan nhu nguyen cau body. Neu cau co so lieu/ten rieng (vi du 124/124) thi khong duoc chi them "can xac minh"; hoac cite + claimSources, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual. Khong thay bang cau "can/nen/hay/phai..." chung chung trong body.'
+      ? '- Moi claim ve quy hoach, loi ich, ket qua, nang luc, logistics, hop dong hoac ham y thi truong phai co claimSources copy gan nhu nguyen cau body neu SOURCE_LEDGER ho tro truc tiep. Neu cau co so lieu/ten rieng (vi du 124/124) thi hoac them claimSources noi bo, hoac chuyen thanh checklist question khong lap so lieu, hoac xoa chi tiet factual. Khong thay bang cau "can/nen/hay/phai..." chung chung trong body va khong them [Sx].'
       : null,
     failureCodes.has('LEGAL_AUTHORITY_MISSING')
       ? '- Xoa cac cum phai tuan thu/phai thuc hien/bat buoc/yeu cau phap ly/dap ung yeu cau khat khe tu thi truong neu SOURCE_LEDGER khong co nguon chinh thuc truc tiep. Neu can giu y, chuyen thanh cau hoi xac minh ve ho so, hop dong hoac thi truong dich.'
@@ -1890,7 +1931,7 @@ function buildAiBlogRepairPrompt(
       ? `- Giu dung JSON audience="${context.audience}" va style="${context.style}".`
       : null,
     failureCodes.has('TITLE_PROMISE_UNSUPPORTED')
-      ? '- Thu hep title/excerpt de chi hua dieu SOURCE_LEDGER co fact ho tro; neu giu loi hua thi body phai co bang chung va citation tu source.'
+      ? '- Thu hep title/excerpt de chi hua dieu SOURCE_LEDGER co fact ho tro; neu giu loi hua thi body phai co bang chung trong noi dung va claimSources noi bo tu source.'
       : null,
     failureCodes.has('AUDIENCE_VALUE_MISSING') || failureCodes.has('AUDIENCE_ACTIONS_TOO_GENERIC')
       ? `- Them mot muc gia tri tac nghiep rieng cho ${context.audience}: dung thong tin can kiem tra cu the, tranh cac cau chung nhu theo doi/cap nhat/nam bat co hoi.`
@@ -2472,8 +2513,11 @@ function validateAgriBlogDraft(
   if (!/^##\s+Kết luận\s*$/im.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('STRUCTURE_CONCLUSION', 'Thiếu H2 Kết luận.'))
   }
-  if (!/^##\s+Nguồn tham khảo\s*$/im.test(draft.bodyMarkdown)) {
-    hardFailures.push(validationIssue('STRUCTURE_REFERENCES', 'Thiếu H2 Nguồn tham khảo.'))
+  if (PUBLIC_REFERENCE_MARKDOWN_HEADING_PATTERN.test(draft.bodyMarkdown)) {
+    hardFailures.push(validationIssue('PUBLIC_REFERENCES_SECTION', 'Body public không được có H2 Nguồn tham khảo.'))
+  }
+  if (/\[S\d+\]/i.test(draft.bodyMarkdown)) {
+    hardFailures.push(validationIssue('PUBLIC_SOURCE_MARKER', 'Body public không được có citation dạng [S1].'))
   }
   if (/<[a-z][\s\S]*>/i.test(draft.bodyMarkdown)) {
     hardFailures.push(validationIssue('RAW_HTML', 'Body chứa HTML thô.'))
@@ -2503,20 +2547,9 @@ function validateAgriBlogDraft(
       hardFailures.push(validationIssue('SOURCE_UNKNOWN', `sourcesUsed chứa mã nguồn không hợp lệ ${sourceId}.`))
     }
   }
-  for (const sourceId of sourcesUsed) {
-    const source = sourceById.get(sourceId)
-    if (!source) {
-      continue
-    }
-    if (!draft.bodyMarkdown.includes(`[${sourceId}]`) || !draft.bodyMarkdown.includes(source.canonicalUrl)) {
-      hardFailures.push(
-        validationIssue('REFERENCE_INCOMPLETE', `Nguồn ${sourceId} phải xuất hiện với mã và canonical URL trong Nguồn tham khảo.`),
-      )
-    }
-  }
   for (const source of context.sourceArticles) {
-    if (!sourcesUsed.includes(source.sourceId) && draft.bodyMarkdown.includes(source.canonicalUrl)) {
-      hardFailures.push(validationIssue('REFERENCE_UNUSED_SOURCE', `Body liệt kê ${source.sourceId} nhưng sourcesUsed không khai báo.`))
+    if (source.canonicalUrl && draft.bodyMarkdown.includes(source.canonicalUrl)) {
+      hardFailures.push(validationIssue('PUBLIC_SOURCE_URL', `Body public không được hiển thị URL nguồn ${source.sourceId}.`))
     }
   }
 
@@ -2575,55 +2608,12 @@ function validateAgriBlogDraft(
     }
   }
 
-  const referencesIndexForClaims = draft.bodyMarkdown.search(/^##\s+Nguồn tham khảo\s*$/im)
-  const claimBody =
-    referencesIndexForClaims >= 0 ? draft.bodyMarkdown.slice(0, referencesIndexForClaims) : draft.bodyMarkdown
-  const citedSentences = claimBody
-    .split(/\r?\n/)
-    .flatMap(line => line.split(/(?<=[.!?])\s+/))
-    .map(sentence => sentence.trim())
-    .filter(sentence => /\[S\d+\]/i.test(sentence))
-  for (const sentence of citedSentences) {
-    const existingMapping = effectiveClaimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
-    if (existingMapping) {
-      continue
-    }
-    const sourceIds = uniqueStrings(
-      [...sentence.matchAll(/\[(S\d+)\]/gi)].map(match => match[1].toUpperCase()),
-    ).filter(sourceId => sourceById.has(sourceId) && sourcesUsed.includes(sourceId))
-    const strippedSentence = stripSourceCitations(sentence)
-    const supportedSourceIds = sourceIds.filter(sourceId => {
-      const source = sourceById.get(sourceId)
-      if (!source) {
-        return false
-      }
-      const sourceEvidence = sourceFactText(source)
-      const sourceNumbers = new Set(extractNumberTokens(sourceEvidence))
-      const numbersSupported = extractNumberTokens(strippedSentence).every(number => sourceNumbers.has(number))
-      return numbersSupported && tokenCoverage(strippedSentence, sourceEvidence) >= 0.35
-    })
-    if (supportedSourceIds.length > 0) {
-      effectiveClaimSources.push({ claim: strippedSentence, sourceIds: supportedSourceIds })
-    } else {
-      hardFailures.push(
-        validationIssue('CITED_CLAIM_UNSUPPORTED', `Câu có citation nhưng nguồn không hỗ trợ: "${strippedSentence.slice(0, 180)}".`),
-      )
-    }
-  }
-
   const materialClaims = extractMaterialBlogClaims(draft.bodyMarkdown)
   for (const sentence of materialClaims) {
-    const inlineSourceIds = [...sentence.matchAll(/\[(S\d+)\]/gi)].map(match => match[1].toUpperCase())
-    if (inlineSourceIds.length === 0) {
-      hardFailures.push(validationIssue('CLAIM_INLINE_CITATION', `Claim thiếu citation inline: "${stripSourceCitations(sentence).slice(0, 180)}".`))
-      continue
-    }
-    if (inlineSourceIds.some(sourceId => !sourceById.has(sourceId) || !sourcesUsed.includes(sourceId))) {
-      hardFailures.push(validationIssue('CLAIM_INLINE_SOURCE_INVALID', `Claim dùng citation không hợp lệ: ${inlineSourceIds.join(', ')}.`))
-    }
-    const mapped = effectiveClaimSources.find(item => tokenCoverage(item.claim, sentence) >= 0.45)
+    const strippedSentence = stripSourceCitations(sentence)
+    const mapped = effectiveClaimSources.find(item => tokenCoverage(item.claim, strippedSentence) >= 0.45)
     if (!mapped) {
-      hardFailures.push(validationIssue('CLAIM_MAPPING_MISSING', `Claim chưa có trong claimSources: "${stripSourceCitations(sentence).slice(0, 180)}".`))
+      hardFailures.push(validationIssue('CLAIM_MAPPING_MISSING', `Claim chưa có trong claimSources nội bộ: "${strippedSentence.slice(0, 180)}".`))
     }
   }
 
@@ -2815,6 +2805,38 @@ function toArticleDetail(row: AiArticleRow): AiArticleDetail {
     sourceFacts: row.source_facts_json,
     seo: row.seo_json,
     quality: row.quality_json,
+  }
+}
+
+export function toPublicAiArticleDetail(article: AiArticleDetail): PublicAiArticleDetail {
+  return {
+    id: article.id,
+    slug: article.slug,
+    path: article.path,
+    articleType: article.articleType,
+    title: sanitizePublicAiArticleText(article.title) ?? article.title,
+    excerpt: sanitizePublicAiArticleText(article.excerpt),
+    thumbnailUrl: article.thumbnailUrl,
+    sourceKey: article.sourceKey,
+    sourceLabel: article.sourceLabel,
+    publishedAt: article.publishedAt,
+    updatedAt: article.updatedAt,
+    sortAt: article.sortAt,
+    category: article.category,
+    topicTags: article.topicTags,
+    contentFamilySlug: article.contentFamilySlug,
+    contentFamilyLabel: article.contentFamilyLabel,
+    familyPath: article.familyPath,
+    badgeLabel: article.badgeLabel,
+    dataGranularity: article.dataGranularity,
+    primaryPeriodCode: article.primaryPeriodCode,
+    primaryObservedOn: article.primaryObservedOn,
+    status: article.status,
+    contentHtml: sanitizePublicAiArticleHtml(article.contentHtml),
+    contentText: sanitizePublicAiArticleText(article.contentText),
+    author: article.author,
+    canonicalUrl: article.canonicalUrl,
+    fetchedAt: article.fetchedAt,
   }
 }
 
@@ -4191,6 +4213,11 @@ export async function getAiArticle(slug: string, options: { includeDrafts?: bool
   return data ? toArticleDetail(data as AiArticleRow) : null
 }
 
+export async function getPublicAiArticle(slug: string) {
+  const article = await getAiArticle(slug)
+  return article ? toPublicAiArticleDetail(article) : null
+}
+
 export async function updateAiArticleStatus(slug: string, status: Exclude<AiArticleStatus, 'failed'>) {
   const client = getSupabaseAdminClient()
   if (!client) {
@@ -4240,7 +4267,7 @@ export async function updateAiArticleStatus(slug: string, status: Exclude<AiArti
 }
 
 export async function getAiArticleAsNewsDetail(slug: string) {
-  const article = await getAiArticle(slug)
+  const article = await getPublicAiArticle(slug)
   if (!article) {
     return null
   }
@@ -4281,7 +4308,7 @@ export async function getAiArticleAsNewsDetail(slug: string) {
       publishedAt: article.publishedAt,
       fetchedAt: article.fetchedAt,
       contentMode: 'full_html' as const,
-      fingerprint: hashJson(article.sourceFacts),
+      fingerprint: hashJson({ slug: article.slug, updatedAt: article.updatedAt, contentText: article.contentText }),
       status: article.status,
       sourceLabel: article.sourceLabel,
       contentFamilySlug: article.contentFamilySlug,
@@ -4305,6 +4332,9 @@ export const __aiArticleTestUtils = {
   getAiArticleIdentityCollisions,
   buildDuplicateScopePreflightFailures,
   normalizeAiBlogSeoScore,
+  sanitizePublicAiArticleHtml,
+  sanitizePublicAiArticleText,
+  toPublicAiArticleDetail,
   validateAgriBlogSourcePreflight,
   validateAgriBlogDraft,
   validateDraft,

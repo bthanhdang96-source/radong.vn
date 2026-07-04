@@ -13,6 +13,7 @@ import {
   buildWorldDailyArticleContextFromRows,
   slugifyAiArticle,
   toAiArticleContentFeedItem,
+  type AiArticleDetail,
   type AiArticleSummary,
 } from '../services/aiArticles/service.js'
 
@@ -154,8 +155,6 @@ function validBlogDraft(context: ReturnType<typeof buildAgriBlogArticleContextFr
       faq[1].answer,
       '## Kết luận',
       'Chỉ nên thay đổi cách làm sau khi đã đối chiếu nguồn, đánh giá điều kiện riêng và có phương án theo dõi kết quả.',
-      '## Nguồn tham khảo',
-      `- [S1] [${context.sourceArticles[0]?.title}](${context.sourceArticles[0]?.canonicalUrl}) — ${context.sourceArticles[0]?.sourceKey}, 2026-06-10.`,
     ].join('\n\n'),
     seo: {
       title: 'Chuẩn bị thông tin trước khi thay đổi cách làm',
@@ -396,30 +395,34 @@ test('agri blog prompt stays on blog article type instead of daily price context
   assert.match(prompt, /Ket luan khong dung "Hay\.\.\."/)
   assert.match(prompt, /dap ung yeu cau khat khe tu thi truong/)
   assert.match(prompt, /toi thieu 720 tu/)
-  assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body voi citation/)
+  assert.match(prompt, /Khong dua citation dang \[S1\]/)
+  assert.match(prompt, /Moi claimSources\.claim phai la cau factual xuat hien trong body/)
+  assert.match(prompt, /Khong them H2 "Nguồn tham khảo"/)
   assert.match(prompt, /Khong viet cau tran thuat dang "la thong tin can xac minh"/)
 })
 
-test('agri blog repair prompt gives checklist and source-reference guidance', () => {
+test('agri blog repair prompt gives checklist and public-redaction guidance', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const prompt = __aiArticleTestUtils.buildAiBlogRepairPrompt(context, null, [
     { code: 'CHECKLIST_ITEM_NOT_QUESTION', message: 'bad checklist' },
-    { code: 'REFERENCE_INCOMPLETE', message: 'bad references' },
+    { code: 'PUBLIC_REFERENCES_SECTION', message: 'bad references' },
+    { code: 'PUBLIC_SOURCE_MARKER', message: 'bad source markers' },
     { code: 'WORD_COUNT_MIN', message: 'too short' },
     { code: 'WORD_COUNT_MAX', message: 'too long' },
     { code: 'CITED_CLAIM_UNSUPPORTED', message: 'bad advice citation' },
-    { code: 'CLAIM_INLINE_CITATION', message: 'missing body citation' },
+    { code: 'CLAIM_MAPPING_MISSING', message: 'missing body mapping' },
     { code: 'CHECKLIST_COUNT', message: 'wrong count' },
     { code: 'LEGAL_AUTHORITY_MISSING', message: 'bad legal authority' },
   ])
 
   assert.match(prompt, /Checklist thanh dung 5 dong bullet/)
-  assert.match(prompt, /Dong bo sourcesUsed voi Nguon tham khao/)
+  assert.match(prompt, /Xoa toan bo H2 Nguon tham khao/)
+  assert.match(prompt, /Giu sourcesUsed va claimSources trong JSON noi bo/)
   assert.match(prompt, /cat ve 760-860 tu/)
   assert.match(prompt, /toi thieu 720 tu/)
-  assert.match(prompt, /bo \[Sx\] va bo khoi claimSources/)
+  assert.match(prompt, /ClaimSources chi la mapping noi bo/)
   assert.match(prompt, /Moi claim ve quy hoach, loi ich, ket qua/)
-  assert.match(prompt, /khong duoc chi them "can xac minh"/)
+  assert.match(prompt, /hoac them claimSources noi bo/)
   assert.match(prompt, /Khong thay bang cau "can\/nen\/hay\/phai\.\.\." chung chung trong body/)
   assert.match(prompt, /dap ung yeu cau khat khe tu thi truong/)
 })
@@ -448,7 +451,7 @@ test('agri blog draft validation returns deterministic hard-gate codes', () => {
   assert.equal(quality.valid, false)
   assert.ok(quality.hardFailures.some(failure => failure.code === 'RAW_HTML'))
   assert.ok(quality.hardFailures.some(failure => failure.code === 'WORD_COUNT_MIN'))
-  assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_INLINE_CITATION'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_MAPPING_MISSING'))
   assert.throws(() => __aiArticleTestUtils.parseAiDraft('{"title":"Thieu body"}'), /missing title, excerpt, or bodyMarkdown/)
 })
 
@@ -776,7 +779,7 @@ test('agri blog claimSources may map supported body claims that resemble checkli
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const draft = validBlogDraft(context)
   const supportedClaim =
-    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026 [S1].'
+    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026.'
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     ...draft,
     bodyMarkdown: draft.bodyMarkdown
@@ -844,7 +847,7 @@ test('duplicate scope preflight flags legacy draft before generation', () => {
   assert.deepEqual(failures.map(failure => failure.code), ['DUPLICATE_DRAFT_IDENTITY'])
 })
 
-test('valid agri blog passes hard gates with body FAQ and source ledger references', () => {
+test('valid agri blog passes hard gates with body FAQ and internal source ledger', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, validBlogDraft(context))
 
@@ -852,6 +855,24 @@ test('valid agri blog passes hard gates with body FAQ and source ledger referenc
   assert.equal(quality.hardFailures.length, 0)
   assert.ok(quality.wordCount >= 700)
   assert.ok(quality.wordCount <= 1000)
+})
+
+test('agri blog validator rejects public source artifacts', () => {
+  const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
+  const draft = validBlogDraft(context)
+  const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
+    ...draft,
+    bodyMarkdown: [
+      draft.bodyMarkdown,
+      '## Nguồn tham khảo',
+      `- [S1] [${context.sourceArticles[0]?.title}](${context.sourceArticles[0]?.canonicalUrl})`,
+    ].join('\n\n'),
+  })
+
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'PUBLIC_REFERENCES_SECTION'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'PUBLIC_SOURCE_MARKER'))
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'PUBLIC_SOURCE_URL'))
 })
 
 test('numbered-list markers are not treated as factual claims', () => {
@@ -881,7 +902,7 @@ test('retail price ceiling cannot be rewritten as an import-price rule', () => {
   const draft = validBlogDraft(buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()]))
   const bodyMarkdown = draft.bodyMarkdown.replace(
     '## Câu hỏi thường gặp',
-    'Đây là quy định về giá nhập khẩu tại Philippines [S1].\n\n## Câu hỏi thường gặp',
+    'Đây là quy định về giá nhập khẩu tại Philippines.\n\n## Câu hỏi thường gặp',
   )
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     ...draft,
@@ -895,10 +916,10 @@ test('retail price ceiling cannot be rewritten as an import-price rule', () => {
   assert.ok(quality.hardFailures.some(failure => failure.code === 'PRICE_TYPE_CHANGED'))
 })
 
-test('citation cannot legitimize advice that is absent from source facts', () => {
+test('internal claimSources cannot legitimize advice that is absent from source facts', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const draft = validBlogDraft(context)
-  const unsupportedClaim = 'Bà con cần dựng nhà kính kín hoàn toàn trước khi bắt đầu [S1].'
+  const unsupportedClaim = 'Bà con cần dựng nhà kính kín hoàn toàn trước khi bắt đầu.'
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     ...draft,
     bodyMarkdown: draft.bodyMarkdown.replace('## Câu hỏi thường gặp', `${unsupportedClaim}\n\n## Câu hỏi thường gặp`),
@@ -909,19 +930,20 @@ test('citation cannot legitimize advice that is absent from source facts', () =>
   assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_TEXT_UNSUPPORTED'))
 })
 
-test('validator derives a missing claim mapping when inline citation is supported', () => {
+test('validator requires internal claimSources instead of inline citations', () => {
   const context = buildAgriBlogArticleContextFromSeed(blogSeed(), [blogNewsRow()])
   const draft = validBlogDraft(context)
   const supportedClaim =
-    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026 [S1].'
+    'Theo cơ quan chức năng, doanh nghiệp xuất khẩu gạo cần cập nhật tiêu chuẩn và hồ sơ truy xuất nguồn gốc trong năm 2026.'
   const quality = __aiArticleTestUtils.validateAgriBlogDraft(context, {
     ...draft,
     bodyMarkdown: draft.bodyMarkdown.replace('## Câu hỏi thường gặp', `${supportedClaim}\n\n## Câu hỏi thường gặp`),
     claimSources: [],
   })
 
-  assert.equal(quality.valid, true, JSON.stringify(quality.hardFailures))
-  assert.ok(quality.claimSources.some(item => item.sourceIds.includes('S1')))
+  assert.equal(quality.valid, false)
+  assert.ok(quality.hardFailures.some(failure => failure.code === 'CLAIM_MAPPING_MISSING'))
+  assert.equal(quality.claimSources.some(item => item.sourceIds.includes('S1')), false)
 })
 
 test('agri blog generation normalizes malformed checklist before validation', async () => {
@@ -973,6 +995,57 @@ test('agri blog generation stops after three invalid model responses', async () 
   assert.equal(calls, 3)
   assert.equal(result.attempts.length, 3)
   assert.ok(result.failures.some(failure => failure.code === 'MODEL_RESPONSE_INVALID'))
+})
+
+test('public AI article detail removes references and internal review metadata', () => {
+  const detail = {
+    id: 'article-1',
+    slug: 'blog-nong-nghiep-farmer-nguon-test',
+    path: '/tin-tuc/blog-nong-nghiep-farmer-nguon-test',
+    articleType: 'agri_blog',
+    title: 'Bài viết cho độc giả phổ thông [S1]',
+    excerpt: 'Tóm tắt nên đọc như bài public [S2].',
+    thumbnailUrl: null,
+    sourceKey: 'nongsanvn_ai',
+    sourceLabel: 'NongSanVN AI',
+    publishedAt: '2026-06-10T02:00:00.000Z',
+    updatedAt: '2026-06-10T02:30:00.000Z',
+    sortAt: '2026-06-10T00:00:00.000Z',
+    category: 'Blog nha nong',
+    topicTags: ['blog-nong-nghiep'],
+    contentFamilySlug: 'blog-nong-nghiep',
+    contentFamilyLabel: 'Blog nong nghiep',
+    familyPath: '/tin-tuc/nhom/blog-nong-nghiep',
+    badgeLabel: 'Blog',
+    dataGranularity: 'mixed',
+    primaryPeriodCode: null,
+    primaryObservedOn: '2026-06-10',
+    status: 'published',
+    contentHtml:
+      '<p>Độc giả chỉ cần thấy phần diễn giải dễ đọc [S1].</p>\n<h2>Nguồn tham khảo</h2>\n<ul><li><a href="https://example.com/source">Nguồn S1</a></li></ul>',
+    contentText:
+      'Độc giả chỉ cần thấy phần diễn giải dễ đọc [S1]. Nguồn tham khảo - [S1] https://example.com/source',
+    author: 'NongSanVN AI',
+    canonicalUrl: '/tin-tuc/blog-nong-nghiep-farmer-nguon-test',
+    fetchedAt: '2026-06-10T02:30:00.000Z',
+    sourceFacts: { sourceArticles: [{ sourceId: 'S1' }] },
+    seo: { score: 91 },
+    quality: { hardFailures: [] },
+  } satisfies AiArticleDetail
+
+  const publicArticle = __aiArticleTestUtils.toPublicAiArticleDetail(detail)
+
+  assert.equal(Object.prototype.hasOwnProperty.call(publicArticle, 'sourceFacts'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(publicArticle, 'seo'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(publicArticle, 'quality'), false)
+  assert.equal(publicArticle.title.includes('[S1]'), false)
+  assert.equal(publicArticle.excerpt?.includes('[S2]'), false)
+  assert.equal(publicArticle.contentHtml?.includes('[S1]'), false)
+  assert.equal(publicArticle.contentHtml?.includes('Nguồn tham khảo'), false)
+  assert.equal(publicArticle.contentHtml?.includes('example.com/source'), false)
+  assert.equal(publicArticle.contentText?.includes('[S1]'), false)
+  assert.equal(publicArticle.contentText?.includes('Nguồn tham khảo'), false)
+  assert.equal(publicArticle.contentText?.includes('example.com/source'), false)
 })
 
 test('AI article feed item keeps news path and taxonomy metadata', () => {

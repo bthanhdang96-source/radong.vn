@@ -6,6 +6,7 @@ import {
   deleteAiBlogTopicSeed,
   generateAiArticles,
   getAiArticle,
+  getPublicAiArticle,
   isAiBlogAudience,
   isAiBlogStyle,
   isAiBlogTopicSeedStatus,
@@ -133,7 +134,7 @@ router.get('/ai-articles', async (req, res) => {
 
 router.get('/ai-articles/:slug', async (req, res) => {
   try {
-    const article = await getAiArticle(req.params.slug)
+    const article = await getPublicAiArticle(req.params.slug)
     if (!article) {
       res.status(404).json({ success: false, error: 'AI article not found' })
       return
